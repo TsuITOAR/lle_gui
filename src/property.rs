@@ -9,7 +9,7 @@ impl Property<f64> {
     pub fn new(v: f64, label: impl ToString) -> Self {
         Self {
             value: v,
-            range: (v - 5., v + 5.),
+            range: (v - 10., v + 20.),
             label: label.to_string(),
         }
     }

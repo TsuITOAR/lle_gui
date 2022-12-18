@@ -13,7 +13,13 @@ eframe = { version = "^0.19", features = ["persistence"] }
 serde = { version = "1", features = [
     "derive",
 ] } # You only need this if you want app persistence
-
+lle = { git = "https://github.com/TsuITOAR/Lle.git" }
+jkplot = { git = "https://github.com/TsuITOAR/jkplot.git" }
+rand = "^0.8"
+plotters = "^0.3"
+plotters-bitmap = "^0.3"
+anyhow = "*"
+log = "^0.4"
 # native:
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 tracing-subscriber = "0.3"

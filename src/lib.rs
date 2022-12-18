@@ -1,9 +1,51 @@
 #![warn(clippy::all, rust_2018_idioms)]
 
-use property::Property;
-
+mod drawer;
 mod property;
 
+use std::{collections::BTreeMap, f64::consts::PI};
+
+use drawer::DrawData;
+use egui::ColorImage;
+use lle::{num_complex::Complex64, num_traits::zero, LinearOp};
+use property::Property;
+type LleSolver<const LEN: usize> = lle::LleSolver<
+    f64,
+    [Complex64; LEN],
+    lle::LinearOpAdd<(lle::DiffOrder, Complex64), (lle::DiffOrder, Complex64)>,
+    Box<dyn Fn(Complex64) -> Complex64>,
+>;
+pub(crate) fn add_random<'a>(
+    intensity: f64,
+    sigma: f64,
+    state: impl Iterator<Item = &'a mut Complex64>,
+) {
+    use rand::Rng;
+    let mut rand = rand::thread_rng();
+    state.for_each(|x| {
+        *x += (Complex64::i() * rand.gen::<f64>() * 2. * PI).exp()
+            * (-(rand.gen::<f64>() / sigma).powi(2) / 2.).exp()
+            / ((2. * PI).sqrt() * sigma)
+            * intensity
+    })
+}
+
+fn default_add_random<'a>(state: impl Iterator<Item = &'a mut Complex64>) {
+    add_random((2. * PI).sqrt() * 1e5, 1e5, state)
+}
+
+fn synchronize_properties<const L: usize>(
+    props: &BTreeMap<String, Property<f64>>,
+    engine: &mut LleSolver<L>,
+) {
+    engine.linear = (0, -(Complex64::i() * props["alpha"].value + 1.))
+        .add((2, -Complex64::i() * props["linear"].value / 2.))
+        .into();
+    engine.constant = Complex64::from(props["pump"].value).into();
+}
+
+const LEN: usize = 128;
+const DEFAULT_DRAW_RES: (usize, usize) = (640, 640);
 /// We derive Deserialize/Serialize so we can persist app state on shutdown.
 #[derive(serde::Deserialize, serde::Serialize)]
 #[serde(default)] // if we add new fields, give them default values when deserializing old state
@@ -11,10 +53,15 @@ pub struct App {
     // Example stuff:
     label: String,
 
-    properties: Vec<Property<f64>>,
-
+    properties: BTreeMap<String, Property<f64>>,
+    #[serde(skip)]
+    engine: Option<LleSolver<LEN>>,
+    #[serde(skip)]
+    drawer: Option<DrawData>,
     #[serde(skip)]
     seed: Option<u32>,
+    #[serde(skip)]
+    running: bool,
 }
 
 impl Default for App {
@@ -24,11 +71,17 @@ impl Default for App {
             label: "Hello World!".to_owned(),
 
             properties: vec![
-                Property::new(-1., "alpha"),
-                Property::new(-1., "pump"),
-                Property::new(-1., "linear"),
-            ],
+                Property::new(-5., "alpha"),
+                Property::new(3.94, "pump"),
+                Property::new(-0.0444, "linear"),
+            ]
+            .into_iter()
+            .map(|x| (x.label.clone(), x))
+            .collect(),
+            engine: None,
+            drawer: None,
             seed: None,
+            running: false,
         }
     }
 }
@@ -50,19 +103,41 @@ impl App {
 }
 
 impl eframe::App for App {
-    /// Called by the frame work to save state before shutdown.
-    fn save(&mut self, storage: &mut dyn eframe::Storage) {
-        eframe::set_value(storage, eframe::APP_KEY, self);
-    }
-
     /// Called each time the UI needs repainting, which may be many times per second.
     /// Put your widgets into a `SidePanel`, `TopPanel`, `CentralPanel`, `Window` or `Area`.
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         let Self {
             label,
             properties,
+            engine,
+            drawer,
             seed,
+            running,
         } = self;
+        let engine = engine.get_or_insert_with(|| {
+            let mut init = [zero(); LEN];
+            default_add_random(init.iter_mut());
+            const STEP_DIST: f64 = 8e-4;
+            const PUMP: f64 = 3.94;
+            const LINEAR: f64 = -0.0444;
+            const ALPHA: f64 = -5.;
+            LleSolver::new(
+                init,
+                STEP_DIST,
+                (0, -(Complex64::i() * ALPHA + 1.)).add((2, -Complex64::i() * LINEAR / 2.)),
+                Box::new(|x: Complex64| Complex64::i() * x.norm_sqr())
+                    as Box<dyn Fn(Complex64) -> Complex64>,
+                Complex64::from(PUMP),
+            )
+        });
+        synchronize_properties(properties, engine);
+        let drawer = drawer.get_or_insert_with(|| DrawData::new(LEN, DEFAULT_DRAW_RES));
+        if *running {
+            use lle::Evolver;
+            engine.evolve_n(100);
+            drawer.push(engine.state().to_owned());
+            drawer.update().unwrap();
+        }
 
         // Examples of how to create different panels and windows.
         // Pick whichever suits you.
@@ -88,11 +163,14 @@ impl eframe::App for App {
                 ui.label("Write something: ");
                 ui.text_edit_singleline(label);
             });
-            for p in properties {
+            for p in properties.values_mut() {
                 use egui::Slider;
                 ui.add(Slider::new(&mut p.value, p.range.0..=p.range.1).text(&p.label));
             }
-
+            let button_text = if *running { "running" } else { "waiting" };
+            if ui.button(button_text).clicked() {
+                *running = !*running;
+            };
             ui.with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui| {
                 ui.horizontal(|ui| {
                     ui.spacing_mut().item_spacing.x = 0.0;
@@ -110,23 +188,35 @@ impl eframe::App for App {
 
         egui::CentralPanel::default().show(ctx, |ui| {
             // The central panel the region left after adding TopPanel's and SidePanel's
-
-            ui.heading("eframe template");
-            ui.hyperlink("https://github.com/emilk/eframe_template");
-            ui.add(egui::github_link_file!(
-                "https://github.com/emilk/eframe_template/blob/master/",
-                "Source code."
-            ));
+            let (size, buff_upper, buff_lower) = drawer.fetch().unwrap();
+            ui.heading("diagram area");
             egui::warn_if_debug_build(ui);
+            let max_size = ui.available_size();
+            let half_max_size = egui::Vec2::new(max_size[0], max_size[1] * 0.5);
+            ui.image(
+                &ui.ctx().load_texture(
+                    "real space",
+                    ColorImage::from_rgba_unmultiplied([size.0, size.1], buff_upper),
+                    egui::TextureFilter::Linear,
+                ),
+                half_max_size,
+            );
+            ui.image(
+                &ui.ctx().load_texture(
+                    "freq space",
+                    ColorImage::from_rgba_unmultiplied([size.0, size.1], buff_lower),
+                    egui::TextureFilter::Linear,
+                ),
+                half_max_size,
+            )
         });
-
-        if false {
-            egui::Window::new("Window").show(ctx, |ui| {
-                ui.label("Windows can be moved by dragging them.");
-                ui.label("They are automatically sized based on contents.");
-                ui.label("You can turn on resizing and scrolling if you like.");
-                ui.label("You would normally chose either panels OR windows.");
-            });
+        if *running {
+            ctx.request_repaint();
         }
+    }
+
+    /// Called by the frame work to save state before shutdown.
+    fn save(&mut self, storage: &mut dyn eframe::Storage) {
+        eframe::set_value(storage, eframe::APP_KEY, self);
     }
 }
