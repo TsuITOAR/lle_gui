@@ -155,7 +155,7 @@ impl eframe::App for App {
                 });
             });
         });
-
+        let mut reset = false;
         egui::SidePanel::left("side_panel").show(ctx, |ui| {
             ui.heading("Side Panel");
 
@@ -165,12 +165,17 @@ impl eframe::App for App {
             });
             for p in properties.values_mut() {
                 use egui::Slider;
-                ui.add(Slider::new(&mut p.value, p.range.0..=p.range.1).text(&p.label));
+                ui.add(
+                    Slider::new(&mut p.value, p.range.0..=p.range.1)
+                        .text(&p.label)
+                        .smart_aim(false),
+                );
             }
             let button_text = if *running { "running" } else { "waiting" };
             if ui.button(button_text).clicked() {
                 *running = !*running;
             };
+            reset = ui.button("reset").clicked();
             ui.with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui| {
                 ui.horizontal(|ui| {
                     ui.spacing_mut().item_spacing.x = 0.0;
@@ -185,7 +190,10 @@ impl eframe::App for App {
                 });
             });
         });
-
+        if reset {
+            *self = Default::default();
+            return;
+        }
         egui::CentralPanel::default().show(ctx, |ui| {
             // The central panel the region left after adding TopPanel's and SidePanel's
             let (size, buff_upper, buff_lower) = drawer.fetch().unwrap();
