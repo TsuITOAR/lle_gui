@@ -6,7 +6,7 @@ mod property;
 use std::{collections::BTreeMap, f64::consts::PI};
 
 use drawer::DrawData;
-use egui::ColorImage;
+use egui::{ColorImage, TextureHandle};
 use lle::{num_complex::Complex64, num_traits::zero, LinearOp};
 use property::Property;
 type LleSolver<const LEN: usize> = lle::LleSolver<
@@ -59,6 +59,10 @@ pub struct App {
     #[serde(skip)]
     drawer: Option<DrawData>,
     #[serde(skip)]
+    texture_cache_up: Option<TextureHandle>,
+    #[serde(skip)]
+    texture_cache_down: Option<TextureHandle>,
+    #[serde(skip)]
     seed: Option<u32>,
     #[serde(skip)]
     running: bool,
@@ -80,6 +84,8 @@ impl Default for App {
             .collect(),
             engine: None,
             drawer: None,
+            texture_cache_up: None,
+            texture_cache_down: None,
             seed: None,
             running: false,
         }
@@ -113,6 +119,8 @@ impl eframe::App for App {
             drawer,
             seed,
             running,
+            texture_cache_up,
+            texture_cache_down,
         } = self;
         let engine = engine.get_or_insert_with(|| {
             let mut init = [zero(); LEN];
@@ -132,6 +140,7 @@ impl eframe::App for App {
         });
         synchronize_properties(properties, engine);
         let drawer = drawer.get_or_insert_with(|| DrawData::new(LEN, DEFAULT_DRAW_RES));
+
         if *running {
             use lle::Evolver;
             engine.evolve_n(100);
@@ -194,6 +203,7 @@ impl eframe::App for App {
             *self = Default::default();
             return;
         }
+        const TEXTURE_FILTER: egui::TextureFilter = egui::TextureFilter::Linear;
         egui::CentralPanel::default().show(ctx, |ui| {
             // The central panel the region left after adding TopPanel's and SidePanel's
             let (size, buff_upper, buff_lower) = drawer.fetch().unwrap();
@@ -201,22 +211,30 @@ impl eframe::App for App {
             egui::warn_if_debug_build(ui);
             let max_size = ui.available_size();
             let half_max_size = egui::Vec2::new(max_size[0], max_size[1] * 0.5);
-            ui.image(
-                &ui.ctx().load_texture(
-                    "real space",
+            let texture_cache_up = texture_cache_up.get_or_insert_with(|| {
+                ui.ctx().load_texture(
+                    "freq space",
                     ColorImage::from_rgba_unmultiplied([size.0, size.1], buff_upper),
-                    egui::TextureFilter::Linear,
-                ),
-                half_max_size,
+                    TEXTURE_FILTER,
+                )
+            });
+            texture_cache_up.set(
+                ColorImage::from_rgba_unmultiplied([size.0, size.1], buff_upper),
+                TEXTURE_FILTER,
             );
-            ui.image(
-                &ui.ctx().load_texture(
+            ui.image(texture_cache_up, half_max_size);
+            let texture_cache_down = texture_cache_down.get_or_insert_with(|| {
+                ui.ctx().load_texture(
                     "freq space",
                     ColorImage::from_rgba_unmultiplied([size.0, size.1], buff_lower),
-                    egui::TextureFilter::Linear,
-                ),
-                half_max_size,
-            )
+                    TEXTURE_FILTER,
+                )
+            });
+            texture_cache_down.set(
+                ColorImage::from_rgba_unmultiplied([size.0, size.1], buff_lower),
+                TEXTURE_FILTER,
+            );
+            ui.image(texture_cache_down, half_max_size)
         });
         if *running {
             ctx.request_repaint();
