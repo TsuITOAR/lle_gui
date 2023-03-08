@@ -6,7 +6,7 @@ mod property;
 use std::{collections::BTreeMap, f64::consts::PI};
 
 use drawer::DrawData;
-use egui::{ColorImage, TextureHandle};
+use egui::{ColorImage, DragValue, TextureHandle};
 use lle::{num_complex::Complex64, num_traits::zero, LinearOp};
 use property::Property;
 type LleSolver<const LEN: usize> = lle::LleSolver<
@@ -52,7 +52,7 @@ const DEFAULT_DRAW_RES: (usize, usize) = (640, 640);
 pub struct App {
     // Example stuff:
     label: String,
-
+    slider_len: Option<f32>,
     properties: BTreeMap<String, Property<f64>>,
     #[serde(skip)]
     engine: Option<LleSolver<LEN>>,
@@ -73,7 +73,7 @@ impl Default for App {
         Self {
             // Example stuff:
             label: "Hello World!".to_owned(),
-
+            slider_len: None,
             properties: vec![
                 Property::new(-5., "alpha"),
                 Property::new(3.94, "pump"),
@@ -114,6 +114,7 @@ impl eframe::App for App {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         let Self {
             label,
+            slider_len,
             properties,
             engine,
             drawer,
@@ -172,14 +173,16 @@ impl eframe::App for App {
                 ui.label("Write something: ");
                 ui.text_edit_singleline(label);
             });
+            let slider_len = slider_len.get_or_insert_with(|| ui.spacing().slider_width);
+            ui.spacing_mut().slider_width = *slider_len;
             for p in properties.values_mut() {
-                use egui::Slider;
-                ui.add(
-                    Slider::new(&mut p.value, p.range.0..=p.range.1)
-                        .text(&p.label)
-                        .smart_aim(false),
-                );
+                p.show(ui, ctx)
             }
+
+            ui.horizontal(|ui| {
+                ui.label("Slider length");
+                ui.add(DragValue::new(slider_len));
+            });
             let button_text = if *running { "running" } else { "waiting" };
             if ui.button(button_text).clicked() {
                 *running = !*running;
