@@ -1,3 +1,5 @@
+use egui::{Event, Key};
+
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, serde::Deserialize, serde::Serialize)]
 pub(crate) struct Property<T> {
     pub(crate) value: T,
@@ -54,5 +56,8 @@ impl Property<f64> {
                     ui.label("Upper bound");
                 });
             });
+        if ctx.input().key_pressed(Key::Escape) {
+            *edit_range = false;
+        }
     }
 }
