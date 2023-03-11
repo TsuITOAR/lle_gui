@@ -185,35 +185,63 @@ impl DrawData {
 
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
 pub struct PlotRange<T> {
-    last_used: Option<RangeInclusive<T>>,
-    strategy: PlotStrategy,
+    bounds: (Bound<T>, Bound<T>),
     scale_radix: Option<u32>,
 }
 
 impl<T: Debug + Float + PartialOrd + FromPrimitive + Copy> PlotRange<T> {
-    pub fn new(strategy: PlotStrategy, scale_radix: impl Into<Option<u32>>) -> Self {
+    pub fn new(bound: Bound<T>, scale_radix: impl Into<Option<u32>>) -> Self {
         Self {
-            last_used: None,
-            strategy,
+            bounds: (bound.clone(), bound),
+            scale_radix: scale_radix.into(),
+        }
+    }
+    pub fn new2(bounds: (Bound<T>, Bound<T>), scale_radix: impl Into<Option<u32>>) -> Self {
+        Self {
+            bounds,
             scale_radix: scale_radix.into(),
         }
     }
 
     pub fn set_last(&mut self, last: RangeInclusive<T>) -> &mut Self {
         assert!(!last.is_empty());
-        self.last_used = Some(last);
+        self.bounds.0.v = Some(*last.start());
+        self.bounds.1.v = Some(*last.end());
         self
     }
 
     pub fn update(&mut self, new: RangeInclusive<T>) -> RangeInclusive<T> {
         assert!(!new.is_empty());
-        fn max<T: PartialOrd + Copy>(a: &T, b: &T) -> T {
-            if a.gt(b) {
-                *a
-            } else {
-                *b
-            }
-        }
+        let mag = self.scale_radix.map(|radix| {
+            let radix: T = T::from_u32(radix).unwrap();
+            let dis = *new.end() - *new.start();
+            let order = dis.log(radix).ceil() - T::one();
+            radix.powf(order)
+        });
+        self.bounds.0.update_as_lower(*new.start(), mag)
+            ..=self.bounds.1.update_as_upper(*new.end(), mag)
+    }
+}
+
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
+pub enum PlotStrategy {
+    Static,
+    InstantFit,
+    LazyFit { max_lazy: u32, lazy: u32 },
+    GrowOnly,
+}
+
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
+pub struct Bound<T> {
+    v: Option<T>,
+    strategy: PlotStrategy,
+}
+
+impl<T: Debug + Float + PartialOrd + FromPrimitive + Copy> Bound<T> {
+    pub fn new(strategy: PlotStrategy) -> Self {
+        Self { v: None, strategy }
+    }
+    pub fn update_as_lower(&mut self, new: T, mag: Option<T>) -> T {
         fn min<T: PartialOrd + Copy>(a: &T, b: &T) -> T {
             if a.le(b) {
                 *a
@@ -221,7 +249,13 @@ impl<T: Debug + Float + PartialOrd + FromPrimitive + Copy> PlotRange<T> {
                 *b
             }
         }
-        let last_used = match self.last_used {
+        let mut new = new;
+        if let Some(mag) = mag {
+            let sta = new;
+            let mag_sta = ((sta / mag).ceil() - T::one()) * mag;
+            new = mag_sta;
+        }
+        match self.v {
             Some(ref mut last_used) => {
                 match self.strategy {
                     PlotStrategy::Static => (),
@@ -232,44 +266,63 @@ impl<T: Debug + Float + PartialOrd + FromPrimitive + Copy> PlotRange<T> {
                         max_lazy,
                         ref mut lazy,
                     } => {
-                        if last_used.start().le(new.start())
-                            && last_used.end().ge(new.end())
-                            && *lazy < max_lazy
-                        {
+                        if (*last_used).lt(&new) && *lazy < max_lazy {
                             *lazy += 1;
                         } else {
                             *lazy = 0;
-                            *last_used = *new.start()..=*new.end();
+                            *last_used = new;
                         }
                     }
                     PlotStrategy::GrowOnly => {
-                        *last_used =
-                            min(new.start(), last_used.start())..=max(new.end(), last_used.end());
+                        *last_used = min(&new, last_used);
                     }
                 };
                 last_used
             }
-            None => self.last_used.insert(new),
-        };
-        if let Some(radix) = self.scale_radix {
-            let radix: T = T::from_u32(radix).unwrap();
-            let sta = *last_used.start();
-            let end = *last_used.end();
-            let dis = end - sta;
-            let order = dis.log(radix).ceil() - T::one();
-            let mag = radix.powf(order);
-            let mag_sta = (sta / mag).floor() * mag;
-            let mag_end = (end / mag).ceil() * mag;
-            *last_used = mag_sta..=mag_end;
+            None => self.v.insert(new),
         }
-        last_used.clone()
+        .clone()
     }
-}
-
-#[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
-pub enum PlotStrategy {
-    Static,
-    InstantFit,
-    LazyFit { max_lazy: u8, lazy: u8 },
-    GrowOnly,
+    pub fn update_as_upper(&mut self, new: T, mag: Option<T>) -> T {
+        fn max<T: PartialOrd + Copy>(a: &T, b: &T) -> T {
+            if a.gt(b) {
+                *a
+            } else {
+                *b
+            }
+        }
+        let mut new = new;
+        if let Some(mag) = mag {
+            let end = new;
+            let mag_end = ((end / mag).floor() + T::one()) * mag;
+            new = mag_end;
+        }
+        match self.v {
+            Some(ref mut last_used) => {
+                match self.strategy {
+                    PlotStrategy::Static => (),
+                    PlotStrategy::InstantFit => {
+                        *last_used = new;
+                    }
+                    PlotStrategy::LazyFit {
+                        max_lazy,
+                        ref mut lazy,
+                    } => {
+                        if (*last_used).gt(&new) && *lazy < max_lazy {
+                            *lazy += 1;
+                        } else {
+                            *lazy = 0;
+                            *last_used = new;
+                        }
+                    }
+                    PlotStrategy::GrowOnly => {
+                        *last_used = max(&new, last_used);
+                    }
+                };
+                last_used
+            }
+            None => self.v.insert(new),
+        }
+        .clone()
+    }
 }

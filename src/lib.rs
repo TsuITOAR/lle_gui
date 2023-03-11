@@ -191,10 +191,10 @@ impl eframe::App for App {
         let drawer = drawer.get_or_insert_with(|| DrawData::new(LEN, DEFAULT_DRAW_RES));
         let plot_range = plot_range.get_or_insert_with(|| {
             PlotRange::new(
-                drawer::PlotStrategy::LazyFit {
+                drawer::Bound::new(drawer::PlotStrategy::LazyFit {
                     max_lazy: 40,
                     lazy: 0,
-                },
+                }),
                 10,
             )
         });
