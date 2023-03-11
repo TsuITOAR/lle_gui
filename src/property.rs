@@ -1,4 +1,4 @@
-use egui::{Event, Key};
+use egui::Key;
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, serde::Deserialize, serde::Serialize)]
 pub(crate) struct Property<T> {
@@ -35,7 +35,7 @@ impl Property<f64> {
             }
             ui.add(
                 Slider::new(value, range.0..=range.1)
-                    .text(&label)
+                    .text(label)
                     .smart_aim(false),
             );
         });
@@ -56,7 +56,7 @@ impl Property<f64> {
                     ui.label("Upper bound");
                 });
             });
-        if ctx.input().key_pressed(Key::Escape) {
+        if ctx.input(|i| i.key_pressed(Key::Escape)) {
             *edit_range = false;
         }
     }

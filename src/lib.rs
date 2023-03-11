@@ -5,9 +5,9 @@ mod property;
 
 use std::{collections::BTreeMap, f64::consts::PI};
 
-use drawer::DrawData;
-use egui::{ColorImage, DragValue, TextureHandle};
-use lle::{num_complex::Complex64, num_traits::zero, LinearOp};
+use drawer::{DrawData, PlotRange};
+use egui::{plot::PlotBounds, ColorImage, DragValue, Response, TextureHandle, Ui};
+use lle::{num_complex::Complex64, num_traits::zero, Evolver, LinearOp};
 use property::Property;
 type LleSolver<const LEN: usize> = lle::LleSolver<
     f64,
@@ -57,6 +57,8 @@ pub struct App {
     #[serde(skip)]
     engine: Option<LleSolver<LEN>>,
     #[serde(skip)]
+    plot_range: Option<PlotRange<f64>>,
+    #[serde(skip)]
     drawer: Option<DrawData>,
     #[serde(skip)]
     texture_cache_up: Option<TextureHandle>,
@@ -83,6 +85,7 @@ impl Default for App {
             .map(|x| (x.label.clone(), x))
             .collect(),
             engine: None,
+            plot_range: None,
             drawer: None,
             texture_cache_up: None,
             texture_cache_down: None,
@@ -106,6 +109,50 @@ impl App {
 
         Default::default()
     }
+
+    fn plot_line(
+        evol: impl Iterator<Item = f64>,
+        ui: &mut Ui,
+        plot_range: &mut PlotRange<f64>,
+        running: bool,
+    ) -> Response {
+        use egui::plot::Plot;
+        let mut plot = Plot::new("line");
+        plot = plot.coordinates_formatter(
+            egui::plot::Corner::LeftBottom,
+            egui::plot::CoordinatesFormatter::default(),
+        );
+        let mut min = None;
+        let mut max = None;
+        let mut n = 0;
+        plot.show(ui, |plot_ui| {
+            let line = egui::plot::Line::new(
+                evol.into_iter()
+                    .inspect(|&x| {
+                        if *min.get_or_insert(x) > x {
+                            min = Some(x);
+                        }
+                        if *max.get_or_insert(x) < x {
+                            max = Some(x);
+                        }
+                        n += 1;
+                    })
+                    .enumerate()
+                    .map(|(x, y)| [x as _, y])
+                    .collect::<egui::plot::PlotPoints>(),
+            )
+            .name("test");
+            if running {
+                if let (Some(min), Some(max)) = (min, max) {
+                    let (y1, y2) = plot_range.update(min..=max).into_inner();
+                    plot_ui.set_plot_bounds(PlotBounds::from_min_max([0., y1], [n as _, y2]));
+                }
+            }
+
+            plot_ui.line(line)
+        })
+        .response
+    }
 }
 
 impl eframe::App for App {
@@ -117,6 +164,7 @@ impl eframe::App for App {
             slider_len,
             properties,
             engine,
+            plot_range,
             drawer,
             seed,
             running,
@@ -141,19 +189,15 @@ impl eframe::App for App {
         });
         synchronize_properties(properties, engine);
         let drawer = drawer.get_or_insert_with(|| DrawData::new(LEN, DEFAULT_DRAW_RES));
-
-        if *running {
-            use lle::Evolver;
-            engine.evolve_n(100);
-            drawer.push(engine.state().to_owned());
-            drawer.update().unwrap();
-        }
-
-        // Examples of how to create different panels and windows.
-        // Pick whichever suits you.
-        // Tip: a good default choice is to just keep the `CentralPanel`.
-        // For inspiration and more examples, go to https://emilk.github.io/egui
-
+        let plot_range = plot_range.get_or_insert_with(|| {
+            PlotRange::new(
+                drawer::PlotStrategy::LazyFit {
+                    max_lazy: 40,
+                    lazy: 0,
+                },
+                10,
+            )
+        });
         #[cfg(not(target_arch = "wasm32"))] // no File->Quit on web pages!
         egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
             // The top panel is often a good place for a menu bar:
@@ -206,42 +250,52 @@ impl eframe::App for App {
             *self = Default::default();
             return;
         }
-        const TEXTURE_FILTER: egui::TextureFilter = egui::TextureFilter::Linear;
+        const TEXTURE_OPTION: egui::TextureOptions = egui::TextureOptions::LINEAR;
         egui::CentralPanel::default().show(ctx, |ui| {
-            // The central panel the region left after adding TopPanel's and SidePanel's
-            let (size, buff_upper, buff_lower) = drawer.fetch().unwrap();
             ui.heading("diagram area");
             egui::warn_if_debug_build(ui);
+            if *running {
+                engine.evolve_n(100);
+                drawer.push(engine.state().to_owned());
+                drawer.update().unwrap();
+                ctx.request_repaint()
+            }
+            Self::plot_line(
+                engine.state().iter().map(|x| x.re),
+                ui,
+                plot_range,
+                *running,
+            );
+            return;
+            // The central panel the region left after adding TopPanel's and SidePanel's
+            let (size, buff_upper, buff_lower) = drawer.fetch().unwrap();
             let max_size = ui.available_size();
             let half_max_size = egui::Vec2::new(max_size[0], max_size[1] * 0.5);
             let texture_cache_up = texture_cache_up.get_or_insert_with(|| {
                 ui.ctx().load_texture(
                     "freq space",
                     ColorImage::from_rgba_unmultiplied([size.0, size.1], buff_upper),
-                    TEXTURE_FILTER,
+                    TEXTURE_OPTION,
                 )
             });
             texture_cache_up.set(
                 ColorImage::from_rgba_unmultiplied([size.0, size.1], buff_upper),
-                TEXTURE_FILTER,
+                TEXTURE_OPTION,
             );
             ui.image(texture_cache_up, half_max_size);
             let texture_cache_down = texture_cache_down.get_or_insert_with(|| {
                 ui.ctx().load_texture(
                     "freq space",
                     ColorImage::from_rgba_unmultiplied([size.0, size.1], buff_lower),
-                    TEXTURE_FILTER,
+                    TEXTURE_OPTION,
                 )
             });
             texture_cache_down.set(
                 ColorImage::from_rgba_unmultiplied([size.0, size.1], buff_lower),
-                TEXTURE_FILTER,
+                TEXTURE_OPTION,
             );
-            ui.image(texture_cache_down, half_max_size)
+            ui.image(texture_cache_down, half_max_size);
         });
-        if *running {
-            ctx.request_repaint();
-        }
     }
 
     /// Called by the frame work to save state before shutdown.
