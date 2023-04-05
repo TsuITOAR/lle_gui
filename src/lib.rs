@@ -177,10 +177,10 @@ impl eframe::App for App {
         synchronize_properties(properties, engine);
         let plot_range = plot_range.get_or_insert_with(|| {
             PlotRange::new(
-                drawer::PlotStrategy::LazyFit {
+                drawer::Bound::new(drawer::PlotStrategy::LazyFit {
                     max_lazy: 40,
                     lazy: 0,
-                },
+                }),
                 10,
             )
         });
