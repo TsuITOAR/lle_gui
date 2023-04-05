@@ -1,5 +1,5 @@
+use lle::num_traits::{Float, FromPrimitive};
 use std::{fmt::Debug, ops::RangeInclusive};
-use lle::num_traits::{FromPrimitive, Float};
 
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
 pub struct PlotRange<T> {
@@ -14,6 +14,7 @@ impl<T: Debug + Float + PartialOrd + FromPrimitive + Copy> PlotRange<T> {
             scale_radix: scale_radix.into(),
         }
     }
+    #[allow(unused)]
     pub fn new2(bounds: (Bound<T>, Bound<T>), scale_radix: impl Into<Option<u32>>) -> Self {
         Self {
             bounds,
@@ -21,6 +22,7 @@ impl<T: Debug + Float + PartialOrd + FromPrimitive + Copy> PlotRange<T> {
         }
     }
 
+    #[allow(unused)]
     pub fn set_last(&mut self, last: RangeInclusive<T>) -> &mut Self {
         assert!(!last.is_empty());
         self.bounds.0.v = Some(*last.start());
@@ -73,7 +75,7 @@ impl<T: Debug + Float + PartialOrd + FromPrimitive + Copy> Bound<T> {
             let mag_sta = ((sta / mag).ceil() - T::one()) * mag;
             new = mag_sta;
         }
-        match self.v {
+        *match self.v {
             Some(ref mut last_used) => {
                 match self.strategy {
                     PlotStrategy::Static => (),
@@ -99,7 +101,6 @@ impl<T: Debug + Float + PartialOrd + FromPrimitive + Copy> Bound<T> {
             }
             None => self.v.insert(new),
         }
-        .clone()
     }
     pub fn update_as_upper(&mut self, new: T, mag: Option<T>) -> T {
         fn max<T: PartialOrd + Copy>(a: &T, b: &T) -> T {
@@ -115,7 +116,7 @@ impl<T: Debug + Float + PartialOrd + FromPrimitive + Copy> Bound<T> {
             let mag_end = ((end / mag).floor() + T::one()) * mag;
             new = mag_end;
         }
-        match self.v {
+        *match self.v {
             Some(ref mut last_used) => {
                 match self.strategy {
                     PlotStrategy::Static => (),
@@ -141,6 +142,5 @@ impl<T: Debug + Float + PartialOrd + FromPrimitive + Copy> Bound<T> {
             }
             None => self.v.insert(new),
         }
-        .clone()
     }
 }

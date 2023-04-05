@@ -6,7 +6,7 @@ mod property;
 use std::{collections::BTreeMap, f64::consts::PI};
 
 use drawer::PlotRange;
-use egui::{plot::PlotBounds, DragValue, Response, TextureHandle, Ui};
+use egui::{plot::PlotBounds, DragValue, Response, Ui};
 use lle::{num_complex::Complex64, num_traits::zero, Evolver, LinearOp};
 use property::Property;
 type LleSolver<const LEN: usize> = lle::LleSolver<
@@ -155,7 +155,7 @@ impl eframe::App for App {
             properties,
             engine,
             plot_range,
-            seed,
+            seed: _,
             running,
         } = self;
         let engine = engine.get_or_insert_with(|| {

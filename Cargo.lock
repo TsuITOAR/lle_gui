@@ -1280,6 +1280,7 @@ dependencies = [
  "console_error_panic_hook",
  "eframe",
  "egui",
+ "getrandom",
  "lle",
  "log",
  "rand",
