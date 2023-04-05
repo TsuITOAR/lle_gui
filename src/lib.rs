@@ -5,8 +5,8 @@ mod property;
 
 use std::{collections::BTreeMap, f64::consts::PI};
 
-use drawer::{DrawData, PlotRange};
-use egui::{plot::PlotBounds, ColorImage, DragValue, Response, TextureHandle, Ui};
+use drawer::PlotRange;
+use egui::{plot::PlotBounds, DragValue, Response, TextureHandle, Ui};
 use lle::{num_complex::Complex64, num_traits::zero, Evolver, LinearOp};
 use property::Property;
 type LleSolver<const LEN: usize> = lle::LleSolver<
@@ -45,7 +45,6 @@ fn synchronize_properties<const L: usize>(
 }
 
 const LEN: usize = 128;
-const DEFAULT_DRAW_RES: (usize, usize) = (640, 640);
 /// We derive Deserialize/Serialize so we can persist app state on shutdown.
 #[derive(serde::Deserialize, serde::Serialize)]
 #[serde(default)] // if we add new fields, give them default values when deserializing old state
@@ -58,12 +57,6 @@ pub struct App {
     engine: Option<LleSolver<LEN>>,
     #[serde(skip)]
     plot_range: Option<PlotRange<f64>>,
-    #[serde(skip)]
-    drawer: Option<DrawData>,
-    #[serde(skip)]
-    texture_cache_up: Option<TextureHandle>,
-    #[serde(skip)]
-    texture_cache_down: Option<TextureHandle>,
     #[serde(skip)]
     seed: Option<u32>,
     #[serde(skip)]
@@ -86,9 +79,6 @@ impl Default for App {
             .collect(),
             engine: None,
             plot_range: None,
-            drawer: None,
-            texture_cache_up: None,
-            texture_cache_down: None,
             seed: None,
             running: false,
         }
@@ -165,11 +155,8 @@ impl eframe::App for App {
             properties,
             engine,
             plot_range,
-            drawer,
             seed,
             running,
-            texture_cache_up,
-            texture_cache_down,
         } = self;
         let engine = engine.get_or_insert_with(|| {
             let mut init = [zero(); LEN];
@@ -188,7 +175,6 @@ impl eframe::App for App {
             )
         });
         synchronize_properties(properties, engine);
-        let drawer = drawer.get_or_insert_with(|| DrawData::new(LEN, DEFAULT_DRAW_RES));
         let plot_range = plot_range.get_or_insert_with(|| {
             PlotRange::new(
                 drawer::PlotStrategy::LazyFit {
@@ -250,14 +236,11 @@ impl eframe::App for App {
             *self = Default::default();
             return;
         }
-        const TEXTURE_OPTION: egui::TextureOptions = egui::TextureOptions::LINEAR;
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.heading("diagram area");
             egui::warn_if_debug_build(ui);
             if *running {
                 engine.evolve_n(100);
-                drawer.push(engine.state().to_owned());
-                drawer.update().unwrap();
                 ctx.request_repaint()
             }
             Self::plot_line(
@@ -266,35 +249,6 @@ impl eframe::App for App {
                 plot_range,
                 *running,
             );
-            return;
-            // The central panel the region left after adding TopPanel's and SidePanel's
-            let (size, buff_upper, buff_lower) = drawer.fetch().unwrap();
-            let max_size = ui.available_size();
-            let half_max_size = egui::Vec2::new(max_size[0], max_size[1] * 0.5);
-            let texture_cache_up = texture_cache_up.get_or_insert_with(|| {
-                ui.ctx().load_texture(
-                    "freq space",
-                    ColorImage::from_rgba_unmultiplied([size.0, size.1], buff_upper),
-                    TEXTURE_OPTION,
-                )
-            });
-            texture_cache_up.set(
-                ColorImage::from_rgba_unmultiplied([size.0, size.1], buff_upper),
-                TEXTURE_OPTION,
-            );
-            ui.image(texture_cache_up, half_max_size);
-            let texture_cache_down = texture_cache_down.get_or_insert_with(|| {
-                ui.ctx().load_texture(
-                    "freq space",
-                    ColorImage::from_rgba_unmultiplied([size.0, size.1], buff_lower),
-                    TEXTURE_OPTION,
-                )
-            });
-            texture_cache_down.set(
-                ColorImage::from_rgba_unmultiplied([size.0, size.1], buff_lower),
-                TEXTURE_OPTION,
-            );
-            ui.image(texture_cache_down, half_max_size);
         });
     }
 
