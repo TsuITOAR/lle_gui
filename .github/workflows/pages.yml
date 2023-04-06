@@ -23,7 +23,7 @@ jobs:
         with:
           profile: minimal
           toolchain: stable
-          target: wasm32-wasi
+          target: wasm32-unknown-unknown
           override: true
       - name: Rust Cache # cache the rust build artefacts
         uses: Swatinem/rust-cache@v1
