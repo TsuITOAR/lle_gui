@@ -204,7 +204,7 @@ impl eframe::App for App {
                 ui.text_edit_singleline(label);
             });
             let slider_len = slider_len.get_or_insert_with(|| ui.spacing().slider_width);
-            if *slider_len > 0 {
+            if slider_len.is_sign_positive() {
                 ui.spacing_mut().slider_width = *slider_len;
             }
             for p in properties.values_mut() {
