@@ -9,9 +9,9 @@ use drawer::PlotRange;
 use egui::{plot::PlotBounds, DragValue, Response, Ui};
 use lle::{num_complex::Complex64, num_traits::zero, Evolver, LinearOp};
 use property::Property;
-type LleSolver<const LEN: usize> = lle::LleSolver<
+type LleSolver = lle::LleSolver<
     f64,
-    [Complex64; LEN],
+    Vec<Complex64>,
     lle::LinearOpAdd<(lle::DiffOrder, Complex64), (lle::DiffOrder, Complex64)>,
     Box<dyn Fn(Complex64) -> Complex64>,
 >;
@@ -34,27 +34,23 @@ fn default_add_random<'a>(state: impl Iterator<Item = &'a mut Complex64>) {
     add_random((2. * PI).sqrt() * 1e5, 1e5, state)
 }
 
-fn synchronize_properties<const L: usize>(
-    props: &BTreeMap<String, Property<f64>>,
-    engine: &mut LleSolver<L>,
-) {
+fn synchronize_properties(props: &BTreeMap<String, Property<f64>>, engine: &mut LleSolver) {
     engine.linear = (0, -(Complex64::i() * props["alpha"].value + 1.))
         .add((2, -Complex64::i() * props["linear"].value / 2.))
         .into();
     engine.constant = Complex64::from(props["pump"].value).into();
 }
 
-const LEN: usize = 128;
 /// We derive Deserialize/Serialize so we can persist app state on shutdown.
 #[derive(serde::Deserialize, serde::Serialize)]
 #[serde(default)] // if we add new fields, give them default values when deserializing old state
 pub struct App {
-    // Example stuff:
-    label: String,
     slider_len: Option<f32>,
     properties: BTreeMap<String, Property<f64>>,
+    #[serde(default)]
+    dim: usize,
     #[serde(skip)]
-    engine: Option<LleSolver<LEN>>,
+    engine: Option<LleSolver>,
     #[serde(skip)]
     plot_range: Option<PlotRange<f64>>,
     #[serde(skip)]
@@ -66,13 +62,13 @@ pub struct App {
 impl Default for App {
     fn default() -> Self {
         Self {
-            // Example stuff:
-            label: "Hello World!".to_owned(),
             slider_len: None,
+            dim: 0,
             properties: vec![
                 Property::new(-5., "alpha"),
                 Property::new(3.94, "pump"),
                 Property::new(-0.0444, "linear"),
+                Property::new(8e-4, "step dist"),
             ]
             .into_iter()
             .map(|x| (x.label.clone(), x))
@@ -150,7 +146,7 @@ impl eframe::App for App {
     /// Put your widgets into a `SidePanel`, `TopPanel`, `CentralPanel`, `Window` or `Area`.
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         let Self {
-            label,
+            dim,
             slider_len,
             properties,
             engine,
@@ -158,28 +154,78 @@ impl eframe::App for App {
             seed: _,
             running,
         } = self;
+        if engine.is_none() {
+            *running = false;
+            let mut build = false;
+            egui::Window::new("Set simulation parameters").show(ctx, |ui| {
+                ui.horizontal_wrapped(|ui| {
+                    ui.label("Dimension");
+                    ui.add(DragValue::new(dim).speed(1));
+                });
+                ui.end_row();
+                ui.horizontal_wrapped(|ui| {
+                    ui.label("Simulation step");
+                    ui.add(
+                        DragValue::new(&mut properties.get_mut("step dist").unwrap().value)
+                            .max_decimals(10)
+                            .min_decimals(5),
+                    );
+                });
+                ui.end_row();
+                ui.horizontal_wrapped(|ui| {
+                    ui.label("Pump");
+                    ui.add(
+                        DragValue::new(&mut properties.get_mut("pump").unwrap().value)
+                            .max_decimals(10),
+                    );
+                });
+                ui.end_row();
+                ui.horizontal_wrapped(|ui| {
+                    ui.label("Dispersion");
+                    ui.add(
+                        DragValue::new(&mut properties.get_mut("linear").unwrap().value)
+                            .max_decimals(10),
+                    );
+                });
+                ui.end_row();
+                ui.horizontal_wrapped(|ui| {
+                    ui.label("Detune");
+                    ui.add(
+                        DragValue::new(&mut properties.get_mut("alpha").unwrap().value)
+                            .max_decimals(10),
+                    );
+                });
+                ui.end_row();
+                ui.centered_and_justified(|ui| build = ui.button("✅").clicked());
+            });
+            if !build || *dim == 0 {
+                return;
+            }
+        }
+
         let engine = engine.get_or_insert_with(|| {
-            let mut init = [zero(); LEN];
+            let step_dist = properties["step dist"].value;
+            let pump = properties["pump"].value;
+            let linear = properties["linear"].value;
+            let alpha = properties["alpha"].value;
+            let mut init = vec![zero(); *dim];
             default_add_random(init.iter_mut());
-            const STEP_DIST: f64 = 8e-4;
-            const PUMP: f64 = 3.94;
-            const LINEAR: f64 = -0.0444;
-            const ALPHA: f64 = -5.;
             LleSolver::new(
-                init,
-                STEP_DIST,
-                (0, -(Complex64::i() * ALPHA + 1.)).add((2, -Complex64::i() * LINEAR / 2.)),
+                init.to_vec(),
+                step_dist,
+                (0, -(Complex64::i() * alpha + 1.)).add((2, -Complex64::i() * linear / 2.)),
                 Box::new(|x: Complex64| Complex64::i() * x.norm_sqr())
                     as Box<dyn Fn(Complex64) -> Complex64>,
-                Complex64::from(PUMP),
+                Complex64::from(pump),
             )
         });
         synchronize_properties(properties, engine);
         let plot_range = plot_range.get_or_insert_with(|| PlotRange::new(10, 200, 2, 100));
+        /*
         #[cfg(not(target_arch = "wasm32"))] // no File->Quit on web pages!
         egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
             // The top panel is often a good place for a menu bar:
-            egui::menu::bar(ui, |ui| {
+             egui::menu::bar(ui, |ui| {
                 ui.menu_button("File", |ui| {
                     if ui.button("Quit").clicked() {
                         _frame.close();
@@ -187,14 +233,12 @@ impl eframe::App for App {
                 });
             });
         });
+        */
         let mut reset = false;
-        egui::SidePanel::left("side_panel").show(ctx, |ui| {
-            ui.heading("Side Panel");
+        let mut destruct = false;
+        egui::SidePanel::left("control_panel").show(ctx, |ui| {
+            ui.heading("Control Panel");
 
-            ui.horizontal(|ui| {
-                ui.label("Write something: ");
-                ui.text_edit_singleline(label);
-            });
             let slider_len = slider_len.get_or_insert_with(|| ui.spacing().slider_width);
             if slider_len.is_sign_positive() {
                 ui.spacing_mut().slider_width = *slider_len;
@@ -207,27 +251,23 @@ impl eframe::App for App {
                 ui.label("Slider length");
                 ui.add(DragValue::new(slider_len));
             });
-            let button_text = if *running { "running" } else { "waiting" };
-            if ui.button(button_text).clicked() {
-                *running = !*running;
-            };
-            reset = ui.button("reset").clicked();
-            ui.with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui| {
-                ui.horizontal(|ui| {
-                    ui.spacing_mut().item_spacing.x = 0.0;
-                    ui.label("powered by ");
-                    ui.hyperlink_to("egui", "https://github.com/emilk/egui");
-                    ui.label(" and ");
-                    ui.hyperlink_to(
-                        "eframe",
-                        "https://github.com/emilk/egui/tree/master/crates/eframe",
-                    );
-                    ui.label(".");
-                });
+            let button_text = if *running { "▶️" } else { "⏸️" };
+            ui.horizontal_wrapped(|ui| {
+                if ui.button(button_text).clicked() {
+                    *running = !*running;
+                };
+                reset = ui.button("⏹️").clicked();
+                destruct = ui.button("⏏️").clicked();
             });
         });
         if reset {
+            let en = self.engine.take();
             *self = Default::default();
+            self.engine = en;
+            return;
+        }
+        if destruct {
+            self.engine = None;
             return;
         }
         egui::CentralPanel::default().show(ctx, |ui| {

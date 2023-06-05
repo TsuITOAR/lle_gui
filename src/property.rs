@@ -36,7 +36,9 @@ impl Property<f64> {
             ui.add(
                 Slider::new(value, range.0..=range.1)
                     .text(label)
-                    .smart_aim(false),
+                    .smart_aim(false)
+                    .max_decimals(10)
+                    .min_decimals(5),
             );
         });
 
