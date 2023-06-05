@@ -175,15 +175,7 @@ impl eframe::App for App {
             )
         });
         synchronize_properties(properties, engine);
-        let plot_range = plot_range.get_or_insert_with(|| {
-            PlotRange::new(
-                drawer::Bound::new(drawer::PlotStrategy::LazyFit {
-                    max_lazy: 40,
-                    lazy: 0,
-                }),
-                10,
-            )
-        });
+        let plot_range = plot_range.get_or_insert_with(|| PlotRange::new(10, 200, 2, 100));
         #[cfg(not(target_arch = "wasm32"))] // no File->Quit on web pages!
         egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
             // The top panel is often a good place for a menu bar:
