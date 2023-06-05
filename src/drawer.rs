@@ -36,7 +36,7 @@ impl<T: Debug + Float + PartialOrd + FromPrimitive + Copy> PlotRange<T> {
         }
         if self.lazy_count.0 < self.adapt.1 {
             self.adapt.0 = (self.adapt.0 + 1).min(10)
-        } else if self.lazy_count.0 > self.adapt.1 {
+        } else if self.lazy_count.0 > self.adapt.2 {
             self.adapt.0 = (self.adapt.0 - 1).max(1);
         }
         self.lazy_count.0 = 0;
