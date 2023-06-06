@@ -1,8 +1,9 @@
 #![warn(clippy::all, rust_2018_idioms)]
 
+mod configer;
 mod drawer;
+mod easy_mark;
 mod property;
-
 use std::{collections::BTreeMap, f64::consts::PI};
 
 use drawer::PlotRange;
@@ -35,10 +36,26 @@ fn default_add_random<'a>(state: impl Iterator<Item = &'a mut Complex64>) {
 }
 
 fn synchronize_properties(props: &BTreeMap<String, Property<f64>>, engine: &mut LleSolver) {
-    engine.linear = (0, -(Complex64::i() * props["alpha"].value + 1.))
-        .add((2, -Complex64::i() * props["linear"].value / 2.))
+    engine.linear = (0, -(Complex64::i() * props["alpha"].get_value() + 1.))
+        .add((2, -Complex64::i() * props["linear"].get_value() / 2.))
         .into();
-    engine.constant = Complex64::from(props["pump"].value).into();
+    engine.constant = Complex64::from(props["pump"].get_value()).into();
+    engine.step_dist = props["step dist"].get_value();
+}
+
+fn show_as_drag_value<T: egui::emath::Numeric>(label: &str, value: &mut T, ui: &mut egui::Ui) {
+    ui.label(label);
+    ui.add(DragValue::new(value));
+}
+
+fn show_as_drag_value_with_suffix<T: egui::emath::Numeric>(
+    label: &str,
+    value: &mut T,
+    ui: &mut egui::Ui,
+    suffix: String,
+) {
+    ui.label(label);
+    ui.add(DragValue::new(value).suffix(suffix));
 }
 
 /// We derive Deserialize/Serialize so we can persist app state on shutdown.
@@ -65,10 +82,13 @@ impl Default for App {
             slider_len: None,
             dim: 0,
             properties: vec![
-                Property::new(-5., "alpha"),
-                Property::new(3.94, "pump"),
-                Property::new(-0.0444, "linear"),
-                Property::new(8e-4, "step dist"),
+                Property::new(-5., "alpha").symbol('α'),
+                Property::new(3.94, "pump").symbol('F'),
+                Property::new(-0.0444, "linear").symbol('β'),
+                Property::new_no_range(8., "step dist")
+                    .symbol("Δt")
+                    .unit(1E-4)
+                    .suffix("E-4"),
             ]
             .into_iter()
             .map(|x| (x.label.clone(), x))
@@ -127,7 +147,7 @@ impl App {
                     .map(|(x, y)| [x as _, y])
                     .collect::<egui::plot::PlotPoints>(),
             )
-            .name("test");
+            .name("Real");
             if running {
                 if let (Some(min), Some(max)) = (min, max) {
                     let (y1, y2) = plot_range.update(min..=max).into_inner();
@@ -156,48 +176,10 @@ impl eframe::App for App {
         } = self;
         if engine.is_none() {
             *running = false;
-            let mut build = false;
-            egui::Window::new("Set simulation parameters").show(ctx, |ui| {
-                ui.horizontal_wrapped(|ui| {
-                    ui.label("Dimension");
-                    ui.add(DragValue::new(dim).speed(1));
-                });
-                ui.end_row();
-                ui.horizontal_wrapped(|ui| {
-                    ui.label("Simulation step");
-                    ui.add(
-                        DragValue::new(&mut properties.get_mut("step dist").unwrap().value)
-                            .max_decimals(10)
-                            .min_decimals(5),
-                    );
-                });
-                ui.end_row();
-                ui.horizontal_wrapped(|ui| {
-                    ui.label("Pump");
-                    ui.add(
-                        DragValue::new(&mut properties.get_mut("pump").unwrap().value)
-                            .max_decimals(10),
-                    );
-                });
-                ui.end_row();
-                ui.horizontal_wrapped(|ui| {
-                    ui.label("Dispersion");
-                    ui.add(
-                        DragValue::new(&mut properties.get_mut("linear").unwrap().value)
-                            .max_decimals(10),
-                    );
-                });
-                ui.end_row();
-                ui.horizontal_wrapped(|ui| {
-                    ui.label("Detune");
-                    ui.add(
-                        DragValue::new(&mut properties.get_mut("alpha").unwrap().value)
-                            .max_decimals(10),
-                    );
-                });
-                ui.end_row();
-                ui.centered_and_justified(|ui| build = ui.button("✅").clicked());
-            });
+            let build: bool = egui::Window::new("Set simulation parameters")
+                .show(ctx, |ui| configer::config(dim, properties.values_mut(), ui))
+                .map(|x| x.inner.unwrap_or(false))
+                .unwrap_or(true);
             if !build || *dim == 0 {
                 return;
             }
@@ -236,6 +218,7 @@ impl eframe::App for App {
         */
         let mut reset = false;
         let mut destruct = false;
+        let mut step = false;
         egui::SidePanel::left("control_panel").show(ctx, |ui| {
             ui.heading("Control Panel");
 
@@ -244,20 +227,21 @@ impl eframe::App for App {
                 ui.spacing_mut().slider_width = *slider_len;
             }
             for p in properties.values_mut() {
-                p.show(ui, ctx)
+                p.show_in_control_pannel(ui, ctx)
             }
 
             ui.horizontal(|ui| {
                 ui.label("Slider length");
                 ui.add(DragValue::new(slider_len));
             });
-            let button_text = if *running { "▶️" } else { "⏸️" };
+            let button_text = if *running { "⏸" } else { "⏵" };
             ui.horizontal_wrapped(|ui| {
                 if ui.button(button_text).clicked() {
                     *running = !*running;
                 };
-                reset = ui.button("⏹️").clicked();
-                destruct = ui.button("⏏️").clicked();
+                step = ui.button("⏩").clicked();
+                reset = ui.button("⏹").clicked();
+                destruct = ui.button("⏏").clicked();
             });
         });
         if reset {
@@ -273,7 +257,7 @@ impl eframe::App for App {
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.heading("diagram area");
             egui::warn_if_debug_build(ui);
-            if *running {
+            if *running || step {
                 engine.evolve_n(100);
                 ctx.request_repaint()
             }
@@ -281,7 +265,7 @@ impl eframe::App for App {
                 engine.state().iter().map(|x| x.re),
                 ui,
                 plot_range,
-                *running,
+                *running || step,
             );
         });
     }
