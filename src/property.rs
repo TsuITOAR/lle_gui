@@ -50,10 +50,7 @@ impl Property<f64> {
     }
     #[allow(unused)]
     pub fn text(&self) -> &str {
-        self.symbol
-            .as_ref()
-            .map(String::as_str)
-            .unwrap_or_else(|| self.label.as_str())
+        self.symbol.as_deref().unwrap_or(self.label.as_str())
     }
     pub fn get_value(&self) -> f64 {
         if let Some(u) = self.unit {
@@ -71,11 +68,7 @@ impl Property<f64> {
             .or_else(|| self.unit.as_ref().map(|u| format!("*{u:E}")))
     }
     pub(crate) fn show_as_drag_value_in_grid(&mut self, ui: &mut egui::Ui) {
-        let label = self
-            .symbol
-            .as_ref()
-            .map(String::as_str)
-            .unwrap_or_else(|| self.label.as_str());
+        let label = self.symbol.as_deref().unwrap_or(self.label.as_str());
         match self.value_suffix() {
             Some(s) => show_as_drag_value_with_suffix(label, &mut self.value, ui, s),
             None => show_as_drag_value(label, &mut self.value, ui),
@@ -83,11 +76,7 @@ impl Property<f64> {
     }
     pub(crate) fn show_as_drag_value(&mut self, ui: &mut egui::Ui) {
         ui.horizontal_wrapped(|ui| {
-            let label = self
-                .symbol
-                .as_ref()
-                .map(String::as_str)
-                .unwrap_or_else(|| self.label.as_str());
+            let label = self.symbol.as_deref().unwrap_or(self.label.as_str());
             match self.value_suffix() {
                 Some(s) => show_as_drag_value_with_suffix(label, &mut self.value, ui, s),
                 None => show_as_drag_value(label, &mut self.value, ui),
