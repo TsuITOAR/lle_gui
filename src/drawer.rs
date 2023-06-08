@@ -97,7 +97,7 @@ impl Plot<f64> {
         let last = self.last_plot.replace(now);
         if let Some(last) = last {
             let past = (now - last).as_secs_f32();
-            ui.label(format!("{}Hz ({:.1}ms)", 1. / past, past * 1000.));
+            ui.label(format!("{:.0}Hz ({:.1}ms)", 1. / past, past * 1000.));
         };
         match self.kind {
             PlotKind::Line => self.plot_line(data, ui, running),
