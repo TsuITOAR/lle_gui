@@ -28,7 +28,7 @@ console_error_panic_hook = "0.1.6"
 tracing-wasm = "0.2"
 wasm-bindgen-futures = "0.4"
 getrandom = { version = "^0.2", features = ["js"] }
-wasm-timer = "^0.2"
+instant = "^0.1"
 
 [profile.release]
 opt-level = 2 # fast and small wasm
