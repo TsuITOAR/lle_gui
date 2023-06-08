@@ -1,6 +1,11 @@
 use egui::{Context, Response};
 use lle::num_traits::{Float, FromPrimitive};
-use std::{fmt::Debug, ops::RangeInclusive, time::Instant};
+use std::{fmt::Debug, ops::RangeInclusive};
+
+#[cfg(not(target_arch = "wasm32"))]
+use std::time::Instant;
+#[cfg(target_arch = "wasm32")]
+use wasm_timer::Instant;
 
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
 pub struct Plot<T> {
