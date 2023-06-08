@@ -4,10 +4,10 @@ mod configer;
 mod drawer;
 mod easy_mark;
 mod property;
-use std::{collections::BTreeMap, f64::consts::PI, time::Instant};
+use std::{collections::BTreeMap, f64::consts::PI};
 
-use drawer::PlotRange;
-use egui::{plot::PlotBounds, DragValue, Response, Ui};
+use drawer::{Plot, PlotKind};
+use egui::DragValue;
 use lle::{num_complex::Complex64, num_traits::zero, Evolver, LinearOp};
 use property::Property;
 type LleSolver = lle::LleSolver<
@@ -68,15 +68,11 @@ pub struct App {
     #[serde(skip)]
     engine: Option<LleSolver>,
     #[serde(skip)]
-    plot_range: Option<PlotRange<f64>>,
+    field_plot: Option<Plot<f64>>,
     #[serde(skip)]
     seed: Option<u32>,
     #[serde(skip)]
     running: bool,
-    #[serde(skip)]
-    smarter_plot: bool,
-    #[serde(skip)]
-    last_paint: Option<Instant>,
 }
 
 impl Default for App {
@@ -97,11 +93,9 @@ impl Default for App {
             .map(|x| (x.label.clone(), x))
             .collect(),
             engine: None,
-            plot_range: None,
+            field_plot: None,
             seed: None,
             running: false,
-            smarter_plot: true,
-            last_paint: None,
         }
     }
 }
@@ -120,51 +114,6 @@ impl App {
 
         Default::default()
     }
-
-    fn plot_line(
-        evol: impl Iterator<Item = f64>,
-        ui: &mut Ui,
-        plot_range: &mut PlotRange<f64>,
-        running: bool,
-        smarter_plot: bool,
-    ) -> Response {
-        use egui::plot::Plot;
-        let mut plot = Plot::new("line");
-        plot = plot.coordinates_formatter(
-            egui::plot::Corner::LeftBottom,
-            egui::plot::CoordinatesFormatter::default(),
-        );
-        let mut min = None;
-        let mut max = None;
-        let mut n = 0;
-        plot.show(ui, |plot_ui| {
-            let line = egui::plot::Line::new(
-                evol.into_iter()
-                    .inspect(|&x| {
-                        if *min.get_or_insert(x) > x {
-                            min = Some(x);
-                        }
-                        if *max.get_or_insert(x) < x {
-                            max = Some(x);
-                        }
-                        n += 1;
-                    })
-                    .enumerate()
-                    .map(|(x, y)| [x as _, y])
-                    .collect::<egui::plot::PlotPoints>(),
-            )
-            .name("Real");
-            if running && smarter_plot {
-                if let (Some(min), Some(max)) = (min, max) {
-                    let (y1, y2) = plot_range.update(min..=max).into_inner();
-                    plot_ui.set_plot_bounds(PlotBounds::from_min_max([0., y1], [n as _, y2]));
-                }
-            }
-
-            plot_ui.line(line)
-        })
-        .response
-    }
 }
 
 impl eframe::App for App {
@@ -176,11 +125,9 @@ impl eframe::App for App {
             slider_len,
             properties,
             engine,
-            plot_range,
+            field_plot: plot_range,
             seed: _,
             running,
-            smarter_plot,
-            last_paint,
         } = self;
         if engine.is_none() {
             *running = false;
@@ -210,7 +157,8 @@ impl eframe::App for App {
             )
         });
         synchronize_properties(properties, engine);
-        let plot_range = plot_range.get_or_insert_with(|| PlotRange::new(10, 200, 2, 100, 30));
+        let plot_range = plot_range
+            .get_or_insert_with(|| Plot::new("Intracavity", PlotKind::Line, 10, 200, 2, 100, 30));
         /*
         #[cfg(not(target_arch = "wasm32"))] // no File->Quit on web pages!
         egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
@@ -262,52 +210,11 @@ impl eframe::App for App {
             self.engine = None;
             return;
         }
-        egui::CentralPanel::default().show(ctx, |ui| {
-            ui.heading("diagram area");
-            egui::warn_if_debug_build(ui);
-            if *running || step {
-                engine.evolve_n(100);
-                ctx.request_repaint()
-            }
-            let now = Instant::now();
-            let last = last_paint.replace(now);
-            if let Some(last) = last {
-                let past = (now - last).as_secs_f32();
-                ui.label(format!("{:.1}Hz ({:.1}ms)", 1. / past, past * 1000.));
-            };
-            ui.horizontal(|ui| {
-                ui.checkbox(smarter_plot, "Smarter plot");
-                #[cfg(debug_assertions)]
-                if *smarter_plot {
-                    ui.collapsing("Status", |ui| {
-                        ui.label(format!(
-                            "Plot center,distance: {},{}",
-                            plot_range.center, plot_range.dis
-                        ));
-                        ui.label(format!("Plot scale_radix: {}", plot_range.scale_radix));
-                        ui.label(format!(
-                            "Auto shrink range: {}/{}",
-                            plot_range.lazy_count.0, plot_range.lazy_count.1
-                        ));
-                        ui.label(format!(
-                            "Scale magnify factor: {}/{}",
-                            plot_range.adapt.0, plot_range.adapt.3
-                        ));
-                        ui.label(format!(
-                            "Refresh threshold of scale factor: ({},{})",
-                            plot_range.adapt.1, plot_range.adapt.2
-                        ));
-                    });
-                }
-            });
-            Self::plot_line(
-                engine.state().iter().map(|x| x.re),
-                ui,
-                plot_range,
-                *running || step,
-                *smarter_plot,
-            );
-        });
+        if *running || step {
+            engine.evolve_n(100);
+            ctx.request_repaint()
+        }
+        plot_range.plot_on_new_window(engine.state().iter().map(|x| x.re), ctx, *running);
     }
 
     /// Called by the frame work to save state before shutdown.

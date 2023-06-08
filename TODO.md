@@ -1,7 +1,7 @@
 1. display
     1. ~~debug tool for plot parameters~~
     2. better view strategy
-    3. adjust strategy
+    3. selectable display expression
     4. frequency domain display
     5. history display
 

@@ -8,8 +8,8 @@ edition = "2021"
 
 
 [dependencies]
-egui = "0.21.0"
-eframe = { version = "^0.21", features = ["persistence", "default_fonts"] }
+egui = "0.22.0"
+eframe = { version = "^0.22", features = ["persistence"] }
 serde = { version = "1", features = [
     "derive",
 ] } # You only need this if you want app persistence
