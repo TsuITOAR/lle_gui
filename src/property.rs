@@ -25,7 +25,7 @@ impl Property<f64> {
             value_suffix: None,
         }
     }
-    pub fn new_no_range(v: f64, label: impl ToString) -> Self {
+    pub fn new_no_slider(v: f64, label: impl ToString) -> Self {
         Self {
             value: v,
             range: (v - 10., v + 20.),
@@ -86,7 +86,7 @@ impl Property<f64> {
     pub(crate) fn show_in_builder(&mut self, ui: &mut egui::Ui) {
         self.show_as_drag_value(ui);
     }
-    pub(crate) fn show_in_control_pannel(&mut self, ui: &mut egui::Ui, ctx: &egui::Context) {
+    pub(crate) fn show_in_control_panel(&mut self, ui: &mut egui::Ui, ctx: &egui::Context) {
         use egui::Slider;
         if self.edit_range_window.is_none() {
             self.show_in_builder(ui);

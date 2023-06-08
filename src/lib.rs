@@ -4,7 +4,7 @@ mod configer;
 mod drawer;
 mod easy_mark;
 mod property;
-use std::{collections::BTreeMap, f64::consts::PI};
+use std::{collections::BTreeMap, f64::consts::PI, time::Instant};
 
 use drawer::PlotRange;
 use egui::{plot::PlotBounds, DragValue, Response, Ui};
@@ -64,7 +64,6 @@ fn show_as_drag_value_with_suffix<T: egui::emath::Numeric>(
 pub struct App {
     slider_len: Option<f32>,
     properties: BTreeMap<String, Property<f64>>,
-    #[serde(default)]
     dim: usize,
     #[serde(skip)]
     engine: Option<LleSolver>,
@@ -74,18 +73,22 @@ pub struct App {
     seed: Option<u32>,
     #[serde(skip)]
     running: bool,
+    #[serde(skip)]
+    smarter_plot: bool,
+    #[serde(skip)]
+    last_paint: Option<Instant>,
 }
 
 impl Default for App {
     fn default() -> Self {
         Self {
             slider_len: None,
-            dim: 0,
+            dim: 128,
             properties: vec![
                 Property::new(-5., "alpha").symbol('α'),
                 Property::new(3.94, "pump").symbol('F'),
                 Property::new(-0.0444, "linear").symbol('β'),
-                Property::new_no_range(8., "step dist")
+                Property::new_no_slider(8., "step dist")
                     .symbol("Δt")
                     .unit(1E-4)
                     .suffix("E-4"),
@@ -97,6 +100,8 @@ impl Default for App {
             plot_range: None,
             seed: None,
             running: false,
+            smarter_plot: true,
+            last_paint: None,
         }
     }
 }
@@ -121,6 +126,7 @@ impl App {
         ui: &mut Ui,
         plot_range: &mut PlotRange<f64>,
         running: bool,
+        smarter_plot: bool,
     ) -> Response {
         use egui::plot::Plot;
         let mut plot = Plot::new("line");
@@ -148,7 +154,7 @@ impl App {
                     .collect::<egui::plot::PlotPoints>(),
             )
             .name("Real");
-            if running {
+            if running && smarter_plot {
                 if let (Some(min), Some(max)) = (min, max) {
                     let (y1, y2) = plot_range.update(min..=max).into_inner();
                     plot_ui.set_plot_bounds(PlotBounds::from_min_max([0., y1], [n as _, y2]));
@@ -173,6 +179,8 @@ impl eframe::App for App {
             plot_range,
             seed: _,
             running,
+            smarter_plot,
+            last_paint,
         } = self;
         if engine.is_none() {
             *running = false;
@@ -202,7 +210,7 @@ impl eframe::App for App {
             )
         });
         synchronize_properties(properties, engine);
-        let plot_range = plot_range.get_or_insert_with(|| PlotRange::new(10, 200, 2, 100));
+        let plot_range = plot_range.get_or_insert_with(|| PlotRange::new(10, 200, 2, 100, 30));
         /*
         #[cfg(not(target_arch = "wasm32"))] // no File->Quit on web pages!
         egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
@@ -227,7 +235,7 @@ impl eframe::App for App {
                 ui.spacing_mut().slider_width = *slider_len;
             }
             for p in properties.values_mut() {
-                p.show_in_control_pannel(ui, ctx)
+                p.show_in_control_panel(ui, ctx)
             }
 
             ui.horizontal(|ui| {
@@ -261,11 +269,43 @@ impl eframe::App for App {
                 engine.evolve_n(100);
                 ctx.request_repaint()
             }
+            let now = Instant::now();
+            let last = last_paint.replace(now);
+            if let Some(last) = last {
+                let past = (now - last).as_secs_f32();
+                ui.label(format!("{:.1}Hz ({:.1}ms)", 1. / past, past * 1000.));
+            };
+            ui.horizontal(|ui| {
+                ui.checkbox(smarter_plot, "Smarter plot");
+                #[cfg(debug_assertions)]
+                if *smarter_plot {
+                    ui.collapsing("Status", |ui| {
+                        ui.label(format!(
+                            "Plot center,distance: {},{}",
+                            plot_range.center, plot_range.dis
+                        ));
+                        ui.label(format!("Plot scale_radix: {}", plot_range.scale_radix));
+                        ui.label(format!(
+                            "Auto shrink range: {}/{}",
+                            plot_range.lazy_count.0, plot_range.lazy_count.1
+                        ));
+                        ui.label(format!(
+                            "Scale magnify factor: {}/{}",
+                            plot_range.adapt.0, plot_range.adapt.3
+                        ));
+                        ui.label(format!(
+                            "Refresh threshold of scale factor: ({},{})",
+                            plot_range.adapt.1, plot_range.adapt.2
+                        ));
+                    });
+                }
+            });
             Self::plot_line(
                 engine.state().iter().map(|x| x.re),
                 ui,
                 plot_range,
                 *running || step,
+                *smarter_plot,
             );
         });
     }
