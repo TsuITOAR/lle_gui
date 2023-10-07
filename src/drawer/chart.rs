@@ -83,28 +83,29 @@ impl<T: Debug + Float + PartialOrd + FromPrimitive + Copy> SmartPlot<T> {
 
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
 pub struct LleChart {
+    pub(crate) name: String,
     pub(crate) kind: PlotKind,
     #[serde(default)]
     pub(crate) proc: Process,
     #[serde(default)]
     pub(crate) smart_plot: Option<SmartPlot<f64>>,
-    #[serde(skip)]
-    pub(crate) last_plot: Option<std::time::Instant>,
 }
 
 impl LleChart {
+    pub(crate) fn plot_on_new_window(&mut self, data: &[Complex64], ctx: &Context, running: bool) {
+        egui::Window::new(&self.name).show(ctx, |ui| {
+            self.proc.controller(ui);
+            let d = self.proc.proc(data);
+            self.plot_in(d, ui, running);
+        });
+    }
+
     pub(crate) fn plot_in(
         &mut self,
         data: impl IntoIterator<Item = f64>,
         ui: &mut egui::Ui,
         running: bool,
     ) -> egui::Response {
-        let now = Instant::now();
-        let last = self.last_plot.replace(now);
-        if let Some(last) = last {
-            let past = (now - last).as_secs_f32();
-            ui.label(format!("{:.0}Hz ({:.1}ms)", 1. / past, past * 1000.));
-        };
         match self.kind {
             PlotKind::Line => self.plot_line(data, ui, running),
         }
@@ -154,7 +155,7 @@ impl LleChart {
         ui.horizontal(|ui| {
             crate::checkbox_some(ui, &mut self.smart_plot, "Smarter plot");
             #[cfg(debug_assertions)]
-            if let (true, Some(smart)) = (running, self.smart_plot.as_mut()) {
+            if let Some(smart) = self.smart_plot.as_mut() {
                 ui.collapsing("Status", |ui| {
                     ui.label(format!(
                         "Plot center,distance: {},{}",
@@ -197,6 +198,13 @@ pub struct Process {
 }
 
 impl Process {
+    pub(crate) fn new_freq_domain() -> Self {
+        Self {
+            fft: Some(Default::default()),
+            db_scale: true,
+            ..Default::default()
+        }
+    }
     pub(crate) fn proc(&mut self, data: &[Complex64]) -> impl Iterator<Item = f64> {
         let Process {
             fft,
@@ -206,12 +214,24 @@ impl Process {
         let mut data = data.to_owned();
         if let Some((f, b)) = fft.as_mut().map(|x| x.get_fft(data.len())) {
             debug_assert_eq!(b.len(), f.get_inplace_scratch_len());
-            f.process_with_scratch(&mut data, b)
+            f.process_with_scratch(&mut data, b);
+            let split_pos = (data.len() + 1) / 2; //for odd situations, need to shift (len+1)/2..len, for evens, len/2..len
+            let (pos_freq, neg_freq) = data.split_at_mut(split_pos);
+            data = neg_freq.iter().chain(pos_freq.iter()).copied().collect();
         }
+
         let db_scale = *db_scale;
         component
             .extract(data.into_iter())
             .map(move |x| if db_scale { x.log10() * 20. } else { x })
+    }
+
+    pub(crate) fn controller(&mut self, ui: &mut egui::Ui) {
+        ui.horizontal(|ui| {
+            crate::checkbox_some(ui, &mut self.fft, "FFT");
+            self.component.show(ui);
+            ui.toggle_value(&mut self.db_scale, "dB scale")
+        });
     }
 }
 

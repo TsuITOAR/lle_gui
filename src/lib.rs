@@ -6,7 +6,7 @@ mod easy_mark;
 mod property;
 use std::{collections::BTreeMap, f64::consts::PI};
 
-use drawer::{PlotKind, ViewField};
+use drawer::ViewField;
 use egui::DragValue;
 use lle::{num_complex::Complex64, num_traits::zero, Evolver, LinearOp};
 use property::Property;
@@ -68,8 +68,8 @@ pub struct App {
     dim: usize,
     #[serde(skip)]
     engine: Option<LleSolver>,
-    #[serde(skip)]
-    field_plot: Option<ViewField>,
+    #[serde(default)]
+    view: ViewField,
     #[serde(skip)]
     seed: Option<u32>,
     #[serde(skip)]
@@ -94,7 +94,7 @@ impl Default for App {
             .map(|x| (x.label.clone(), x))
             .collect(),
             engine: None,
-            field_plot: None,
+            view: Default::default(),
             seed: None,
             running: false,
         }
@@ -126,7 +126,7 @@ impl eframe::App for App {
             slider_len,
             properties,
             engine,
-            field_plot: plot_range,
+            view,
             seed: _,
             running,
         } = self;
@@ -158,20 +158,7 @@ impl eframe::App for App {
             )
         });
         synchronize_properties(properties, engine);
-        let plot_range = plot_range.get_or_insert_with(|| ViewField::new("Intracavity"));
-        /*
-        #[cfg(not(target_arch = "wasm32"))] // no File->Quit on web pages!
-        egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
-            // The top panel is often a good place for a menu bar:
-             egui::menu::bar(ui, |ui| {
-                ui.menu_button("File", |ui| {
-                    if ui.button("Quit").clicked() {
-                        _frame.close();
-                    }
-                });
-            });
-        });
-        */
+
         let mut reset = false;
         let mut destruct = false;
         let mut step = false;
@@ -199,7 +186,10 @@ impl eframe::App for App {
                 reset = ui.button("⏹").clicked();
                 destruct = ui.button("⏏").clicked();
             });
+            view.show_which(ui);
+            view.show_fps(ui);
         });
+
         if reset {
             let en = self.engine.take();
             *self = Default::default();
@@ -214,7 +204,7 @@ impl eframe::App for App {
             engine.evolve_n(100);
             ctx.request_repaint()
         }
-        plot_range.plot_on_new_window(engine.state(), ctx, *running);
+        view.plot_on_new_windows(engine.state(), ctx, *running);
     }
 
     /// Called by the frame work to save state before shutdown.
@@ -232,6 +222,26 @@ pub(crate) fn checkbox_some<T: Default>(
     let r = ui.checkbox(&mut ch, text);
     if v.is_none() && ch {
         *v = T::default().into();
+    } else if !ch {
+        *v = None;
+    }
+
+    r
+}
+
+pub(crate) fn checkbox_with<T, F>(
+    ui: &mut egui::Ui,
+    v: &mut Option<T>,
+    text: impl Into<egui::WidgetText>,
+    f: F,
+) -> egui::Response
+where
+    F: FnOnce() -> Option<T>,
+{
+    let mut ch = v.is_some();
+    let r = ui.checkbox(&mut ch, text);
+    if v.is_none() && ch {
+        *v = f();
     } else if !ch {
         *v = None;
     }
