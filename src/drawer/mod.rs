@@ -39,7 +39,7 @@ pub struct ViewField {
     #[serde(default)]
     pub(crate) f_chart: Option<LleChart>,
     #[serde(skip)]
-    last_plot: Option<std::time::Instant>,
+    last_plot: Option<Instant>,
 }
 
 impl Default for ViewField {
