@@ -22,6 +22,8 @@ lle = { git = "https://github.com/TsuITOAR/Lle.git" }
 rand = "^0.8"
 anyhow = "*"
 log = "^0.4"
+#egui-plotter = "^0.3"
+
 
 # native:
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]

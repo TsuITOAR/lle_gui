@@ -6,7 +6,7 @@ mod easy_mark;
 mod property;
 use std::{collections::BTreeMap, f64::consts::PI};
 
-use drawer::{Plot, PlotKind};
+use drawer::{PlotKind, ViewField};
 use egui::DragValue;
 use lle::{num_complex::Complex64, num_traits::zero, Evolver, LinearOp};
 use property::Property;
@@ -60,7 +60,8 @@ fn show_as_drag_value_with_suffix<T: egui::emath::Numeric>(
 
 /// We derive Deserialize/Serialize so we can persist app state on shutdown.
 #[derive(serde::Deserialize, serde::Serialize)]
-#[serde(default)] // if we add new fields, give them default values when deserializing old state
+#[serde(default)]
+// if we add new fields, give them default values when deserializing old state
 pub struct App {
     slider_len: Option<f32>,
     properties: BTreeMap<String, Property<f64>>,
@@ -68,7 +69,7 @@ pub struct App {
     #[serde(skip)]
     engine: Option<LleSolver>,
     #[serde(skip)]
-    field_plot: Option<Plot<f64>>,
+    field_plot: Option<ViewField>,
     #[serde(skip)]
     seed: Option<u32>,
     #[serde(skip)]
@@ -157,8 +158,7 @@ impl eframe::App for App {
             )
         });
         synchronize_properties(properties, engine);
-        let plot_range = plot_range
-            .get_or_insert_with(|| Plot::new("Intracavity", PlotKind::Line, 10, 200, 2, 100, 30));
+        let plot_range = plot_range.get_or_insert_with(|| ViewField::new("Intracavity"));
         /*
         #[cfg(not(target_arch = "wasm32"))] // no File->Quit on web pages!
         egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
@@ -214,11 +214,27 @@ impl eframe::App for App {
             engine.evolve_n(100);
             ctx.request_repaint()
         }
-        plot_range.plot_on_new_window(engine.state().iter().map(|x| x.re), ctx, *running);
+        plot_range.plot_on_new_window(engine.state(), ctx, *running);
     }
 
     /// Called by the frame work to save state before shutdown.
     fn save(&mut self, storage: &mut dyn eframe::Storage) {
         eframe::set_value(storage, eframe::APP_KEY, self);
     }
+}
+
+pub(crate) fn checkbox_some<T: Default>(
+    ui: &mut egui::Ui,
+    v: &mut Option<T>,
+    text: impl Into<egui::WidgetText>,
+) -> egui::Response {
+    let mut ch = v.is_some();
+    let r = ui.checkbox(&mut ch, text);
+    if v.is_none() && ch {
+        *v = T::default().into();
+    } else if !ch {
+        *v = None;
+    }
+
+    r
 }
