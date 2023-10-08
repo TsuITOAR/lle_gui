@@ -25,7 +25,7 @@ fn main() {
     wasm_bindgen_futures::spawn_local(async {
         eframe::WebRunner::new()
             .start(
-                "app", // hardcode it
+                "LLE GUI", // hardcode it
                 web_options,
                 Box::new(|cc| Box::new(lle_gui::App::new(cc))),
             )
