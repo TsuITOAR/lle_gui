@@ -25,7 +25,7 @@ fn main() {
     wasm_bindgen_futures::spawn_local(async {
         eframe::WebRunner::new()
             .start(
-                "LLE GUI", // hardcode it
+                "app", // hardcode it， this is canvas ID not app id
                 web_options,
                 Box::new(|cc| Box::new(lle_gui::App::new(cc))),
             )
