@@ -1,5 +1,6 @@
 #![warn(clippy::all, rust_2018_idioms)]
-
+#![feature(unboxed_closures)]
+#![feature(fn_traits)]
 mod configer;
 mod drawer;
 mod easy_mark;
@@ -10,11 +11,11 @@ use drawer::ViewField;
 use egui::DragValue;
 use lle::{num_complex::Complex64, num_traits::zero, Evolver, LinearOp};
 use property::Property;
-type LleSolver = lle::LleSolver<
+type LleSolver<NL> = lle::LleSolver<
     f64,
     Vec<Complex64>,
     lle::LinearOpAdd<(lle::DiffOrder, Complex64), (lle::DiffOrder, Complex64)>,
-    Box<dyn Fn(Complex64) -> Complex64>,
+    NL,
 >;
 pub(crate) fn add_random<'a>(
     intensity: f64,
@@ -35,7 +36,10 @@ fn default_add_random<'a>(state: impl Iterator<Item = &'a mut Complex64>) {
     add_random((2. * PI).sqrt() * 1e5, 1e5, state)
 }
 
-fn synchronize_properties(props: &BTreeMap<String, Property<f64>>, engine: &mut LleSolver) {
+fn synchronize_properties<NL: Fn(Complex64) -> Complex64>(
+    props: &BTreeMap<String, Property<f64>>,
+    engine: &mut LleSolver<NL>,
+) {
     engine.linear = (0, -(Complex64::i() * props["alpha"].get_value() + 1.))
         .add((2, -Complex64::i() * props["linear"].get_value() / 2.))
         .into();
@@ -62,12 +66,12 @@ fn show_as_drag_value_with_suffix<T: egui::emath::Numeric>(
 #[derive(serde::Deserialize, serde::Serialize)]
 #[serde(default)]
 // if we add new fields, give them default values when deserializing old state
-pub struct App {
+pub struct App<NL: Fn(Complex64) -> Complex64> {
     slider_len: Option<f32>,
     properties: BTreeMap<String, Property<f64>>,
     dim: usize,
     #[serde(skip)]
-    engine: Option<LleSolver>,
+    engine: Option<LleSolver<NL>>,
     #[serde(default)]
     view: ViewField,
     #[serde(skip)]
@@ -76,7 +80,7 @@ pub struct App {
     running: bool,
 }
 
-impl Default for App {
+impl<NL: Fn(Complex64) -> Complex64> Default for App<NL> {
     fn default() -> Self {
         Self {
             slider_len: None,
@@ -101,7 +105,7 @@ impl Default for App {
     }
 }
 
-impl App {
+impl<NL: Fn(Complex64) -> Complex64> App<NL> {
     /// Called once before the first frame.
     pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
         // This is also where you can customized the look at feel of egui using
@@ -117,7 +121,28 @@ impl App {
     }
 }
 
-impl eframe::App for App {
+#[derive(Clone, Copy, Default)]
+pub struct LleNonLin;
+
+impl FnOnce<(Complex64,)> for LleNonLin {
+    type Output = Complex64;
+
+    extern "rust-call" fn call_once(self, args: (Complex64,)) -> Self::Output {
+        Complex64::i() * args.0.norm_sqr()
+    }
+}
+impl FnMut<(Complex64,)> for LleNonLin {
+    extern "rust-call" fn call_mut(&mut self, args: (Complex64,)) -> Self::Output {
+        Complex64::i() * args.0.norm_sqr()
+    }
+}
+impl Fn<(Complex64,)> for LleNonLin {
+    extern "rust-call" fn call(&self, args: (Complex64,)) -> Self::Output {
+        Complex64::i() * args.0.norm_sqr()
+    }
+}
+
+impl<NL: Fn(Complex64) -> Complex64 + Default> eframe::App for App<NL> {
     /// Called each time the UI needs repainting, which may be many times per second.
     /// Put your widgets into a `SidePanel`, `TopPanel`, `CentralPanel`, `Window` or `Area`.
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
@@ -152,8 +177,7 @@ impl eframe::App for App {
                 init.to_vec(),
                 step_dist,
                 (0, -(Complex64::i() * alpha + 1.)).add((2, -Complex64::i() * linear / 2.)),
-                Box::new(|x: Complex64| Complex64::i() * x.norm_sqr())
-                    as Box<dyn Fn(Complex64) -> Complex64>,
+                NL::default(),
                 Complex64::from(pump),
             )
         });
@@ -186,7 +210,9 @@ impl eframe::App for App {
                 reset = ui.button("⏹").clicked();
                 destruct = ui.button("⏏").clicked();
             });
+            ui.separator();
             view.show_which(ui);
+            ui.separator();
             view.show_fps(ui);
         });
 
@@ -198,6 +224,7 @@ impl eframe::App for App {
         }
         if destruct {
             self.engine = None;
+            self.view = Default::default();
             return;
         }
         if *running || step {
@@ -229,7 +256,7 @@ pub(crate) fn toggle_option<T: Default>(
     r
 }
 
-pub(crate) fn toggle_with<T, F>(
+pub(crate) fn toggle_option_with<T, F>(
     ui: &mut egui::Ui,
     v: &mut Option<T>,
     text: impl Into<egui::WidgetText>,

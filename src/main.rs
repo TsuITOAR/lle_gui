@@ -10,7 +10,7 @@ fn main() -> eframe::Result<()> {
     eframe::run_native(
         "LLE GUI",
         native_options,
-        Box::new(|cc| Box::new(lle_gui::App::new(cc))),
+        Box::new(|cc| Box::new(lle_gui::App::<lle_gui::LleNonLin>::new(cc))),
     )
 }
 
@@ -27,7 +27,7 @@ fn main() {
             .start(
                 "app", // hardcode it， this is canvas ID not app id
                 web_options,
-                Box::new(|cc| Box::new(lle_gui::App::new(cc))),
+                Box::new(|cc| Box::new(lle_gui::App::<lle_gui::LleNonLin>::new(cc))),
             )
             .await
             .expect("failed to start eframe");

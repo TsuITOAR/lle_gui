@@ -139,10 +139,10 @@ impl LleChart {
         let line = egui::plot::Line::new(
             evol.into_iter()
                 .inspect(|&x| {
-                    if *min.get_or_insert(x) > x {
+                    if x.is_normal() && *min.get_or_insert(x) > x {
                         min = Some(x);
                     }
-                    if *max.get_or_insert(x) < x {
+                    if x.is_normal() && *max.get_or_insert(x) < x {
                         max = Some(x);
                     }
                     n += 1;
@@ -239,7 +239,9 @@ impl Process {
     pub(crate) fn controller(&mut self, ui: &mut egui::Ui) {
         ui.horizontal(|ui| {
             crate::toggle_option(ui, &mut self.fft, "FFT");
+            ui.separator();
             self.component.show(ui);
+            ui.separator();
             ui.toggle_value(&mut self.db_scale, "dB scale")
         });
     }
@@ -308,12 +310,10 @@ impl Component {
         }
     }
     pub fn show(&mut self, ui: &mut egui::Ui) {
-        egui::ComboBox::from_label("Component")
-            .selected_text(format!("{:?}", self))
-            .show_ui(ui, |ui| {
-                enum_iterator::all::<Component>().for_each(|s| {
-                    ui.selectable_value(self, s, s.desc());
-                });
-            });
+        enum_iterator::all::<Component>().for_each(|s| {
+            if ui.selectable_label(self == &s, s.desc()).clicked() {
+                *self = s;
+            }
+        })
     }
 }

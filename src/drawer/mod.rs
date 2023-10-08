@@ -70,8 +70,8 @@ impl ViewField {
     }
     pub(crate) fn show_which(&mut self, ui: &mut egui::Ui) {
         ui.vertical(|ui| {
-            crate::toggle_with(ui, &mut self.r_chart, "real domain", default_r_chart);
-            crate::toggle_with(ui, &mut self.f_chart, "freq domain", default_f_chart);
+            crate::toggle_option_with(ui, &mut self.r_chart, "real domain", default_r_chart);
+            crate::toggle_option_with(ui, &mut self.f_chart, "freq domain", default_f_chart);
         });
     }
     pub(crate) fn plot_on_new_windows(&mut self, data: &[Complex64], ctx: &Context, running: bool) {
