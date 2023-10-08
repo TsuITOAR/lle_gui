@@ -48,16 +48,15 @@ impl<T: Debug + Float + PartialOrd + FromPrimitive + Copy> SmartPlot<T> {
         assert!(!new.is_empty());
         let cbound = self.current_bound();
         match cbound {
-            Some(c) => {
+            Some(c)
                 if c.contains(new.start())
                     && c.contains(new.end())
-                    && self.lazy_count.0 < self.lazy_count.1
-                {
-                    self.lazy_count.0 += 1;
-                    return c;
-                }
+                    && self.lazy_count.0 < self.lazy_count.1 =>
+            {
+                self.lazy_count.0 += 1;
+                return c;
             }
-            None => (),
+            _ => (),
         }
 
         if self.lazy_count.0 < self.adapt.1 {
