@@ -70,16 +70,12 @@ impl ViewField {
     }
     pub(crate) fn show_which(&mut self, ui: &mut egui::Ui) {
         ui.vertical(|ui| {
-            crate::checkbox_with(ui, &mut self.r_chart, "show real domain", default_r_chart);
-            crate::checkbox_with(ui, &mut self.f_chart, "show freq domain", default_f_chart);
+            crate::toggle_with(ui, &mut self.r_chart, "real domain", default_r_chart);
+            crate::toggle_with(ui, &mut self.f_chart, "freq domain", default_f_chart);
         });
     }
     pub(crate) fn plot_on_new_windows(&mut self, data: &[Complex64], ctx: &Context, running: bool) {
-        if let Some(ref mut r) = self.r_chart {
-            r.plot_on_new_window(data, ctx, running)
-        }
-        if let Some(ref mut f) = self.f_chart {
-            f.plot_on_new_window(data, ctx, running)
-        }
+        LleChart::plot_on_new_window(&mut self.r_chart, data, ctx, running);
+        LleChart::plot_on_new_window(&mut self.f_chart, data, ctx, running);
     }
 }

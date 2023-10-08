@@ -91,12 +91,23 @@ pub struct LleChart {
 }
 
 impl LleChart {
-    pub(crate) fn plot_on_new_window(&mut self, data: &[Complex64], ctx: &Context, running: bool) {
-        egui::Window::new(&self.name).show(ctx, |ui| {
-            self.proc.controller(ui);
-            let d = self.proc.proc(data);
-            self.plot_in(d, ui, running);
-        });
+    pub(crate) fn plot_on_new_window(
+        s: &mut Option<Self>,
+        data: &[Complex64],
+        ctx: &Context,
+        running: bool,
+    ) {
+        if let Some(ss) = s {
+            let mut open = true;
+            egui::Window::new(&ss.name).open(&mut open).show(ctx, |ui| {
+                ss.proc.controller(ui);
+                let d = ss.proc.proc(data);
+                ss.plot_in(d, ui, running);
+            });
+            if !open {
+                *s = None;
+            }
+        }
     }
 
     pub(crate) fn plot_in(
@@ -117,7 +128,7 @@ impl LleChart {
         running: bool,
     ) -> Response {
         use egui::plot::Plot;
-        let mut plot = Plot::new("line");
+        let mut plot = Plot::new(&self.name);
         plot = plot.coordinates_formatter(
             egui::plot::Corner::LeftBottom,
             egui::plot::CoordinatesFormatter::default(),
@@ -140,7 +151,7 @@ impl LleChart {
                 .map(|(x, y)| [x as _, y])
                 .collect::<egui::plot::PlotPoints>(),
         )
-        .name("Real");
+        .name(self.proc.component.desc());
         let set_bound = if let (true, Some(smart)) = (running, self.smart_plot.as_mut()) {
             if let (Some(min), Some(max)) = (min, max) {
                 let (y1, y2) = smart.update_range(min..=max).into_inner();
@@ -152,7 +163,7 @@ impl LleChart {
             None
         };
         ui.horizontal(|ui| {
-            crate::checkbox_some(ui, &mut self.smart_plot, "Smarter plot");
+            crate::toggle_option(ui, &mut self.smart_plot, "Smarter plot");
             #[cfg(debug_assertions)]
             if let Some(smart) = self.smart_plot.as_mut() {
                 ui.collapsing("Status", |ui| {
@@ -191,9 +202,9 @@ type Fft = std::sync::Arc<dyn lle::rustfft::Fft<f64>>;
 
 #[derive(Default, Clone, Debug, serde::Deserialize, serde::Serialize)]
 pub struct Process {
-    fft: Option<FftProcess>,
-    component: Component,
-    db_scale: bool,
+    pub(crate) fft: Option<FftProcess>,
+    pub(crate) component: Component,
+    pub(crate) db_scale: bool,
 }
 
 impl Process {
@@ -227,7 +238,7 @@ impl Process {
 
     pub(crate) fn controller(&mut self, ui: &mut egui::Ui) {
         ui.horizontal(|ui| {
-            crate::checkbox_some(ui, &mut self.fft, "FFT");
+            crate::toggle_option(ui, &mut self.fft, "FFT");
             self.component.show(ui);
             ui.toggle_value(&mut self.db_scale, "dB scale")
         });
@@ -264,7 +275,16 @@ impl Debug for FftProcess {
     }
 }
 
-#[derive(Default, Debug, Clone, Copy, PartialEq, serde::Deserialize, serde::Serialize)]
+#[derive(
+    Default,
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    serde::Deserialize,
+    serde::Serialize,
+    enum_iterator::Sequence,
+)]
 pub enum Component {
     Real,
     Imag,
@@ -273,6 +293,13 @@ pub enum Component {
 }
 
 impl Component {
+    pub fn desc(&self) -> &str {
+        match self {
+            Component::Real => "Real",
+            Component::Imag => "Imag",
+            Component::Abs => "Abs",
+        }
+    }
     pub fn extract(&self, i: impl Iterator<Item = Complex64>) -> impl Iterator<Item = f64> {
         match self {
             Component::Real => i.map({ |x| x.re } as fn(Complex64) -> f64),
@@ -284,9 +311,9 @@ impl Component {
         egui::ComboBox::from_label("Component")
             .selected_text(format!("{:?}", self))
             .show_ui(ui, |ui| {
-                ui.selectable_value(self, Component::Real, "Real");
-                ui.selectable_value(self, Component::Imag, "Imag");
-                ui.selectable_value(self, Component::Abs, "Abs");
+                enum_iterator::all::<Component>().for_each(|s| {
+                    ui.selectable_value(self, s, s.desc());
+                });
             });
     }
 }

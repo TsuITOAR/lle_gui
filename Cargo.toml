@@ -22,6 +22,7 @@ lle = { git = "https://github.com/TsuITOAR/Lle.git" }
 rand = "^0.8"
 anyhow = "*"
 log = "^0.4"
+enum-iterator = "^1.4"
 #egui-plotter = "^0.3"
 
 

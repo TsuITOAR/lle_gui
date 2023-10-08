@@ -204,7 +204,7 @@ impl eframe::App for App {
             engine.evolve_n(100);
             ctx.request_repaint()
         }
-        view.plot_on_new_windows(engine.state(), ctx, *running);
+        view.plot_on_new_windows(engine.state(), ctx, *running || step);
     }
 
     /// Called by the frame work to save state before shutdown.
@@ -213,13 +213,13 @@ impl eframe::App for App {
     }
 }
 
-pub(crate) fn checkbox_some<T: Default>(
+pub(crate) fn toggle_option<T: Default>(
     ui: &mut egui::Ui,
     v: &mut Option<T>,
     text: impl Into<egui::WidgetText>,
 ) -> egui::Response {
     let mut ch = v.is_some();
-    let r = ui.checkbox(&mut ch, text);
+    let r = ui.toggle_value(&mut ch, text);
     if v.is_none() && ch {
         *v = T::default().into();
     } else if !ch {
@@ -229,7 +229,7 @@ pub(crate) fn checkbox_some<T: Default>(
     r
 }
 
-pub(crate) fn checkbox_with<T, F>(
+pub(crate) fn toggle_with<T, F>(
     ui: &mut egui::Ui,
     v: &mut Option<T>,
     text: impl Into<egui::WidgetText>,
@@ -239,7 +239,8 @@ where
     F: FnOnce() -> Option<T>,
 {
     let mut ch = v.is_some();
-    let r = ui.checkbox(&mut ch, text);
+    //let r = ui.checkbox(&mut ch, text);
+    let r = ui.toggle_value(&mut ch, text);
     if v.is_none() && ch {
         *v = f();
     } else if !ch {
