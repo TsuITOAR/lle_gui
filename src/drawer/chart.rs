@@ -292,6 +292,7 @@ pub enum Component {
     Imag,
     #[default]
     Abs,
+    Arg,
 }
 
 impl Component {
@@ -300,6 +301,7 @@ impl Component {
             Component::Real => "Real",
             Component::Imag => "Imag",
             Component::Abs => "Abs",
+            Component::Arg => "Arg",
         }
     }
     pub fn extract(&self, i: impl Iterator<Item = Complex64>) -> impl Iterator<Item = f64> {
@@ -307,6 +309,7 @@ impl Component {
             Component::Real => i.map({ |x| x.re } as fn(Complex64) -> f64),
             Component::Imag => i.map({ |x| x.im } as fn(Complex64) -> f64),
             Component::Abs => i.map({ |x| x.abs() } as fn(Complex64) -> f64),
+            Component::Arg => i.map({ |x| x.arg() } as fn(Complex64) -> f64),
         }
     }
     pub fn show(&mut self, ui: &mut egui::Ui) {
