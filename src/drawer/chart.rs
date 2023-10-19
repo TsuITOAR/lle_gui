@@ -1,6 +1,8 @@
+use std::iter::Map;
+
 use lle::{num_complex::ComplexFloat, num_traits::Zero, rustfft::FftPlanner};
 
-use super::*;
+use super::{map::ColorMapVisualizer, *};
 
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
 pub struct SmartPlot<T> {
@@ -88,6 +90,8 @@ pub struct LleChart {
     pub(crate) proc: Process,
     #[serde(default)]
     pub(crate) smart_plot: Option<SmartPlot<f64>>,
+    #[serde(default, skip)]
+    pub(crate) show_history: Option<ColorMapVisualizer>,
 }
 
 impl LleChart {
@@ -96,13 +100,46 @@ impl LleChart {
         data: &[Complex64],
         ctx: &Context,
         running: bool,
+        his: &Option<(Vec<Complex64>, usize)>,
     ) {
         if let Some(ss) = s {
             let mut open = true;
             egui::Window::new(&ss.name).open(&mut open).show(ctx, |ui| {
                 ss.proc.controller(ui);
+
+                crate::toggle_option_with(ui, &mut ss.show_history, "History log", || match his {
+                    Some(h) => {
+                        let mut s = ColorMapVisualizer::default();
+                        s.fetch(&h.0, &mut ss.proc, h.1);
+                        Some(s)
+                    }
+                    None => None,
+                });
+
                 let d = ss.proc.proc(data);
-                ss.plot_in(d, ui, running);
+                if let Some(_) = ss.show_history {
+                    #[allow(unused_must_use)]
+                    ui.columns(2, |columns| {
+                        ss.plot_in(d.iter().copied(), &mut columns[0], running);
+                        let ss = ss.show_history.as_mut().expect("checked some");
+                        if running {
+                            ss.push(d);
+                        }
+                        ss.draw_on_ui(data.len(), &columns[1])
+                            .expect("can't plot colormap");
+                    });
+                    /* ui.vertical(|ui| {
+                        ss.plot_in(d.iter().copied(), ui, running);
+                        ss.show_history
+                            .as_mut()
+                            .expect("checked some")
+                            .push(d)
+                            .draw_on_ui(data.len(), &ui)
+                            .expect("can't plot colormap");
+                    }); */
+                } else {
+                    ss.plot_in(d, ui, running);
+                }
             });
             if !open {
                 *s = None;
@@ -215,7 +252,7 @@ impl Process {
             ..Default::default()
         }
     }
-    pub(crate) fn proc(&mut self, data: &[Complex64]) -> impl Iterator<Item = f64> {
+    pub(crate) fn proc(&mut self, data: &[Complex64]) -> Vec<f64> {
         let Process {
             fft,
             component,
@@ -230,10 +267,16 @@ impl Process {
             data = neg_freq.iter().chain(pos_freq.iter()).copied().collect();
         }
 
-        let db_scale = *db_scale;
-        component
-            .extract(data.into_iter())
-            .map(move |x| if db_scale { x.log10() * 20. } else { x })
+        if *db_scale {
+            component
+                .extract(data.into_iter())
+                .map({ |x: f64| x.log10() * 20. } as fn(_) -> _)
+        } else {
+            component
+                .extract(data.into_iter())
+                .map({ |x: f64| x.log10() * 20. } as fn(_) -> _)
+        }
+        .collect()
     }
 
     pub(crate) fn controller(&mut self, ui: &mut egui::Ui) {
@@ -304,7 +347,7 @@ impl Component {
             Component::Arg => "Arg",
         }
     }
-    pub fn extract(&self, i: impl Iterator<Item = Complex64>) -> impl Iterator<Item = f64> {
+    pub fn extract<B: Iterator<Item = Complex64>>(&self, i: B) -> Map<B, fn(Complex64) -> f64> {
         match self {
             Component::Real => i.map({ |x| x.re } as fn(Complex64) -> f64),
             Component::Imag => i.map({ |x| x.im } as fn(Complex64) -> f64),

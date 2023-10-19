@@ -5,6 +5,7 @@ mod configer;
 mod drawer;
 mod easy_mark;
 mod property;
+
 use std::{collections::BTreeMap, f64::consts::PI};
 
 use drawer::ViewField;
@@ -17,6 +18,9 @@ type LleSolver<NL> = lle::LleSolver<
     lle::LinearOpAdd<(lle::DiffOrder, Complex64), (lle::DiffOrder, Complex64)>,
     NL,
 >;
+
+pub const FONT: &str = "Arial";
+
 pub(crate) fn add_random<'a>(
     intensity: f64,
     sigma: f64,
@@ -210,6 +214,9 @@ impl<NL: Fn(Complex64) -> Complex64 + Default> eframe::App for App<NL> {
                 reset = ui.button("⏹").clicked();
                 destruct = ui.button("⏏").clicked();
             });
+
+            view.toggle_record_his(ui, engine.state());
+
             ui.separator();
             view.show_which(ui);
             ui.separator();
@@ -229,6 +236,7 @@ impl<NL: Fn(Complex64) -> Complex64 + Default> eframe::App for App<NL> {
         }
         if *running || step {
             engine.evolve_n(100);
+            view.log_his(engine.state());
             ctx.request_repaint()
         }
         view.plot_on_new_windows(engine.state(), ctx, *running || step);
