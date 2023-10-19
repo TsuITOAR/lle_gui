@@ -117,7 +117,7 @@ impl LleChart {
                 });
 
                 let d = ss.proc.proc(data);
-                if let Some(_) = ss.show_history {
+                if ss.show_history.is_some() {
                     #[allow(unused_must_use)]
                     ui.columns(2, |columns| {
                         ss.plot_in(d.iter().copied(), &mut columns[0], running);

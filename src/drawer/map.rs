@@ -76,7 +76,7 @@ impl<B> RawMapVisualizer<B> {
 }
 impl RawMapVisualizer<f64> {
     pub fn update_range(&mut self, row: &[f64]) -> &mut Self {
-        row.into_iter().copied().for_each(|x| {
+        row.iter().copied().for_each(|x| {
             if let Some(ref mut o) = self.auto_range {
                 if o.start > x {
                     o.start = x;
@@ -152,7 +152,7 @@ impl RawMapVisualizer<f64> {
             .margin_bottom(10.percent_height().in_pixels(draw_area)) //take the space for hidden x axis
             .y_label_area_size(10.percent_width().in_pixels(draw_area));
         let mut chart_bar =
-            builder_bar.build_cartesian_2d((0f64)..1., range_min..(range + range_min))?;
+            builder_bar.build_cartesian_2d(0f64..1., range_min..(range + range_min))?;
         let mut mesh_bar = chart_bar.configure_mesh();
         let step = range / (column_len - 1).max(1) as f64;
         mesh_bar
@@ -214,11 +214,11 @@ impl ColorMapVisualizer<f64> {
         self.matrix.append(&mut row);
         self
     }
-    pub fn draw<'a, DB: DrawingBackend>(
+    pub fn draw<DB: DrawingBackend>(
         &self,
         draw_area: DrawingArea<DB, Shift>,
         chunk_size: usize,
-        text_style: TextStyle<'a>,
+        text_style: TextStyle<'_>,
     ) -> Result<impl Fn((i32, i32)) -> Option<(usize, usize)>, DrawingAreaErrorKind<DB::ErrorType>>
     {
         self.raw
@@ -291,7 +291,7 @@ fn draw_map<'a, DB: DrawingBackend>(
 ) {
     ctx.draw_series(
         data.enumerate()
-            .flat_map(|(y, l)| l.into_iter().enumerate().map(move |(x, v)| (x, y, *v)))
+            .flat_map(|(y, l)| l.iter().enumerate().map(move |(x, v)| (x, y, *v)))
             .map(|(x, y, v)| {
                 Rectangle::new(
                     [(x, y), (x + 1, y + 1)],
