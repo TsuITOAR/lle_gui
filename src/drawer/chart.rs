@@ -271,12 +271,10 @@ impl Process {
             component
                 .extract(data.into_iter())
                 .map({ |x: f64| x.log10() * 20. } as fn(_) -> _)
+                .collect()
         } else {
-            component
-                .extract(data.into_iter())
-                .map({ |x: f64| x.log10() * 20. } as fn(_) -> _)
+            component.extract(data.into_iter()).collect()
         }
-        .collect()
     }
 
     pub(crate) fn controller(&mut self, ui: &mut egui::Ui) {
