@@ -1,4 +1,4 @@
-use egui_plotter::EguiBackend;
+use super::backend::EguiBackend;
 use lle::num_traits::Pow;
 use plotters::{
     coord::Shift,

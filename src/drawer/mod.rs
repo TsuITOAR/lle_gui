@@ -5,6 +5,7 @@ use lle::{
 };
 use std::{fmt::Debug, ops::RangeInclusive};
 
+mod backend;
 pub mod chart;
 pub mod map;
 

@@ -896,17 +896,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "egui-plotter"
-version = "0.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e1ff295cb15b955fa0edb42b1b0c33393e79612e551f577b8a9ec78595bc05d8"
-dependencies = [
- "egui",
- "plotters",
- "plotters-backend",
-]
-
-[[package]]
 name = "egui-winit"
 version = "0.22.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1638,7 +1627,6 @@ dependencies = [
  "console_error_panic_hook",
  "eframe",
  "egui",
- "egui-plotter",
  "enum-iterator",
  "env_logger",
  "getrandom",
@@ -1647,6 +1635,7 @@ dependencies = [
  "lle",
  "log",
  "plotters",
+ "plotters-backend",
  "rand",
  "serde",
  "tracing-wasm",
