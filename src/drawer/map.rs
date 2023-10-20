@@ -1,4 +1,5 @@
 use egui_plotter::EguiBackend;
+use lle::num_traits::Pow;
 use plotters::{
     coord::Shift,
     prelude::*,
@@ -9,7 +10,7 @@ use super::{chart::Process, *};
 use std::ops::Range;
 
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
-enum DrawRange<A> {
+pub enum DrawRange<A> {
     Auto(Option<A>),
     Static(A),
 }
@@ -22,6 +23,7 @@ impl<A> Default for DrawRange<A> {
 
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize, getset::Setters)]
 pub struct RawMapVisualizer<B = f64> {
+    #[getset(set = "pub(crate)")]
     color_range: DrawRange<Range<B>>,
     #[getset(set = "pub(crate)")]
     caption: Option<String>,
@@ -29,8 +31,6 @@ pub struct RawMapVisualizer<B = f64> {
     x_desc: Option<String>,
     #[getset(set = "pub(crate)")]
     y_desc: Option<String>,
-    #[getset(set = "pub(crate)")]
-    auto_range: Option<Range<B>>,
 }
 
 impl<B> Default for RawMapVisualizer<B> {
@@ -40,7 +40,6 @@ impl<B> Default for RawMapVisualizer<B> {
             caption: None,
             x_desc: None,
             y_desc: None,
-            auto_range: None,
         }
     }
 }
@@ -76,17 +75,21 @@ impl<B> RawMapVisualizer<B> {
 }
 impl RawMapVisualizer<f64> {
     pub fn update_range(&mut self, row: &[f64]) -> &mut Self {
-        row.iter().copied().for_each(|x| {
-            if let Some(ref mut o) = self.auto_range {
-                if o.start > x {
-                    o.start = x;
-                } else if o.end < x {
-                    o.end = x;
+        match self.color_range {
+            DrawRange::Auto(ref mut r) => row.iter().copied().for_each(|x| {
+                if let Some(ref mut o) = r {
+                    if o.start > x {
+                        o.start = x;
+                    } else if o.end < x {
+                        o.end = x;
+                    }
+                } else {
+                    *r = Some((x)..(x));
                 }
-            } else {
-                self.auto_range = Some((x)..(x));
-            }
-        });
+            }),
+            DrawRange::Static(_) => (),
+        }
+
         self
     }
     pub fn draw_on<DB: DrawingBackend>(
@@ -99,7 +102,7 @@ impl RawMapVisualizer<f64> {
     {
         let row_len = chunk_size;
         let column_len = matrix.len() / chunk_size;
-        assert_ne!(row_len * column_len, 0);
+        //assert_ne!(row_len * column_len, 0);
         assert_eq!(row_len * column_len, matrix.len()); //make sure it has exact n * chunk_size element
         let (range_max, range_min) = match self.color_range {
             DrawRange::Auto(ref a) => a.as_ref().map(|x| (x.end, x.start)).unwrap_or((1., 0.)),
@@ -154,7 +157,7 @@ impl RawMapVisualizer<f64> {
         let mut chart_bar =
             builder_bar.build_cartesian_2d(0f64..1., range_min..(range + range_min))?;
         let mut mesh_bar = chart_bar.configure_mesh();
-        let step = range / (column_len - 1).max(1) as f64;
+        let step = range / 2.pow(8u8) as f64;
         mesh_bar
             .disable_x_mesh()
             .disable_y_mesh()
@@ -250,8 +253,8 @@ impl ColorMapVisualizer<f64> {
 }
 #[allow(unused)]
 impl<B> ColorMapVisualizer<B> {
-    pub fn set_color_range(&mut self, x: Range<B>) -> &mut Self {
-        self.raw.set_auto_range(x.into());
+    pub fn set_color_range(&mut self, x: DrawRange<Range<B>>) -> &mut Self {
+        self.raw.set_color_range(x);
         self
     }
     pub fn set_caption<S: ToString>(&mut self, s: S) -> &mut Self {
@@ -304,7 +307,7 @@ fn draw_map<'a, DB: DrawingBackend>(
                 )
             }),
     )
-    .expect("plotting reactangles");
+    .expect("plotting rectangles");
 }
 
 /*

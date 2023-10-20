@@ -78,10 +78,10 @@ impl ViewField {
     }
     pub(crate) fn toggle_record_his(&mut self, ui: &mut egui::Ui, data: &[Complex64]) {
         crate::toggle_option_with(ui, &mut self.history, "Record history", || {
-            Some((Vec::new(), data.len()))
+            Some((Vec::from(data), data.len()))
         });
     }
-    
+
     pub(crate) fn log_his(&mut self, data: &[Complex64]) {
         if let Some((ref mut s, _)) = self.history {
             s.extend_from_slice(data)

@@ -115,13 +115,22 @@ impl<NL: Fn(Complex64) -> Complex64> App<NL> {
         // This is also where you can customized the look at feel of egui using
         // `cc.egui_ctx.set_visuals` and `cc.egui_ctx.set_fonts`.
 
+        // Disable feathering as it causes artifacts
+        cc.egui_ctx.tessellation_options_mut(|tess_options| {
+            tess_options.feathering = false;
+        });
+
         // Load previous app state (if any).
         // Note that you must enable the `persistence` feature for this to work.
-        if let Some(storage) = cc.storage {
+        cc.storage.map_or_else(Default::default, |e| {
+            eframe::get_value(e, eframe::APP_KEY).unwrap_or_default()
+        })
+
+        /* if let Some(storage) = cc.storage {
             return eframe::get_value(storage, eframe::APP_KEY).unwrap_or_default();
         }
 
-        Default::default()
+        Default::default() */
     }
 }
 
