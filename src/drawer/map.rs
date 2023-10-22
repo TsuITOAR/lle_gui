@@ -102,7 +102,7 @@ impl RawMapVisualizer<f64> {
     {
         let row_len = chunk_size;
         let column_len = matrix.len() / chunk_size;
-        //assert_ne!(row_len * column_len, 0);
+        assert_ne!(row_len * column_len, 0);
         assert_eq!(row_len * column_len, matrix.len()); //make sure it has exact n * chunk_size element
         let (range_max, range_min) = match self.color_range {
             DrawRange::Auto(ref a) => a.as_ref().map(|x| (x.end, x.start)).unwrap_or((1., 0.)),

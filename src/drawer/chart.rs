@@ -1,5 +1,6 @@
 use std::iter::Map;
 
+use egui::{Layout, SelectableLabel};
 use lle::{num_complex::ComplexFloat, num_traits::Zero, rustfft::FftPlanner};
 
 use super::{map::ColorMapVisualizer, *};
@@ -95,6 +96,31 @@ pub struct LleChart {
 }
 
 impl LleChart {
+    pub(crate) fn toggle_his(&mut self, ui: &mut egui::Ui, his: &Option<(Vec<Complex64>, usize)>) {
+        let mut show_his = self.show_history.is_some();
+        if ui
+            .add_enabled(
+                his.is_some(),
+                SelectableLabel::new(self.show_history.is_some(), "History log"),
+            )
+            .clicked()
+        {
+            show_his = !show_his;
+            if show_his {
+                self.show_history = Some({
+                    let mut t = ColorMapVisualizer::default();
+                    t.fetch(
+                        &his.as_ref().unwrap().0,
+                        &mut self.proc,
+                        his.as_ref().unwrap().1,
+                    );
+                    t
+                })
+            } else {
+                self.show_history = None
+            }
+        }
+    }
     pub(crate) fn plot_on_new_window(
         s: &mut Option<Self>,
         data: &[Complex64],
@@ -107,27 +133,31 @@ impl LleChart {
             egui::Window::new(&ss.name).open(&mut open).show(ctx, |ui| {
                 ss.proc.controller(ui);
 
-                crate::toggle_option_with(ui, &mut ss.show_history, "History log", || match his {
-                    Some(h) => {
-                        let mut s = ColorMapVisualizer::default();
-                        s.fetch(&h.0, &mut ss.proc, h.1);
-                        Some(s)
-                    }
-                    None => None,
-                });
+                ss.toggle_his(ui, his);
 
                 let d = ss.proc.proc(data);
                 if ss.show_history.is_some() {
+                    ss.plot_in(
+                        d.iter().copied(),
+                        ui,
+                        running,
+                        Some(ui.available_height() / 2.),
+                    );
+
+                    ui.end_row();
+                    let ss = ss.show_history.as_mut().expect("checked some");
+                    if running {
+                        ss.push(d);
+                    }
+                    ui.add_space(ui.spacing().item_spacing.y);
+                    let rect = egui::Rect::from_min_size(ui.cursor().min, ui.available_size());
+                    let cui = ui.child_ui(rect, Layout::default());
                     #[allow(unused_must_use)]
-                    ui.columns(2, |columns| {
-                        ss.plot_in(d.iter().copied(), &mut columns[0], running);
-                        let ss = ss.show_history.as_mut().expect("checked some");
-                        if running {
-                            ss.push(d);
-                        }
-                        ss.draw_on_ui(data.len(), &columns[1])
+                    {
+                        ss.draw_on_ui(data.len(), &cui)
                             .expect("can't plot colormap");
-                    });
+                    }
+                    ui.advance_cursor_after_rect(rect);
                     /* ui.vertical(|ui| {
                         ss.plot_in(d.iter().copied(), ui, running);
                         ss.show_history
@@ -138,7 +168,7 @@ impl LleChart {
                             .expect("can't plot colormap");
                     }); */
                 } else {
-                    ss.plot_in(d, ui, running);
+                    ss.plot_in(d, ui, running, None);
                 }
             });
             if !open {
@@ -152,9 +182,10 @@ impl LleChart {
         data: impl IntoIterator<Item = f64>,
         ui: &mut egui::Ui,
         running: bool,
+        height: Option<f32>,
     ) -> egui::Response {
         match self.kind {
-            PlotKind::Line => self.plot_line(data, ui, running),
+            PlotKind::Line => self.plot_line(data, ui, running, height),
         }
     }
 
@@ -163,6 +194,7 @@ impl LleChart {
         evol: impl IntoIterator<Item = f64>,
         ui: &mut egui::Ui,
         running: bool,
+        height: Option<f32>,
     ) -> Response {
         use egui::plot::Plot;
         let mut plot = Plot::new(&self.name);
@@ -225,13 +257,14 @@ impl LleChart {
                 });
             }
         });
-        plot.show(ui, |plot_ui| {
-            if let Some(bound) = set_bound {
-                plot_ui.set_plot_bounds(bound);
-            }
-            plot_ui.line(line)
-        })
-        .response
+        plot.height(height.unwrap_or(ui.available_height()))
+            .show(ui, |plot_ui| {
+                if let Some(bound) = set_bound {
+                    plot_ui.set_plot_bounds(bound);
+                }
+                plot_ui.line(line)
+            })
+            .response
     }
 }
 

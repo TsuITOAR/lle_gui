@@ -78,9 +78,18 @@ impl ViewField {
         }
     }
     pub(crate) fn toggle_record_his(&mut self, ui: &mut egui::Ui, data: &[Complex64]) {
-        crate::toggle_option_with(ui, &mut self.history, "Record history", || {
+        if crate::toggle_option_with(ui, &mut self.history, "Record history", || {
             Some((Vec::from(data), data.len()))
-        });
+        })
+        .clicked()
+            && self.history.is_none()
+        {
+            for c in [self.r_chart.as_mut(), self.f_chart.as_mut()] {
+                if let Some(c) = c {
+                    c.show_history = None
+                }
+            }
+        }
     }
 
     pub(crate) fn log_his(&mut self, data: &[Complex64]) {
