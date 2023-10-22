@@ -84,10 +84,11 @@ impl ViewField {
         .clicked()
             && self.history.is_none()
         {
-            for c in [self.r_chart.as_mut(), self.f_chart.as_mut()] {
-                if let Some(c) = c {
-                    c.show_history = None
-                }
+            for c in [self.r_chart.as_mut(), self.f_chart.as_mut()]
+                .into_iter()
+                .flatten()
+            {
+                c.show_history = None;
             }
         }
     }

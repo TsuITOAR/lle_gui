@@ -461,16 +461,16 @@ impl<'a> DrawingBackend for EguiBackend<'a> {
             },
         ]);
         fn rotate(anchor: &mut Align2) {
-            *anchor = match anchor {
-                &mut Align2::LEFT_TOP => Align2::RIGHT_TOP,
-                &mut Align2::RIGHT_TOP => Align2::RIGHT_BOTTOM,
-                &mut Align2::RIGHT_BOTTOM => Align2::LEFT_BOTTOM,
-                &mut Align2::LEFT_BOTTOM => Align2::LEFT_TOP,
-                &mut Align2::LEFT_CENTER => Align2::CENTER_TOP,
-                &mut Align2::CENTER_TOP => Align2::RIGHT_CENTER,
-                &mut Align2::RIGHT_CENTER => Align2::CENTER_BOTTOM,
-                &mut Align2::CENTER_BOTTOM => Align2::LEFT_CENTER,
-                &mut Align2::CENTER_CENTER => Align2::CENTER_CENTER,
+            *anchor = match *anchor {
+                Align2::LEFT_TOP => Align2::RIGHT_TOP,
+                Align2::RIGHT_TOP => Align2::RIGHT_BOTTOM,
+                Align2::RIGHT_BOTTOM => Align2::LEFT_BOTTOM,
+                Align2::LEFT_BOTTOM => Align2::LEFT_TOP,
+                Align2::LEFT_CENTER => Align2::CENTER_TOP,
+                Align2::CENTER_TOP => Align2::RIGHT_CENTER,
+                Align2::RIGHT_CENTER => Align2::CENTER_BOTTOM,
+                Align2::CENTER_BOTTOM => Align2::LEFT_CENTER,
+                Align2::CENTER_CENTER => Align2::CENTER_CENTER,
             }
         }
         for _ in 0..rotations {
