@@ -151,13 +151,14 @@ impl LleChart {
                     }
                     ui.add_space(ui.spacing().item_spacing.y);
                     let rect = egui::Rect::from_min_size(ui.cursor().min, ui.available_size());
+                    ui.allocate_rect(rect, egui::Sense::hover());
                     let cui = ui.child_ui(rect, Layout::default());
                     #[allow(unused_must_use)]
                     {
                         ss.draw_on_ui(data.len(), &cui)
                             .expect("can't plot colormap");
                     }
-                    ui.advance_cursor_after_rect(rect);
+                    //ui.placer.advance_after_rects(rect, rect, item_spacing);
                     /* ui.vertical(|ui| {
                         ss.plot_in(d.iter().copied(), ui, running);
                         ss.show_history
