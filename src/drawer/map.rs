@@ -76,17 +76,19 @@ impl<B> RawMapVisualizer<B> {
 impl RawMapVisualizer<f64> {
     pub fn update_range(&mut self, row: &[f64]) -> &mut Self {
         match self.color_range {
-            DrawRange::Auto(ref mut r) => row.iter().copied().for_each(|x| {
-                if let Some(ref mut o) = r {
-                    if o.start > x {
-                        o.start = x;
-                    } else if o.end < x {
-                        o.end = x;
+            DrawRange::Auto(ref mut r) => {
+                row.iter().copied().filter(|x| x.is_normal()).for_each(|x| {
+                    if let Some(ref mut o) = r {
+                        if o.start > x {
+                            o.start = x;
+                        } else if o.end < x {
+                            o.end = x;
+                        }
+                    } else {
+                        *r = Some((x)..(x));
                     }
-                } else {
-                    *r = Some((x)..(x));
-                }
-            }),
+                })
+            }
             DrawRange::Static(_) => (),
         }
 
