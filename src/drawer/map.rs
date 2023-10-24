@@ -21,6 +21,22 @@ impl<A> Default for DrawRange<A> {
     }
 }
 
+impl DrawRange<Range<f64>> {
+    pub(crate) fn make_range_legal(&mut self) {
+        const MIN_SPAN: f64 = 0.0001;
+        if let DrawRange::Auto(a) = self {
+            match a {
+                Some(ref mut r) if r.end - r.start < MIN_SPAN => {
+                    let center = (r.start + r.end) / 2.;
+                    *r = (center - MIN_SPAN / 2.)..(center + MIN_SPAN / 2.);
+                }
+                None => *a = Some((-MIN_SPAN / 2.)..MIN_SPAN / 2.),
+                _ => (),
+            }
+        }
+    }
+}
+
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize, getset::Setters)]
 pub struct RawMapVisualizer<B = f64, Backend = ()> {
     backend: PhantomData<Backend>,
@@ -89,7 +105,7 @@ impl<Backend> RawMapVisualizer<f64, Backend> {
                     } else {
                         *r = Some((x)..(x));
                     }
-                })
+                });
             }
             DrawRange::Static(_) => (),
         }
@@ -208,6 +224,11 @@ impl Default for ColorMapVisualizer<f64> {
 }
 
 impl ColorMapVisualizer<f64> {
+    fn clear(&mut self) {
+        self.matrix.clear();
+        self.raw.color_range = Default::default();
+    }
+
     pub fn fetch(
         &mut self,
         data: &[Complex64],
@@ -215,7 +236,7 @@ impl ColorMapVisualizer<f64> {
         chunk_size: usize,
     ) -> &mut Self {
         puffin::profile_function!();
-        self.matrix.clear();
+        self.clear();
         match self.max_log {
             Some(max) => {
                 self.matrix.reserve(chunk_size * max.get());
@@ -229,7 +250,7 @@ impl ColorMapVisualizer<f64> {
                 }
             }
         }
-
+        self.raw.color_range.make_range_legal();
         self
     }
 

@@ -3,7 +3,7 @@
     2. ~~better view strategy~~
     3. ~~selectable display expression~~
     4. ~~frequency domain display~~
-    5. history display
+    5. ~~history display~~
 
 2. configure panel
     1. mathematical expressions
