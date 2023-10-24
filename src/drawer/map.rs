@@ -7,7 +7,7 @@ use plotters::{
 };
 
 use super::{chart::Process, *};
-use std::{marker::PhantomData, ops::Range};
+use std::{marker::PhantomData, num::NonZeroUsize, ops::Range};
 
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
 pub enum DrawRange<A> {
@@ -35,18 +35,6 @@ pub struct RawMapVisualizer<B = f64, Backend = ()> {
 }
 
 impl<B> Default for RawMapVisualizer<B> {
-    fn default() -> Self {
-        Self {
-            color_range: DrawRange::default(),
-            caption: None,
-            x_desc: None,
-            y_desc: None,
-            backend: PhantomData,
-        }
-    }
-}
-
-impl<'a, B> Default for RawMapVisualizer<B, SVGBackend<'a>> {
     fn default() -> Self {
         Self {
             color_range: DrawRange::default(),
@@ -204,6 +192,7 @@ impl RawMapVisualizer<f64> {
 }
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
 pub struct ColorMapVisualizer<B = f64> {
+    pub(crate) max_log: Option<NonZeroUsize>,
     matrix: Vec<B>,
     raw: RawMapVisualizer<B>,
 }
@@ -211,6 +200,7 @@ pub struct ColorMapVisualizer<B = f64> {
 impl Default for ColorMapVisualizer<f64> {
     fn default() -> Self {
         Self {
+            max_log: NonZeroUsize::new(100),
             matrix: Default::default(),
             raw: Default::default(),
         }
@@ -220,23 +210,54 @@ impl Default for ColorMapVisualizer<f64> {
 impl ColorMapVisualizer<f64> {
     pub fn fetch(
         &mut self,
-        data: &Vec<Complex64>,
+        data: &[Complex64],
         proc: &mut Process,
         chunk_size: usize,
     ) -> &mut Self {
         puffin::profile_function!();
         self.matrix.clear();
-        self.matrix.reserve(data.len());
-        for d in data.chunks(chunk_size) {
-            self.push(proc.proc(d));
+        match self.max_log {
+            Some(max) => {
+                self.matrix.reserve(chunk_size * max.get());
+                for d in data.rchunks(chunk_size).take(max.get()).rev() {
+                    self.push(proc.proc(d));
+                }
+            }
+            None => {
+                for d in data.chunks(chunk_size) {
+                    self.push(proc.proc(d));
+                }
+            }
+        }
+
+        self
+    }
+
+    pub fn update(
+        &mut self,
+        data: &[Complex64],
+        proc: &mut Process,
+        chunk_size: usize,
+    ) -> &mut Self {
+        match self.max_log {
+            Some(_) => {
+                self.fetch(data, proc, chunk_size);
+            }
+            None => {
+                data.rchunks(chunk_size)
+                    .next()
+                    .map(|d| self.push(proc.proc(d)));
+            }
         }
         self
     }
-    pub fn push(&mut self, mut row: Vec<f64>) -> &mut Self {
+
+    fn push(&mut self, mut row: Vec<f64>) -> &mut Self {
         self.raw.update_range(&row);
         self.matrix.append(&mut row);
         self
     }
+
     pub fn draw_mat<DB: DrawingBackend>(
         &self,
         draw_area: DrawingArea<DB, Shift>,

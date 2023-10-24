@@ -965,7 +965,6 @@ dependencies = [
  "objc",
  "parking_lot",
  "percent-encoding",
- "pollster",
  "puffin 0.16.0",
  "raw-window-handle",
  "ron",
@@ -975,7 +974,6 @@ dependencies = [
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "web-sys",
- "wgpu",
  "winapi",
  "winit",
 ]
@@ -2484,12 +2482,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "pollster"
-version = "0.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "22686f4785f02a4fcc856d3b3bb19bf6c8160d103f7a99cc258bddd0251dc7f2"
-
-[[package]]
 name = "powerfmt"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2582,10 +2574,12 @@ dependencies = [
  "bincode",
  "byteorder",
  "cfg-if",
+ "js-sys",
  "lz4_flex",
  "once_cell",
  "parking_lot",
  "serde",
+ "web-time",
 ]
 
 [[package]]

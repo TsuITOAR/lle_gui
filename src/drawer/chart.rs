@@ -1,6 +1,6 @@
-use std::iter::Map;
+use std::{iter::Map, num::NonZeroUsize};
 
-use egui::{Layout, SelectableLabel};
+use egui::{DragValue, Layout, SelectableLabel};
 use lle::{num_complex::ComplexFloat, num_traits::Zero, rustfft::FftPlanner};
 
 use super::{map::ColorMapVisualizer, *};
@@ -96,7 +96,12 @@ pub struct LleChart {
 }
 
 impl LleChart {
-    pub(crate) fn toggle_his(&mut self, ui: &mut egui::Ui, his: &Option<(Vec<Complex64>, usize)>) {
+    pub(crate) fn control_panel_history(
+        &mut self,
+        ui: &mut egui::Ui,
+        his: &Option<(Vec<Complex64>, usize)>,
+        running: bool,
+    ) {
         let mut show_his = self.show_history.is_some();
         if ui
             .add_enabled(
@@ -106,7 +111,26 @@ impl LleChart {
             .clicked()
         {
             show_his = !show_his;
-            if show_his {
+        }
+        match self.show_history.as_mut() {
+            Some(_) if !show_his => self.show_history = None,
+            Some(ss) if show_his => {
+                let his = his.as_ref().unwrap();
+                if running {
+                    ss.update(&his.0, &mut self.proc, his.1);
+                }
+                let mut v = ss.max_log.map(|x| x.get()).unwrap_or_default();
+                ui.horizontal(|ui| {
+                    ui.label("Record length: ");
+                    ui.add(DragValue::new(&mut v))
+                });
+                let new = NonZeroUsize::new(v);
+                if new != ss.max_log {
+                    ss.max_log = new;
+                    ss.fetch(&his.0, &mut self.proc, his.1);
+                }
+            }
+            None if show_his => {
                 self.show_history = Some({
                     let mut t = ColorMapVisualizer::default();
                     t.fetch(
@@ -116,11 +140,11 @@ impl LleChart {
                     );
                     t
                 })
-            } else {
-                self.show_history = None
             }
+            _ => (),
         }
     }
+
     pub(crate) fn plot_on_new_window(
         s: &mut Option<Self>,
         data: &[Complex64],
@@ -134,7 +158,7 @@ impl LleChart {
             egui::Window::new(&ss.name).open(&mut open).show(ctx, |ui| {
                 ss.proc.controller(ui);
 
-                ss.toggle_his(ui, his);
+                ui.horizontal(|ui| ss.control_panel_history(ui, his, running));
 
                 let d = ss.proc.proc(data);
                 if ss.show_history.is_some() {
@@ -147,9 +171,6 @@ impl LleChart {
 
                     ui.end_row();
                     let ss = ss.show_history.as_mut().expect("checked some");
-                    if running {
-                        ss.push(d);
-                    }
                     ui.add_space(ui.spacing().item_spacing.y);
                     let rect = egui::Rect::from_min_size(ui.cursor().min, ui.available_size());
                     ui.allocate_rect(rect, egui::Sense::hover());
