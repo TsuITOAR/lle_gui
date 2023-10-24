@@ -105,7 +105,8 @@ impl ViewField {
             crate::toggle_option_with(ui, &mut self.f_chart, "freq domain", default_f_chart);
         });
     }
-    pub(crate) fn plot_on_new_windows(&mut self, data: &[Complex64], ctx: &Context, running: bool) {
+    pub(crate) fn visualize_state(&mut self, data: &[Complex64], ctx: &Context, running: bool) {
+        puffin::profile_function!();
         LleChart::plot_on_new_window(&mut self.r_chart, data, ctx, running, &self.history);
         LleChart::plot_on_new_window(&mut self.f_chart, data, ctx, running, &self.history);
     }

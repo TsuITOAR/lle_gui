@@ -44,6 +44,7 @@ fn synchronize_properties<NL: Fn(Complex64) -> Complex64>(
     props: &BTreeMap<String, Property<f64>>,
     engine: &mut LleSolver<NL>,
 ) {
+    puffin::profile_function!();
     engine.linear = (0, -(Complex64::i() * props["alpha"].get_value() + 1.))
         .add((2, -Complex64::i() * props["linear"].get_value() / 2.))
         .into();
@@ -82,6 +83,8 @@ pub struct App<NL: Fn(Complex64) -> Complex64> {
     seed: Option<u32>,
     #[serde(skip)]
     running: bool,
+    #[serde(skip)]
+    profiler: bool,
 }
 
 impl<NL: Fn(Complex64) -> Complex64> Default for App<NL> {
@@ -105,6 +108,7 @@ impl<NL: Fn(Complex64) -> Complex64> Default for App<NL> {
             view: Default::default(),
             seed: None,
             running: false,
+            profiler: false,
         }
     }
 }
@@ -159,6 +163,8 @@ impl<NL: Fn(Complex64) -> Complex64 + Default> eframe::App for App<NL> {
     /// Called each time the UI needs repainting, which may be many times per second.
     /// Put your widgets into a `SidePanel`, `TopPanel`, `CentralPanel`, `Window` or `Area`.
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        puffin::GlobalProfiler::lock().new_frame(); // call once per frame!
+        puffin::profile_function!();
         let Self {
             dim,
             slider_len,
@@ -167,6 +173,7 @@ impl<NL: Fn(Complex64) -> Complex64 + Default> eframe::App for App<NL> {
             view,
             seed: _,
             running,
+            profiler,
         } = self;
         if engine.is_none() {
             *running = false;
@@ -200,6 +207,7 @@ impl<NL: Fn(Complex64) -> Complex64 + Default> eframe::App for App<NL> {
         let mut destruct = false;
         let mut step = false;
         egui::SidePanel::left("control_panel").show(ctx, |ui| {
+            puffin::profile_scope!("control panel");
             ui.heading("Control Panel");
 
             let slider_len = slider_len.get_or_insert_with(|| ui.spacing().slider_width);
@@ -230,6 +238,9 @@ impl<NL: Fn(Complex64) -> Complex64 + Default> eframe::App for App<NL> {
             view.show_which(ui);
             ui.separator();
             view.show_fps(ui);
+
+            ui.separator();
+            show_profiler(profiler, ui);
         });
 
         if reset {
@@ -244,11 +255,12 @@ impl<NL: Fn(Complex64) -> Complex64 + Default> eframe::App for App<NL> {
             return;
         }
         if *running || step {
+            puffin::profile_scope!("lle");
             engine.evolve_n(100);
             view.log_his(engine.state());
             ctx.request_repaint()
         }
-        view.plot_on_new_windows(engine.state(), ctx, *running || step);
+        view.visualize_state(engine.state(), ctx, *running || step);
     }
 
     /// Called by the frame work to save state before shutdown.
@@ -292,4 +304,13 @@ where
     }
 
     r
+}
+
+fn show_profiler(show: &mut bool, ui: &mut egui::Ui) {
+    if ui.toggle_value(show, "profile performance").clicked() {
+        puffin::set_scopes_on(*show); // Remember to call this, or puffin will be disabled!
+    }
+    if *show {
+        puffin_egui::profiler_ui(ui)
+    }
 }

@@ -8,13 +8,19 @@ edition = "2021"
 
 
 [dependencies]
-egui = "^0.22"
-eframe = { version = "^0.22", features = [
+egui = "^0.23"
+eframe = { version = "^0.23", features = [
     "accesskit",     # Make egui comptaible with screen readers. NOTE: adds a lot of dependencies.
     "default_fonts", # Embed the default egui fonts.
-    "glow",          # Use the glow rendering backend. Alternative: "wgpu".
+    "wgpu",          # Use the glow rendering backend. Alternative: "wgpu".
     "persistence",   # Enable restoring app state when restarting the app.
+    "puffin",
 ] }
+
+egui_plot = "^0.23"
+puffin = { version = "0.17.0", features = ["packing"] }
+puffin_egui = "0.23.0"
+
 serde = { version = "1", features = [
     "derive",
 ] } # You only need this if you want app persistence

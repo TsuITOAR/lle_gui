@@ -129,6 +129,7 @@ impl LleChart {
         his: &Option<(Vec<Complex64>, usize)>,
     ) {
         if let Some(ss) = s {
+            puffin::profile_scope!("plot", &ss.name);
             let mut open = true;
             egui::Window::new(&ss.name).open(&mut open).show(ctx, |ui| {
                 ss.proc.controller(ui);
@@ -155,7 +156,7 @@ impl LleChart {
                     let cui = ui.child_ui(rect, Layout::default());
                     #[allow(unused_must_use)]
                     {
-                        ss.draw_on_ui(data.len(), &cui)
+                        ss.draw_mat_on_ui(data.len(), &cui)
                             .expect("can't plot colormap");
                     }
                     //ui.placer.advance_after_rects(rect, rect, item_spacing);
@@ -197,16 +198,17 @@ impl LleChart {
         running: bool,
         height: Option<f32>,
     ) -> Response {
-        use egui::plot::Plot;
+        puffin::profile_function!();
+        use egui_plot::Plot;
         let mut plot = Plot::new(&self.name);
         plot = plot.coordinates_formatter(
-            egui::plot::Corner::LeftBottom,
-            egui::plot::CoordinatesFormatter::default(),
+            egui_plot::Corner::LeftBottom,
+            egui_plot::CoordinatesFormatter::default(),
         );
         let mut min = None;
         let mut max = None;
         let mut n: i32 = 0;
-        let line = egui::plot::Line::new(
+        let line = egui_plot::Line::new(
             evol.into_iter()
                 .inspect(|&x| {
                     if x.is_normal() && *min.get_or_insert(x) > x {
@@ -219,13 +221,13 @@ impl LleChart {
                 })
                 .enumerate()
                 .map(|(x, y)| [x as _, y])
-                .collect::<egui::plot::PlotPoints>(),
+                .collect::<egui_plot::PlotPoints>(),
         )
         .name(self.proc.component.desc());
         let set_bound = if let (true, Some(smart)) = (running, self.smart_plot.as_mut()) {
             if let (Some(min), Some(max)) = (min, max) {
                 let (y1, y2) = smart.update_range(min..=max).into_inner();
-                Some(egui::plot::PlotBounds::from_min_max([0., y1], [n as _, y2]))
+                Some(egui_plot::PlotBounds::from_min_max([0., y1], [n as _, y2]))
             } else {
                 None
             }

@@ -7,7 +7,7 @@ use plotters::{
 };
 
 use super::{chart::Process, *};
-use std::ops::Range;
+use std::{marker::PhantomData, ops::Range};
 
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
 pub enum DrawRange<A> {
@@ -22,7 +22,8 @@ impl<A> Default for DrawRange<A> {
 }
 
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize, getset::Setters)]
-pub struct RawMapVisualizer<B = f64> {
+pub struct RawMapVisualizer<B = f64, Backend = ()> {
+    backend: PhantomData<Backend>,
     #[getset(set = "pub(crate)")]
     color_range: DrawRange<Range<B>>,
     #[getset(set = "pub(crate)")]
@@ -40,6 +41,19 @@ impl<B> Default for RawMapVisualizer<B> {
             caption: None,
             x_desc: None,
             y_desc: None,
+            backend: PhantomData,
+        }
+    }
+}
+
+impl<'a, B> Default for RawMapVisualizer<B, SVGBackend<'a>> {
+    fn default() -> Self {
+        Self {
+            color_range: DrawRange::default(),
+            caption: None,
+            x_desc: None,
+            y_desc: None,
+            backend: PhantomData,
         }
     }
 }
@@ -73,7 +87,7 @@ impl<B> RawMapVisualizer<B> {
         self
     } */
 }
-impl RawMapVisualizer<f64> {
+impl<Backend> RawMapVisualizer<f64, Backend> {
     pub fn update_range(&mut self, row: &[f64]) -> &mut Self {
         match self.color_range {
             DrawRange::Auto(ref mut r) => {
@@ -94,6 +108,9 @@ impl RawMapVisualizer<f64> {
 
         self
     }
+}
+
+impl RawMapVisualizer<f64> {
     pub fn draw_on<DB: DrawingBackend>(
         &self,
         matrix: &Vec<f64>,
@@ -207,6 +224,7 @@ impl ColorMapVisualizer<f64> {
         proc: &mut Process,
         chunk_size: usize,
     ) -> &mut Self {
+        puffin::profile_function!();
         self.matrix.clear();
         self.matrix.reserve(data.len());
         for d in data.chunks(chunk_size) {
@@ -219,7 +237,7 @@ impl ColorMapVisualizer<f64> {
         self.matrix.append(&mut row);
         self
     }
-    pub fn draw<DB: DrawingBackend>(
+    pub fn draw_mat<DB: DrawingBackend>(
         &self,
         draw_area: DrawingArea<DB, Shift>,
         chunk_size: usize,
@@ -229,7 +247,7 @@ impl ColorMapVisualizer<f64> {
         self.raw
             .draw_on(&self.matrix, &draw_area, chunk_size, text_style)
     }
-    pub fn draw_on_ui<'a>(
+    pub fn draw_mat_on_ui<'a>(
         &self,
         chunk_size: usize,
         ui: &'a egui::Ui,
@@ -237,15 +255,16 @@ impl ColorMapVisualizer<f64> {
         impl Fn((i32, i32)) -> Option<(usize, usize)> + 'a,
         DrawingAreaErrorKind<<EguiBackend<'_> as DrawingBackend>::ErrorType>,
     > {
+        puffin::profile_function!();
         let f = ui.style().text_styles.get(&egui::TextStyle::Monospace);
         let pixel_per_point = ui.ctx().pixels_per_point();
         match f {
-            Some(x) => self.draw(
+            Some(x) => self.draw_mat(
                 EguiBackend::new(ui).into_drawing_area(),
                 chunk_size,
                 (x.family.to_string().as_str(), x.size * pixel_per_point).into(),
             ),
-            None => self.draw(
+            None => self.draw_mat(
                 EguiBackend::new(ui).into_drawing_area(),
                 chunk_size,
                 ("monospace", 12. * pixel_per_point).into(),
@@ -294,6 +313,7 @@ fn draw_map<'a, DB: DrawingBackend>(
     data: impl Iterator<Item = &'a [f64]>,
     color_map: impl Fn(f64) -> f64,
 ) {
+    puffin::profile_scope!("iterator matrix elements");
     ctx.draw_series(
         data.enumerate()
             .flat_map(|(y, l)| l.iter().enumerate().map(move |(x, v)| (x, y, *v)))
