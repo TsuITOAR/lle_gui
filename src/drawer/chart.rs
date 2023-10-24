@@ -1,6 +1,6 @@
 use std::{iter::Map, num::NonZeroUsize};
 
-use egui::{DragValue, Layout, SelectableLabel};
+use egui::{DragValue, SelectableLabel};
 use lle::{num_complex::ComplexFloat, num_traits::Zero, rustfft::FftPlanner};
 
 use super::{map::ColorMapVisualizer, *};
@@ -159,22 +159,26 @@ impl LleChart {
                 ss.proc.controller(ui);
 
                 ui.horizontal(|ui| ss.control_panel_history(ui, his, running));
-
+                const MIN_WIDTH: f32 = 640.;
+                const MIN_HEIGHT: f32 = 320.;
                 let d = ss.proc.proc(data);
+                let (_id, rect) = ui.allocate_space(
+                    (
+                        MIN_WIDTH.max(ui.available_width()),
+                        MIN_HEIGHT.max(ui.available_height()),
+                    )
+                        .into(),
+                );
+                let mut ui = ui.child_ui(rect, *ui.layout());
                 if ss.show_history.is_some() {
-                    ss.plot_in(
-                        d.iter().copied(),
-                        ui,
-                        running,
-                        Some(ui.available_height() / 2.),
-                    );
+                    let h = (rect.height() - ui.spacing().item_spacing.y) / 2.;
+                    ss.plot_in(d.iter().copied(), &mut ui, running, Some(h));
 
                     ui.end_row();
                     let ss = ss.show_history.as_mut().expect("checked some");
                     ui.add_space(ui.spacing().item_spacing.y);
-                    let rect = egui::Rect::from_min_size(ui.cursor().min, ui.available_size());
-                    ui.allocate_rect(rect, egui::Sense::hover());
-                    let cui = ui.child_ui(rect, Layout::default());
+                    let (_id, rect) = ui.allocate_space(ui.available_size());
+                    let cui = ui.child_ui(rect, *ui.layout());
                     #[allow(unused_must_use)]
                     {
                         ss.draw_mat_on_ui(data.len(), &cui)
@@ -191,7 +195,7 @@ impl LleChart {
                             .expect("can't plot colormap");
                     }); */
                 } else {
-                    ss.plot_in(d, ui, running, None);
+                    ss.plot_in(d, &mut ui, running, None);
                 }
             });
             if !open {
