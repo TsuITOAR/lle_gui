@@ -159,13 +159,17 @@ impl LleChart {
                 ss.proc.controller(ui);
 
                 ui.horizontal(|ui| ss.control_panel_history(ui, his, running));
-                const MIN_WIDTH: f32 = 640.;
-                const MIN_HEIGHT: f32 = 320.;
+                const MIN_WIDTH: f32 = 256.;
+                const MIN_HEIGHT: f32 = 256.;
                 let d = ss.proc.proc(data);
                 let (_id, rect) = ui.allocate_space(
                     (
-                        MIN_WIDTH.max(ui.available_width()),
-                        MIN_HEIGHT.max(ui.available_height()),
+                        MIN_WIDTH
+                            .max(256. / ui.ctx().pixels_per_point())
+                            .max(ui.available_width()),
+                        MIN_HEIGHT
+                            .max(256. / ui.ctx().pixels_per_point())
+                            .max(ui.available_height()),
                     )
                         .into(),
                 );
@@ -173,8 +177,8 @@ impl LleChart {
                 if ss.show_history.is_some() {
                     let h = (rect.height() - ui.spacing().item_spacing.y) / 2.;
                     ss.plot_in(d.iter().copied(), &mut ui, running, Some(h));
-
-                    ui.end_row();
+                    ui.separator();
+                    
                     let ss = ss.show_history.as_mut().expect("checked some");
                     ui.add_space(ui.spacing().item_spacing.y);
                     let (_id, rect) = ui.allocate_space(ui.available_size());

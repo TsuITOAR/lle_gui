@@ -37,6 +37,48 @@ impl DrawRange<Range<f64>> {
     }
 }
 
+#[derive(Clone)]
+pub struct Style {
+    text: (String, f32, plotters::prelude::RGBAColor),
+    bg: plotters::prelude::RGBAColor,
+}
+
+fn convert_egui_color(e: egui::Color32) -> plotters::prelude::RGBAColor {
+    plotters::prelude::RGBAColor(e.r(), e.g(), e.b(), e.a() as f64 / 255.)
+}
+
+impl Style {
+    pub fn from_ui(ui: &'_ egui::Ui) -> Self {
+        let f = ui
+            .style()
+            .text_styles
+            .get(&egui::TextStyle::Monospace)
+            .unwrap();
+        let pixel_per_point = ui.ctx().pixels_per_point();
+        let text = (
+            f.family.to_string(),
+            f.size * pixel_per_point,
+            convert_egui_color(ui.visuals().text_color()),
+        );
+        Self {
+            text,
+            bg: convert_egui_color(ui.visuals().extreme_bg_color),
+        }
+    }
+    pub fn text_color(&self) -> plotters::prelude::RGBAColor {
+        self.text.2
+    }
+
+    pub fn text_style(&'_ self) -> TextStyle<'_> {
+        let text_style: TextStyle<'_> = (self.text.0.as_str(), self.text.1).into();
+        text_style.color(&self.text.2)
+    }
+
+    pub fn caption_style(&'_ self) -> impl IntoTextStyle<'_> {
+        (self.text.0.as_str(), self.text.1 * 2., &self.text.2)
+    }
+}
+
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize, getset::Setters)]
 pub struct RawMapVisualizer<B = f64, Backend = ()> {
     backend: PhantomData<Backend>,
@@ -120,7 +162,7 @@ impl RawMapVisualizer<f64> {
         matrix: &Vec<f64>,
         draw_area: &DrawingArea<DB, Shift>,
         chunk_size: usize,
-        text_style: TextStyle<'_>,
+        style: Style,
     ) -> Result<impl Fn((i32, i32)) -> Option<(usize, usize)>, DrawingAreaErrorKind<DB::ErrorType>>
     {
         let row_len = chunk_size;
@@ -137,23 +179,28 @@ impl RawMapVisualizer<f64> {
             1.
         };
         let color_map = |v: f64| ((v - range_min) / range);
-        draw_area.fill(&WHITE)?;
-        let (area, bar) = draw_area.split_horizontally(RelativeSize::Width(0.85));
+        //draw_area.fill(&style.bg)?;
+        let (area, bar) = draw_area.split_horizontally(RelativeSize::Width(0.9));
         let mut builder_map = ChartBuilder::on(&area);
+
+        let text_style = style.text_style();
         builder_map
-            .margin_right(2.percent_width().in_pixels(draw_area))
+            //.margin_right(2.percent_width().in_pixels(draw_area))
             .margin_top(2.percent_height().in_pixels(draw_area))
-            .y_label_area_size(10.percent_width().in_pixels(draw_area))
-            .x_label_area_size(10.percent_height().in_pixels(draw_area));
+            .margin_bottom(2.percent_height().in_pixels(draw_area))
+            .y_label_area_size(5.percent_width().in_pixels(draw_area))
+            .x_label_area_size(5.percent_height().in_pixels(draw_area));
         if let Some(ref s) = self.caption {
-            builder_map.caption(s, ("sans-serif", 2.5.percent().in_pixels(draw_area)));
+            builder_map.caption(s, style.caption_style());
         }
 
         let mut chart_map = builder_map.build_cartesian_2d(0..row_len, 0..column_len)?;
+        chart_map.plotting_area().fill(&style.bg)?;
         let mut mesh_map = chart_map.configure_mesh();
         mesh_map
-            .x_label_style(("sans-serif", 5.percent().in_pixels(draw_area)))
-            .y_label_style(("sans-serif", 5.percent().in_pixels(draw_area)))
+            .axis_style(style.text_color())
+            .x_label_style(text_style.clone())
+            .y_label_style(text_style)
             .disable_x_mesh()
             .disable_y_mesh();
         if let Some(ref s) = self.x_desc {
@@ -173,10 +220,10 @@ impl RawMapVisualizer<f64> {
 
         let mut builder_bar = ChartBuilder::on(&bar);
         builder_bar
-            .margin_right(2.percent_width().in_pixels(draw_area))
-            .margin_top(2.percent_height().in_pixels(draw_area))
-            .margin_bottom(10.percent_height().in_pixels(draw_area)) //take the space for hidden x axis
-            .y_label_area_size(10.percent_width().in_pixels(draw_area));
+            .margin_right(10.percent_width().in_pixels(&bar))
+            .margin_top(2.percent_height().in_pixels(&bar))
+            .margin_bottom(7.percent_height().in_pixels(&bar)) //take the space for hidden x axis
+            .y_label_area_size(60.percent_width().in_pixels(&bar));
         let mut chart_bar =
             builder_bar.build_cartesian_2d(0f64..1., range_min..(range + range_min))?;
         let mut mesh_bar = chart_bar.configure_mesh();
@@ -184,8 +231,8 @@ impl RawMapVisualizer<f64> {
         mesh_bar
             .disable_x_mesh()
             .disable_y_mesh()
-            .x_label_style(text_style.clone())
-            .y_label_style(text_style);
+            .x_label_style(style.text_style())
+            .y_label_style(style.text_style());
         mesh_bar.draw()?;
         chart_bar.draw_series(
             std::iter::successors(Some(range_min), |x| Some(step + x))
@@ -283,11 +330,11 @@ impl ColorMapVisualizer<f64> {
         &self,
         draw_area: DrawingArea<DB, Shift>,
         chunk_size: usize,
-        text_style: TextStyle<'_>,
+        style: Style,
     ) -> Result<impl Fn((i32, i32)) -> Option<(usize, usize)>, DrawingAreaErrorKind<DB::ErrorType>>
     {
         self.raw
-            .draw_on(&self.matrix, &draw_area, chunk_size, text_style)
+            .draw_on(&self.matrix, &draw_area, chunk_size, style)
     }
     pub fn draw_mat_on_ui<'a>(
         &self,
@@ -298,20 +345,11 @@ impl ColorMapVisualizer<f64> {
         DrawingAreaErrorKind<<EguiBackend<'_> as DrawingBackend>::ErrorType>,
     > {
         puffin::profile_function!();
-        let f = ui.style().text_styles.get(&egui::TextStyle::Monospace);
-        let pixel_per_point = ui.ctx().pixels_per_point();
-        match f {
-            Some(x) => self.draw_mat(
-                EguiBackend::new(ui).into_drawing_area(),
-                chunk_size,
-                (x.family.to_string().as_str(), x.size * pixel_per_point).into(),
-            ),
-            None => self.draw_mat(
-                EguiBackend::new(ui).into_drawing_area(),
-                chunk_size,
-                ("monospace", 12. * pixel_per_point).into(),
-            ),
-        }
+        self.draw_mat(
+            EguiBackend::new(ui).into_drawing_area(),
+            chunk_size,
+            Style::from_ui(ui),
+        )
     }
 }
 #[allow(unused)]
