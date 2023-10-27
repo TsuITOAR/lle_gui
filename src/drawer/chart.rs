@@ -178,7 +178,7 @@ impl LleChart {
                     let h = (rect.height() - ui.spacing().item_spacing.y) / 2.;
                     ss.plot_in(d.iter().copied(), &mut ui, running, Some(h));
                     ui.separator();
-                    
+
                     let ss = ss.show_history.as_mut().expect("checked some");
                     ui.add_space(ui.spacing().item_spacing.y);
                     let (_id, rect) = ui.allocate_space(ui.available_size());

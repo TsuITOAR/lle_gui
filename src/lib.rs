@@ -227,7 +227,8 @@ impl<NL: Fn(Complex64) -> Complex64 + Default> eframe::App for App<NL> {
                 if ui.button(button_text).clicked() {
                     *running = !*running;
                 };
-                step = ui.button("⏩").clicked();
+                let step_button = egui::Button::new("⏩").sense(egui::Sense::click_and_drag());
+                step = ui.add(step_button).dragged();
                 reset = ui.button("⏹").clicked();
                 destruct = ui.button("⏏").clicked();
             });
