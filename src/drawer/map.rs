@@ -54,10 +54,9 @@ impl Style {
             .text_styles
             .get(&egui::TextStyle::Monospace)
             .unwrap();
-        let pixel_per_point = ui.ctx().pixels_per_point();
         let text = (
             f.family.to_string(),
-            f.size * pixel_per_point,
+            f.size,
             convert_egui_color(ui.visuals().text_color()),
         );
         Self {
