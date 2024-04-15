@@ -25,4 +25,4 @@ pub(crate) fn config<'a>(
         .inner
 }
 
-const LLE_EQUATION: &str = r#"∂ψ\/∂t = - ( 1 + i α ) ψ + i |ψ|^2^ - i β\/2 ∂^2^ψ\/∂θ^2^ + F"#;
+const LLE_EQUATION: &str = r#"∂ψ\/∂t = - ( 1 + i α ) ψ + i |ψ|^2^ ψ - i β\/2 ∂^2^ψ\/∂θ^2^ + F"#;

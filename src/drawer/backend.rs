@@ -1,6 +1,6 @@
 //! copied from [egui_plotters](https://docs.rs/egui-plotter/latest/egui_plotter/)
 //! modified for performance
-//! 
+//!
 //! Plotter backend for egui
 
 use std::error::Error as ErrorTrait;
@@ -481,7 +481,7 @@ impl<'a> DrawingBackend for EguiBackend<'a> {
         if !galley.is_empty() {
             painter.add(TextShape {
                 angle,
-                ..TextShape::new(rect.min, galley)
+                ..TextShape::new(rect.min, galley, Color32::PLACEHOLDER)
             });
         }
 

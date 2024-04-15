@@ -10,12 +10,12 @@ use std::{collections::BTreeMap, f64::consts::PI};
 
 use drawer::ViewField;
 use egui::DragValue;
-use lle::{num_complex::Complex64, num_traits::zero, Evolver, LinearOp};
+use lle::{num_complex::Complex64, num_traits::zero, Evolver, LinearOp, NonLinearOp};
 use property::Property;
 type LleSolver<NL> = lle::LleSolver<
     f64,
     Vec<Complex64>,
-    lle::LinearOpAdd<(lle::DiffOrder, Complex64), (lle::DiffOrder, Complex64)>,
+    lle::LinearOpAdd<f64, (lle::DiffOrder, Complex64), (lle::DiffOrder, Complex64)>,
     NL,
 >;
 
@@ -40,7 +40,7 @@ fn default_add_random<'a>(state: impl Iterator<Item = &'a mut Complex64>) {
     add_random((2. * PI).sqrt() * 1e5, 1e5, state)
 }
 
-fn synchronize_properties<NL: Fn(Complex64) -> Complex64>(
+fn synchronize_properties<NL: NonLinearOp<f64>>(
     props: &BTreeMap<String, Property<f64>>,
     engine: &mut LleSolver<NL>,
 ) {
@@ -71,7 +71,7 @@ fn show_as_drag_value_with_suffix<T: egui::emath::Numeric>(
 #[derive(serde::Deserialize, serde::Serialize)]
 #[serde(default)]
 // if we add new fields, give them default values when deserializing old state
-pub struct App<NL: Fn(Complex64) -> Complex64> {
+pub struct App<NL> {
     slider_len: Option<f32>,
     properties: BTreeMap<String, Property<f64>>,
     dim: usize,
@@ -87,7 +87,7 @@ pub struct App<NL: Fn(Complex64) -> Complex64> {
     profiler: bool,
 }
 
-impl<NL: Fn(Complex64) -> Complex64> Default for App<NL> {
+impl<NL: NonLinearOp<f64>> Default for App<NL> {
     fn default() -> Self {
         Self {
             slider_len: None,
@@ -145,21 +145,21 @@ impl FnOnce<(Complex64,)> for LleNonLin {
     type Output = Complex64;
 
     extern "rust-call" fn call_once(self, args: (Complex64,)) -> Self::Output {
-        Complex64::i() * args.0.norm_sqr()
+        Complex64::i() * args.0.norm()
     }
 }
 impl FnMut<(Complex64,)> for LleNonLin {
     extern "rust-call" fn call_mut(&mut self, args: (Complex64,)) -> Self::Output {
-        Complex64::i() * args.0.norm_sqr()
+        Complex64::i() * args.0.norm()
     }
 }
 impl Fn<(Complex64,)> for LleNonLin {
     extern "rust-call" fn call(&self, args: (Complex64,)) -> Self::Output {
-        Complex64::i() * args.0.norm_sqr()
+        Complex64::i() * args.0.norm()
     }
 }
 
-impl<NL: Fn(Complex64) -> Complex64 + Default> eframe::App for App<NL> {
+impl<NL: NonLinearOp<f64> + Default> eframe::App for App<NL> {
     /// Called each time the UI needs repainting, which may be many times per second.
     /// Put your widgets into a `SidePanel`, `TopPanel`, `CentralPanel`, `Window` or `Area`.
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
@@ -193,13 +193,13 @@ impl<NL: Fn(Complex64) -> Complex64 + Default> eframe::App for App<NL> {
             let alpha = properties["alpha"].value;
             let mut init = vec![zero(); *dim];
             default_add_random(init.iter_mut());
-            LleSolver::new(
-                init.to_vec(),
-                step_dist,
-                (0, -(Complex64::i() * alpha + 1.)).add((2, -Complex64::i() * linear / 2.)),
-                NL::default(),
-                Complex64::from(pump),
-            )
+            LleSolver::builder()
+                .state(init.to_vec())
+                .step_dist(step_dist)
+                .linear((0, -(Complex64::i() * alpha + 1.)).add((2, -Complex64::i() * linear / 2.)))
+                .nonlin(NL::default())
+                .constant(Complex64::from(pump))
+                .build()
         });
         synchronize_properties(properties, engine);
 
