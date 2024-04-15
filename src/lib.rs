@@ -145,17 +145,17 @@ impl FnOnce<(Complex64,)> for LleNonLin {
     type Output = Complex64;
 
     extern "rust-call" fn call_once(self, args: (Complex64,)) -> Self::Output {
-        Complex64::i() * args.0.norm()
+        Complex64::i() * args.0.norm_sqr()
     }
 }
 impl FnMut<(Complex64,)> for LleNonLin {
     extern "rust-call" fn call_mut(&mut self, args: (Complex64,)) -> Self::Output {
-        Complex64::i() * args.0.norm()
+        Complex64::i() * args.0.norm_sqr()
     }
 }
 impl Fn<(Complex64,)> for LleNonLin {
     extern "rust-call" fn call(&self, args: (Complex64,)) -> Self::Output {
-        Complex64::i() * args.0.norm()
+        Complex64::i() * args.0.norm_sqr()
     }
 }
 
