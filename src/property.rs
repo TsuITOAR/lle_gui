@@ -254,11 +254,10 @@ impl Property<f64> {
         self.symbol.as_deref().unwrap_or(self.label.as_str())
     } */
 
-    
     /* pub fn get_value(&self) -> &PropertyValue {
         &self.value
     } */
-    
+
     pub fn get_value_f64(&self) -> f64 {
         if let Some(u) = self.unit {
             u * self.value.f64()
