@@ -2063,6 +2063,7 @@ checksum = "b4ce301924b7887e9d637144fdade93f9dfff9b60981d4ac161db09720d39aa5"
 [[package]]
 name = "lle"
 version = "0.1.0"
+source = "git+https://github.com/TsuITOAR/Lle.git#15714e3473e46bb50721effcf7e501e64d01c6ad"
 dependencies = [
  "rustfft",
  "typed-builder",
