@@ -248,12 +248,23 @@ impl Property<f64> {
         self.value_suffix = suffix.to_string().into();
         self
     }
-    #[allow(unused)]
+
+    /* #[allow(unused)]
     pub fn text(&self) -> &str {
         self.symbol.as_deref().unwrap_or(self.label.as_str())
-    }
-    pub fn get_value(&self) -> &PropertyValue {
+    } */
+
+    
+    /* pub fn get_value(&self) -> &PropertyValue {
         &self.value
+    } */
+    
+    pub fn get_value_f64(&self) -> f64 {
+        if let Some(u) = self.unit {
+            u * self.value.f64()
+        } else {
+            self.value.f64()
+        }
     }
 }
 

@@ -45,11 +45,11 @@ fn synchronize_properties<NL: NonLinearOp<f64>>(
     engine: &mut LleSolver<NL>,
 ) {
     puffin::profile_function!();
-    engine.linear = (0, -(Complex64::i() * props["alpha"].get_value().f64() + 1.))
-        .add((2, -Complex64::i() * props["linear"].get_value().f64() / 2.))
+    engine.linear = (0, -(Complex64::i() * props["alpha"].get_value_f64() + 1.))
+        .add((2, -Complex64::i() * props["linear"].get_value_f64() / 2.))
         .into();
-    engine.constant = Complex64::from(props["pump"].get_value().f64()).into();
-    engine.step_dist = props["step dist"].get_value().f64();
+    engine.constant = Complex64::from(props["pump"].get_value_f64()).into();
+    engine.step_dist = props["step dist"].get_value_f64();
 }
 
 /// We derive Deserialize/Serialize so we can persist app state on shutdown.
@@ -227,6 +227,7 @@ impl<NL: NonLinearOp<f64> + Default> eframe::App for App<NL> {
             view.show_fps(ui);
 
             ui.separator();
+            egui::warn_if_debug_build(ui);
             show_profiler(profiler, ui);
         });
 
@@ -244,7 +245,7 @@ impl<NL: NonLinearOp<f64> + Default> eframe::App for App<NL> {
         if *running || step {
             puffin::profile_scope!("lle");
             let steps = properties["steps"].value.u32();
-            engine.evolve_n(100);
+            engine.evolve_n(steps);
             view.log_his(engine.state());
             ctx.request_repaint()
         }
