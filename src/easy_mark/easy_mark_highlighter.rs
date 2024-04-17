@@ -13,8 +13,8 @@ pub struct MemoizedEasymarkHighlighter {
 impl MemoizedEasymarkHighlighter {
     pub fn highlight(&mut self, egui_style: &egui::Style, code: &str) -> egui::text::LayoutJob {
         if (&self.style, self.code.as_str()) != (egui_style, code) {
-            self.style = egui_style.clone();
-            self.code = code.to_owned();
+            egui_style.clone_into(&mut self.style);
+            code.clone_into(&mut self.code);
             self.output = highlight_easymark(egui_style, code);
         }
         self.output.clone()

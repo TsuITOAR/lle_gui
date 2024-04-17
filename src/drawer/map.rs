@@ -158,7 +158,7 @@ impl<Backend> RawMapVisualizer<f64, Backend> {
 impl RawMapVisualizer<f64> {
     pub fn draw_on<DB: DrawingBackend>(
         &self,
-        matrix: &Vec<f64>,
+        matrix: &[f64],
         draw_area: &DrawingArea<DB, Shift>,
         chunk_size: usize,
         style: Style,
