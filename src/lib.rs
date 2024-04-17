@@ -45,26 +45,11 @@ fn synchronize_properties<NL: NonLinearOp<f64>>(
     engine: &mut LleSolver<NL>,
 ) {
     puffin::profile_function!();
-    engine.linear = (0, -(Complex64::i() * props["alpha"].get_value() + 1.))
-        .add((2, -Complex64::i() * props["linear"].get_value() / 2.))
+    engine.linear = (0, -(Complex64::i() * props["alpha"].get_value().f64() + 1.))
+        .add((2, -Complex64::i() * props["linear"].get_value().f64() / 2.))
         .into();
-    engine.constant = Complex64::from(props["pump"].get_value()).into();
-    engine.step_dist = props["step dist"].get_value();
-}
-
-fn show_as_drag_value<T: egui::emath::Numeric>(label: &str, value: &mut T, ui: &mut egui::Ui) {
-    ui.label(label);
-    ui.add(DragValue::new(value));
-}
-
-fn show_as_drag_value_with_suffix<T: egui::emath::Numeric>(
-    label: &str,
-    value: &mut T,
-    ui: &mut egui::Ui,
-    suffix: String,
-) {
-    ui.label(label);
-    ui.add(DragValue::new(value).suffix(suffix));
+    engine.constant = Complex64::from(props["pump"].get_value().f64()).into();
+    engine.step_dist = props["step dist"].get_value().f64();
 }
 
 /// We derive Deserialize/Serialize so we can persist app state on shutdown.
@@ -93,13 +78,14 @@ impl<NL: NonLinearOp<f64>> Default for App<NL> {
             slider_len: None,
             dim: 128,
             properties: vec![
-                Property::new(-5., "alpha").symbol('α'),
-                Property::new(3.94, "pump").symbol('F'),
-                Property::new(-0.0444, "linear").symbol('β'),
-                Property::new_no_slider(8., "step dist")
+                Property::new_float(-5., "alpha").symbol('α'),
+                Property::new_float(3.94, "pump").symbol('F'),
+                Property::new_float(-0.0444, "linear").symbol('β'),
+                Property::new_float_no_slider(8., "step dist")
                     .symbol("Δt")
                     .unit(1E-4)
                     .suffix("E-4"),
+                Property::new_uint(100, "steps").symbol("steps"),
             ]
             .into_iter()
             .map(|x| (x.label.clone(), x))
@@ -187,10 +173,10 @@ impl<NL: NonLinearOp<f64> + Default> eframe::App for App<NL> {
         }
 
         let engine = engine.get_or_insert_with(|| {
-            let step_dist = properties["step dist"].value;
-            let pump = properties["pump"].value;
-            let linear = properties["linear"].value;
-            let alpha = properties["alpha"].value;
+            let step_dist = properties["step dist"].value.f64();
+            let pump = properties["pump"].value.f64();
+            let linear = properties["linear"].value.f64();
+            let alpha = properties["alpha"].value.f64();
             let mut init = vec![zero(); *dim];
             default_add_random(init.iter_mut());
             LleSolver::builder()
@@ -215,7 +201,7 @@ impl<NL: NonLinearOp<f64> + Default> eframe::App for App<NL> {
                 ui.spacing_mut().slider_width = *slider_len;
             }
             for p in properties.values_mut() {
-                p.show_in_control_panel(ui, ctx)
+                p.show_in_control_panel(ui)
             }
 
             ui.horizontal(|ui| {
@@ -257,6 +243,7 @@ impl<NL: NonLinearOp<f64> + Default> eframe::App for App<NL> {
         }
         if *running || step {
             puffin::profile_scope!("lle");
+            let steps = properties["steps"].value.u32();
             engine.evolve_n(100);
             view.log_his(engine.state());
             ctx.request_repaint()

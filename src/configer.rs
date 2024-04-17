@@ -16,7 +16,7 @@ pub(crate) fn config<'a>(
             ui.add(DragValue::new(dim).speed(1));
             ui.end_row();
             properties.for_each(|x| {
-                x.show_as_drag_value_in_grid(ui);
+                x.show_as_drag_value(ui);
                 ui.end_row();
             })
         });
