@@ -379,7 +379,7 @@ impl<B> ColorMapVisualizer<B> {
     } */
 }
 
-#[cfg(not(feature = "rayon"))]
+//#[cfg(not(feature = "rayon"))]
 fn draw_map<'a, DB: DrawingBackend>(
     ctx: &mut ChartContext<
         '_,

@@ -72,7 +72,7 @@ pub struct App<NL> {
     profiler: bool,
 }
 
-impl<NL: NonLinearOp<f64>> Default for App<NL> {
+impl<NL: Default> Default for App<NL> {
     fn default() -> Self {
         Self {
             slider_len: None,
@@ -98,7 +98,7 @@ impl<NL: NonLinearOp<f64>> Default for App<NL> {
     }
 }
 
-impl<NL: Fn(Complex64) -> Complex64> App<NL> {
+impl<NL: Default> App<NL> {
     /// Called once before the first frame.
     pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
         // This is also where you can customized the look at feel of egui using
@@ -120,27 +120,6 @@ impl<NL: Fn(Complex64) -> Complex64> App<NL> {
         }
 
         Default::default() */
-    }
-}
-
-#[derive(Clone, Copy, Default)]
-pub struct LleNonLin;
-
-impl FnOnce<(Complex64,)> for LleNonLin {
-    type Output = Complex64;
-
-    extern "rust-call" fn call_once(self, args: (Complex64,)) -> Self::Output {
-        Complex64::i() * args.0.norm_sqr()
-    }
-}
-impl FnMut<(Complex64,)> for LleNonLin {
-    extern "rust-call" fn call_mut(&mut self, args: (Complex64,)) -> Self::Output {
-        Complex64::i() * args.0.norm_sqr()
-    }
-}
-impl Fn<(Complex64,)> for LleNonLin {
-    extern "rust-call" fn call(&self, args: (Complex64,)) -> Self::Output {
-        Complex64::i() * args.0.norm_sqr()
     }
 }
 
