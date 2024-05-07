@@ -41,7 +41,7 @@ fn default_add_random<'a>(state: impl Iterator<Item = &'a mut Complex64>) {
 }
 
 fn synchronize_properties<NL: NonLinearOp<f64>>(
-    props: &BTreeMap<String, Property<f64>>,
+    props: &BTreeMap<String, Property>,
     engine: &mut LleSolver<NL>,
 ) {
     puffin::profile_function!();
@@ -58,7 +58,7 @@ fn synchronize_properties<NL: NonLinearOp<f64>>(
 // if we add new fields, give them default values when deserializing old state
 pub struct App<NL> {
     slider_len: Option<f32>,
-    properties: BTreeMap<String, Property<f64>>,
+    properties: BTreeMap<String, Property>,
     dim: usize,
     #[serde(skip)]
     engine: Option<LleSolver<NL>>,
@@ -81,10 +81,9 @@ impl<NL: NonLinearOp<f64>> Default for App<NL> {
                 Property::new_float(-5., "alpha").symbol('α'),
                 Property::new_float(3.94, "pump").symbol('F'),
                 Property::new_float(-0.0444, "linear").symbol('β'),
-                Property::new_float_no_slider(8., "step dist")
+                Property::new_float_no_slider(8e-4, "step dist")
                     .symbol("Δt")
-                    .unit(1E-4)
-                    .suffix("E-4"),
+                    .unit(1E-4),
                 Property::new_uint(100, "steps").symbol("steps"),
             ]
             .into_iter()

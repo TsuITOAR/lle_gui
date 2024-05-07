@@ -4,7 +4,7 @@ use crate::{easy_mark::easy_mark, property::Property};
 
 pub(crate) fn config<'a>(
     dim: &mut usize,
-    properties: impl Iterator<Item = &'a mut Property<f64>>,
+    properties: impl Iterator<Item = &'a mut Property>,
     ui: &mut egui::Ui,
 ) -> bool {
     easy_mark(ui, LLE_EQUATION);

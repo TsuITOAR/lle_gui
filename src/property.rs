@@ -1,28 +1,69 @@
 use egui::{DragValue, Key, Slider};
+use num_traits::ToPrimitive;
 
 #[derive(Debug, PartialEq, PartialOrd, serde::Deserialize, serde::Serialize)]
-pub(crate) struct Property<T> {
+pub(crate) struct Property {
     pub(crate) value: PropertyValue,
     pub(crate) label: String,
     pub(crate) symbol: Option<String>,
     pub(crate) show_editor: Option<bool>,
     pub(crate) value_suffix: Option<String>,
-    pub(crate) unit: Option<T>,
+}
+
+fn custom_drag<T: egui::emath::Numeric + std::str::FromStr>(
+    drag_value: DragValue<'_>,
+    unit: T,
+) -> DragValue<'_> {
+    let unit = unit.to_f64();
+    drag_value
+        .custom_formatter(move |x, _r| format!("{}×{:E}", x / unit, unit))
+        .custom_parser(move |s| {
+            s.split('×')
+                .next()
+                .map(|x| x.parse().ok().map(|x: T| x.to_f64() * unit))
+                .unwrap_or(None)
+        })
+        .speed(unit)
+}
+
+fn custom_slider<T: egui::emath::Numeric + std::str::FromStr>(
+    slider: Slider<'_>,
+    unit: T,
+) -> Slider<'_> {
+    let unit = unit.to_f64();
+    slider
+        .custom_parser(move |s| {
+            s.split('×')
+                .next()
+                .map(|x| x.parse().ok().map(|x: T| x.to_f64() * unit))
+                .unwrap_or(None)
+        })
+        .custom_formatter(move |x, _r| format!("{}×{:E}", x / unit, unit))
 }
 
 #[derive(Debug, Clone, PartialEq, PartialOrd, serde::Deserialize, serde::Serialize)]
 pub(crate) struct ValueRange<T> {
     pub(crate) value: T,
     pub(crate) range: Option<(T, T)>,
+    pub(crate) unit: Option<T>,
 }
 
-impl<T: egui::emath::Numeric> ValueRange<T> {
+impl<T: egui::emath::Numeric + std::str::FromStr> ValueRange<T> {
+    fn unit(&mut self, unit: T) {
+        self.unit = unit.into();
+    }
     pub(crate) fn show(&mut self, ui: &mut egui::Ui, label: &str, suffix: Option<&str>) {
         ui.label(label);
-        if let Some(s) = suffix {
-            ui.add(DragValue::new(&mut self.value).suffix(s));
+        let drag_value = DragValue::new(&mut self.value);
+        let drag_value = if let Some(u) = self.unit {
+            custom_drag(drag_value, u)
         } else {
-            ui.add(DragValue::new(&mut self.value));
+            drag_value
+        };
+        if let Some(s) = suffix {
+            ui.add(drag_value.suffix(s));
+        } else {
+            ui.add(drag_value);
         }
     }
 
@@ -33,7 +74,7 @@ impl<T: egui::emath::Numeric> ValueRange<T> {
         show_editor: &mut bool,
         suffix: Option<&str>,
     ) {
-        let Self { value, range } = self;
+        let Self { value, range, unit } = self;
         debug_assert!(range.is_some());
         if range.is_none() {
             self.show(ui, label, suffix);
@@ -44,19 +85,22 @@ impl<T: egui::emath::Numeric> ValueRange<T> {
             if ui.button("🔧").clicked() {
                 *show_editor = !*show_editor;
             }
-            ui.add(if let Some(s) = suffix {
-                Slider::new(value, range.0..=range.1)
+            ui.add({
+                let slider = Slider::new(value, range.0..=range.1)
                     .text(label)
                     .smart_aim(false)
                     .max_decimals(10)
-                    .min_decimals(5)
-                    .suffix(s)
-            } else {
-                Slider::new(value, range.0..=range.1)
-                    .text(label)
-                    .smart_aim(false)
-                    .max_decimals(10)
-                    .min_decimals(5)
+                    .min_decimals(5);
+                let slider = if let Some(u) = unit {
+                    custom_slider(slider, *u)
+                } else {
+                    slider
+                };
+                if let Some(s) = suffix {
+                    slider.suffix(s)
+                } else {
+                    slider
+                }
             });
         });
         let ctx = ui.ctx();
@@ -86,6 +130,7 @@ impl ValueRange<f64> {
         Self {
             value: v,
             range: Some((v - 10., v + 20.)),
+            unit: None,
         }
     }
 }
@@ -96,6 +141,7 @@ impl ValueRange<i32> {
         Self {
             value: v,
             range: None,
+            unit: None,
         }
     }
 }
@@ -105,6 +151,7 @@ impl ValueRange<u32> {
         Self {
             value: v,
             range: None,
+            unit: None,
         }
     }
 }
@@ -136,24 +183,13 @@ impl PropertyValue {
             _ => panic!("Not a u32"),
         }
     }
-    /* pub(crate) fn f64_mut(&mut self) -> &mut f64 {
+    fn unit<T: ToPrimitive>(&mut self, u: T) {
         match self {
-            Self::F64(v) => &mut v.value,
-            _ => panic!("Not a f64"),
+            Self::F64(v) => v.unit(u.to_f64().unwrap()),
+            Self::I32(v) => v.unit(u.to_i32().unwrap()),
+            Self::U32(v) => v.unit(u.to_u32().unwrap()),
         }
     }
-    pub(crate) fn i32_mut(&mut self) -> &mut i32 {
-        match self {
-            Self::I32(v) => &mut v.value,
-            _ => panic!("Not a f64"),
-        }
-    }
-    pub(crate) fn u32_mut(&mut self) -> &mut u32 {
-        match self {
-            Self::U32(v) => &mut v.value,
-            _ => panic!("Not a f64"),
-        }
-    } */
     fn show(&mut self, ui: &mut egui::Ui, label: &str, suffix: Option<&str>) {
         match self {
             Self::F64(v) => v.show(ui, label, suffix),
@@ -194,14 +230,13 @@ from_range!(
     u32=>U32
 );
 
-impl Property<f64> {
+impl Property {
     pub fn new_float(v: f64, label: impl ToString) -> Self {
         Self {
             value: ValueRange::new_float(v).into(),
             label: label.to_string(),
             symbol: None,
             show_editor: Some(false),
-            unit: None,
             value_suffix: None,
         }
     }
@@ -211,7 +246,6 @@ impl Property<f64> {
             label: label.to_string(),
             symbol: None,
             show_editor: None,
-            unit: None,
             value_suffix: None,
         }
     }
@@ -222,7 +256,6 @@ impl Property<f64> {
             label: label.to_string(),
             symbol: None,
             show_editor: None,
-            unit: None,
             value_suffix: None,
         }
     }
@@ -232,7 +265,6 @@ impl Property<f64> {
             label: label.to_string(),
             symbol: None,
             show_editor: None,
-            unit: None,
             value_suffix: None,
         }
     }
@@ -240,10 +272,11 @@ impl Property<f64> {
         self.symbol = symbol.to_string().into();
         self
     }
-    pub fn unit(mut self, unit: f64) -> Self {
-        self.unit = unit.into();
+    pub fn unit<T: ToPrimitive>(mut self, unit: T) -> Self {
+        self.value.unit(unit);
         self
     }
+    #[allow(unused)]
     pub fn suffix(mut self, suffix: impl ToString) -> Self {
         self.value_suffix = suffix.to_string().into();
         self
@@ -259,15 +292,11 @@ impl Property<f64> {
     } */
 
     pub fn get_value_f64(&self) -> f64 {
-        if let Some(u) = self.unit {
-            u * self.value.f64()
-        } else {
-            self.value.f64()
-        }
+        self.value.f64()
     }
 }
 
-impl<T: egui::emath::Numeric + std::fmt::UpperExp> Property<T> {
+impl Property {
     /* pub(crate) fn value_suffix(&self) -> Option<String> {
         self.value_suffix
             .clone()
@@ -284,11 +313,8 @@ impl<T: egui::emath::Numeric + std::fmt::UpperExp> Property<T> {
     pub(crate) fn show_as_drag_value(&mut self, ui: &mut egui::Ui) {
         //ui.horizontal_wrapped(|ui| {
         let label = self.symbol.as_deref().unwrap_or(self.label.as_str());
-        let suffix = self
-            .value_suffix
-            .clone()
-            .or_else(|| self.unit.as_ref().map(|u| format!("*{u:E}")));
-        self.value.show(ui, label, suffix.as_deref());
+        // let suffix = self.value_suffix.clone();
+        self.value.show(ui, label, self.value_suffix.as_deref());
         //});
     }
     pub(crate) fn show_in_builder(&mut self, ui: &mut egui::Ui) {
@@ -300,10 +326,7 @@ impl<T: egui::emath::Numeric + std::fmt::UpperExp> Property<T> {
                 self.show_in_builder(ui);
             });
         } else {
-            let suffix = self
-                .value_suffix
-                .clone()
-                .or_else(|| self.unit.as_ref().map(|u| format!("*{u:E}")));
+            let suffix = self.value_suffix.as_deref();
             //let suffix = self.value_suffix();
             let Self {
                 value,
@@ -318,7 +341,7 @@ impl<T: egui::emath::Numeric + std::fmt::UpperExp> Property<T> {
                 .map(String::as_str)
                 .unwrap_or_else(|| label.as_str());
             ui.horizontal_wrapped(|ui| {
-                value.show_with_slider(ui, label, show_editor, suffix.as_deref());
+                value.show_with_slider(ui, label, show_editor, suffix);
             });
         }
     }
