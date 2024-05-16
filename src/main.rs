@@ -37,7 +37,7 @@ fn main() {
             .start(
                 "app", // hardcode it， this is canvas ID not app id
                 web_options,
-                Box::new(|cc| Box::new(lle_gui::App::<lle_gui::LleNonLin>::new(cc))),
+                Box::new(|cc| Box::new(lle_gui::App::<lle::SPhaMod>::new(cc))),
             )
             .await
             .expect("failed to start eframe");
