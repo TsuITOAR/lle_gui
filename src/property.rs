@@ -164,23 +164,24 @@ pub(crate) enum PropertyValue {
 }
 
 impl PropertyValue {
-    pub(crate) fn f64(&self) -> f64 {
+    pub(crate) fn f64(&self) -> Option<f64> {
         match self {
-            Self::F64(v) => v.value,
-            _ => panic!("Not a f64"),
+            Self::F64(v) => Some(v.value),
+            _ => None,
         }
     }
     #[allow(unused)]
-    pub(crate) fn i32(&self) -> i32 {
+    pub(crate) fn i32(&self) -> Option<i32> {
         match self {
-            Self::I32(v) => v.value,
-            _ => panic!("Not a i32"),
+            Self::I32(v) => Some(v.value),
+            _ => None,
         }
     }
-    pub(crate) fn u32(&self) -> u32 {
+    #[allow(unused)]
+    pub(crate) fn u32(&self) -> Option<u32> {
         match self {
-            Self::U32(v) => v.value,
-            _ => panic!("Not a u32"),
+            Self::U32(v) => Some(v.value),
+            _ => None,
         }
     }
     fn unit<T: ToPrimitive>(&mut self, u: T) {
@@ -292,7 +293,11 @@ impl Property {
     } */
 
     pub fn get_value_f64(&self) -> f64 {
-        self.value.f64()
+        match self.value {
+            PropertyValue::F64(ref v) => v.value,
+            PropertyValue::I32(ref v) => v.value as f64,
+            PropertyValue::U32(ref v) => v.value as f64,
+        }
     }
 }
 

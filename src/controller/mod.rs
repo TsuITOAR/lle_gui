@@ -1,10 +1,8 @@
-use std::collections::BTreeMap;
-
-use egui::DragValue;
 use lle::num_complex::Complex64;
 use num_traits::zero;
+use std::collections::BTreeMap;
 
-use crate::{default_add_random, drawer::ViewField, property::Property};
+use crate::{default_add_random, property::Property};
 
 pub trait Controller<E> {
     fn construct_engine(&self, dim: usize) -> E;
@@ -12,7 +10,7 @@ pub trait Controller<E> {
     fn show_in_control_panel(&mut self, ui: &mut egui::Ui);
     fn show_in_start_window(&mut self, dim: &mut usize, ui: &mut egui::Ui);
     fn sync_paras(&mut self, engine: &mut E);
-    fn steps(&self) -> usize;
+    fn steps(&self) -> u32;
 }
 
 #[derive(Debug, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -42,10 +40,10 @@ impl<NL: Default + lle::NonLinearOp<f64>> Controller<crate::LleSolver<NL>> for L
     fn construct_engine(&self, dim: usize) -> crate::LleSolver<NL> {
         use lle::LinearOp;
         let properties = &self.properties;
-        let step_dist = properties["step dist"].value.f64();
-        let pump = properties["pump"].value.f64();
-        let linear = properties["linear"].value.f64();
-        let alpha = properties["alpha"].value.f64();
+        let step_dist = properties["step dist"].value.f64().unwrap();
+        let pump = properties["pump"].value.f64().unwrap();
+        let linear = properties["linear"].value.f64().unwrap();
+        let alpha = properties["alpha"].value.f64().unwrap();
         let mut init = vec![zero(); dim];
         default_add_random(init.iter_mut());
         crate::LleSolver::builder()
@@ -57,13 +55,13 @@ impl<NL: Default + lle::NonLinearOp<f64>> Controller<crate::LleSolver<NL>> for L
             .build()
     }
     // todo: use seed
-    fn construct_with_seed(&self, dim: usize, seed: u32) -> crate::LleSolver<NL> {
+    fn construct_with_seed(&self, dim: usize, _seed: u32) -> crate::LleSolver<NL> {
         use lle::LinearOp;
         let properties = &self.properties;
-        let step_dist = properties["step dist"].value.f64();
-        let pump = properties["pump"].value.f64();
-        let linear = properties["linear"].value.f64();
-        let alpha = properties["alpha"].value.f64();
+        let step_dist = properties["step dist"].value.f64().unwrap();
+        let pump = properties["pump"].value.f64().unwrap();
+        let linear = properties["linear"].value.f64().unwrap();
+        let alpha = properties["alpha"].value.f64().unwrap();
         let mut init = vec![zero(); dim];
         default_add_random(init.iter_mut());
         crate::LleSolver::builder()
@@ -88,15 +86,15 @@ impl<NL: Default + lle::NonLinearOp<f64>> Controller<crate::LleSolver<NL>> for L
         crate::synchronize_properties(&self.properties, engine);
     }
 
-    fn steps(&self) -> usize {
-        self.properties["steps"].value.f64() as usize
+    fn steps(&self) -> u32 {
+        self.properties["steps"].value.u32().unwrap()
     }
 }
 
 pub trait Simulator {
     type State: ?Sized + Record;
     fn states(&self) -> &Self::State;
-    fn run(&mut self, steps: usize);
+    fn run(&mut self, steps: u32);
 }
 
 pub trait Record {
@@ -121,7 +119,7 @@ impl<NL: lle::NonLinearOp<f64>> Simulator for crate::LleSolver<NL> {
         use lle::Evolver;
         self.state()
     }
-    fn run(&mut self, steps: usize) {
+    fn run(&mut self, steps: u32) {
         use lle::Evolver;
         self.evolve_n(steps as _);
     }
