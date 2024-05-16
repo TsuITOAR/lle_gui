@@ -61,7 +61,7 @@ pub type App<NL> = GenApp<LleController, LleSolver<NL>>;
 #[derive(serde::Deserialize, serde::Serialize)]
 #[serde(bound(
     serialize = "P: serde::Serialize",
-    deserialize = "P:for<'a> serde::Deserialize<'a>"
+    deserialize = "P: for<'a> serde::Deserialize<'a>"
 ))]
 pub struct GenApp<P, S> {
     core: Core<P, S>,
