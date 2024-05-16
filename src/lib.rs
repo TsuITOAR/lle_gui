@@ -1,17 +1,21 @@
 #![warn(clippy::all, rust_2018_idioms)]
 #![feature(unboxed_closures)]
 #![feature(fn_traits)]
-mod configer;
+mod config;
+mod controller;
 mod drawer;
 mod easy_mark;
 mod property;
 
 use std::{collections::BTreeMap, f64::consts::PI};
 
+use controller::{Controller, Core, LleController, Simulator};
 use drawer::ViewField;
 use egui::DragValue;
-use lle::{num_complex::Complex64, num_traits::zero, Evolver, LinearOp, NonLinearOp};
+use lle::{num_complex::Complex64, LinearOp, NonLinearOp};
 use property::Property;
+
+use crate::controller::Record;
 type LleSolver<NL> = lle::LleSolver<
     f64,
     Vec<Complex64>,
@@ -52,16 +56,16 @@ fn synchronize_properties<NL: NonLinearOp<f64>>(
     engine.step_dist = props["step dist"].get_value_f64();
 }
 
-/// We derive Deserialize/Serialize so we can persist app state on shutdown.
+pub type App<NL> = GenApp<LleController, LleSolver<NL>>;
+
 #[derive(serde::Deserialize, serde::Serialize)]
-#[serde(default)]
-// if we add new fields, give them default values when deserializing old state
-pub struct App<NL> {
+#[serde(bound(
+    serialize = "P: serde::Serialize",
+    deserialize = "P:for<'a> serde::Deserialize<'a>"
+))]
+pub struct GenApp<P, S> {
+    core: Core<P, S>,
     slider_len: Option<f32>,
-    properties: BTreeMap<String, Property>,
-    dim: usize,
-    #[serde(skip)]
-    engine: Option<LleSolver<NL>>,
     #[serde(default)]
     view: ViewField,
     #[serde(skip)]
@@ -72,25 +76,12 @@ pub struct App<NL> {
     profiler: bool,
 }
 
-impl<NL: Default> Default for App<NL> {
+impl<P: Default + Controller<S>, S: Simulator> Default for GenApp<P, S> {
     fn default() -> Self {
         Self {
+            core: Core::new(P::default(), 128),
             slider_len: None,
-            dim: 128,
-            properties: vec![
-                Property::new_float(-5., "alpha").symbol('α'),
-                Property::new_float(3.94, "pump").symbol('F'),
-                Property::new_float(-0.0444, "linear").symbol('β'),
-                Property::new_float_no_slider(8e-4, "step dist")
-                    .symbol("Δt")
-                    .unit(1E-4),
-                Property::new_uint(100, "steps").symbol("steps"),
-            ]
-            .into_iter()
-            .map(|x| (x.label.clone(), x))
-            .collect(),
-            engine: None,
-            view: Default::default(),
+            view: ViewField::default(),
             seed: None,
             running: false,
             profiler: false,
@@ -98,7 +89,10 @@ impl<NL: Default> Default for App<NL> {
     }
 }
 
-impl<NL: Default> App<NL> {
+impl<P: Controller<S> + Default, S: Simulator> GenApp<P, S>
+where
+    for<'a> P: serde::Deserialize<'a>,
+{
     /// Called once before the first frame.
     pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
         // This is also where you can customized the look at feel of egui using
@@ -123,26 +117,37 @@ impl<NL: Default> App<NL> {
     }
 }
 
-impl<NL: NonLinearOp<f64> + Default> eframe::App for App<NL> {
-    /// Called each time the UI needs repainting, which may be many times per second.
-    /// Put your widgets into a `SidePanel`, `TopPanel`, `CentralPanel`, `Window` or `Area`.
+impl<P, S> eframe::App for GenApp<P, S>
+where
+    P: Default + Controller<S> + serde::Serialize,
+    S: Simulator<State = [Complex64]>,
+{
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         puffin::GlobalProfiler::lock().new_frame(); // call once per frame!
         puffin::profile_function!();
         let Self {
-            dim,
+            core,
             slider_len,
-            properties,
-            engine,
             view,
-            seed: _,
+            seed,
             running,
             profiler,
         } = self;
-        if engine.is_none() {
+
+        let Core {
+            dim,
+            controller,
+            simulator,
+        } = core;
+
+        if simulator.is_none() {
             *running = false;
             let build: bool = egui::Window::new("Set simulation parameters")
-                .show(ctx, |ui| configer::config(dim, properties.values_mut(), ui))
+                .show(ctx, |ui| {
+                    controller.show_in_start_window(dim, ui);
+                    ui.centered_and_justified(|ui| ui.button("✅").clicked())
+                        .inner
+                })
                 .map(|x| x.inner.unwrap_or(false))
                 .unwrap_or(true);
             if !build || *dim == 0 {
@@ -150,22 +155,14 @@ impl<NL: NonLinearOp<f64> + Default> eframe::App for App<NL> {
             }
         }
 
-        let engine = engine.get_or_insert_with(|| {
-            let step_dist = properties["step dist"].value.f64();
-            let pump = properties["pump"].value.f64();
-            let linear = properties["linear"].value.f64();
-            let alpha = properties["alpha"].value.f64();
-            let mut init = vec![zero(); *dim];
-            default_add_random(init.iter_mut());
-            LleSolver::builder()
-                .state(init.to_vec())
-                .step_dist(step_dist)
-                .linear((0, -(Complex64::i() * alpha + 1.)).add((2, -Complex64::i() * linear / 2.)))
-                .nonlin(NL::default())
-                .constant(Complex64::from(pump))
-                .build()
+        let simulator = simulator.get_or_insert_with(|| {
+            if let Some(s) = seed {
+                controller.construct_with_seed(*dim, *s)
+            } else {
+                controller.construct_engine(*dim)
+            }
         });
-        synchronize_properties(properties, engine);
+        controller.sync_paras(simulator);
 
         let mut reset = false;
         let mut destruct = false;
@@ -178,9 +175,8 @@ impl<NL: NonLinearOp<f64> + Default> eframe::App for App<NL> {
             if slider_len.is_sign_positive() {
                 ui.spacing_mut().slider_width = *slider_len;
             }
-            for p in properties.values_mut() {
-                p.show_in_control_panel(ui)
-            }
+
+            controller.show_in_control_panel(ui);
 
             ui.horizontal(|ui| {
                 ui.label("Slider length");
@@ -197,7 +193,7 @@ impl<NL: NonLinearOp<f64> + Default> eframe::App for App<NL> {
                 destruct = ui.button("⏏").clicked();
             });
 
-            view.toggle_record_his(ui, engine.state());
+            view.toggle_record_his(ui, simulator.states().record_first());
 
             ui.separator();
             view.show_which(ui);
@@ -206,28 +202,27 @@ impl<NL: NonLinearOp<f64> + Default> eframe::App for App<NL> {
 
             ui.separator();
             egui::warn_if_debug_build(ui);
-            show_profiler(profiler, ui);
+            crate::show_profiler(profiler, ui);
         });
 
         if reset {
-            let en = self.engine.take();
-            *self = Default::default();
-            self.engine = en;
+            let en = core.simulator.take();
+            *core = Default::default();
+            core.simulator = en;
             return;
         }
         if destruct {
-            self.engine = None;
+            core.simulator = None;
             self.view = Default::default();
             return;
         }
         if *running || step {
-            puffin::profile_scope!("lle");
-            let steps = properties["steps"].value.u32();
-            engine.evolve_n(steps);
-            view.log_his(engine.state());
+            puffin::profile_scope!("calculate");
+            simulator.run(controller.steps());
+            view.log_his(simulator.states().record_first());
             ctx.request_repaint()
         }
-        view.visualize_state(engine.state(), ctx, *running || step);
+        view.visualize_state(simulator.states().record_first(), ctx, *running || step);
     }
 
     /// Called by the frame work to save state before shutdown.
