@@ -155,6 +155,8 @@ impl<Backend> RawMapVisualizer<f64, Backend> {
     }
 }
 
+const COLOR_MAP: plotters::prelude::ViridisRGB = plotters::prelude::ViridisRGB {};
+
 impl RawMapVisualizer<f64> {
     pub fn draw_on<DB: DrawingBackend>(
         &self,
@@ -177,7 +179,7 @@ impl RawMapVisualizer<f64> {
         } else {
             1.
         };
-        let color_map = |v: f64| ((v - range_min) / range);
+        let map_range = range_min..(range_min + range);
         //draw_area.fill(&style.bg)?;
         let (area, bar) = draw_area.split_horizontally(RelativeSize::Width(0.9));
         let mut builder_map = ChartBuilder::on(&area);
@@ -215,7 +217,7 @@ impl RawMapVisualizer<f64> {
             mesh_map.y_label_formatter(f);
         } */
         mesh_map.draw()?;
-        draw_map(&mut chart_map, matrix.chunks(chunk_size), color_map);
+        draw_map(&mut chart_map, matrix.chunks(chunk_size), map_range.clone());
 
         let mut builder_bar = ChartBuilder::on(&bar);
         builder_bar
@@ -239,12 +241,9 @@ impl RawMapVisualizer<f64> {
                 .map(|v| {
                     Rectangle::new(
                         [(0., v - step / 2.), (1., v + step / 2.)],
-                        HSLColor(
-                            240.0 / 360.0 - 240.0 / 360.0 * color_map(v),
-                            0.7,
-                            0.1 + 0.4 * color_map(v),
-                        )
-                        .filled(),
+                        COLOR_MAP
+                            .get_color_normalized(v, map_range.start, map_range.end)
+                            .filled(),
                     )
                 }),
         )?;
@@ -390,7 +389,7 @@ fn draw_map<'a, DB: DrawingBackend>(
         >,
     >,
     data: impl Iterator<Item = &'a [f64]>,
-    color_map: impl Fn(f64) -> f64,
+    range: Range<f64>,
 ) {
     puffin::profile_scope!("iterator matrix elements");
     ctx.draw_series(
@@ -399,12 +398,9 @@ fn draw_map<'a, DB: DrawingBackend>(
             .map(|(x, y, v)| {
                 Rectangle::new(
                     [(x, y), (x + 1, y + 1)],
-                    HSLColor(
-                        240.0 / 360.0 - 240.0 / 360.0 * color_map(v),
-                        0.7,
-                        0.1 + 0.4 * color_map(v),
-                    )
-                    .filled(),
+                    COLOR_MAP
+                        .get_color_normalized(v, range.start, range.end)
+                        .filled(),
                 )
             }),
     )
