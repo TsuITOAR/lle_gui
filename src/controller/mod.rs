@@ -1,4 +1,6 @@
-use lle::num_complex::Complex64;
+pub mod clle;
+
+use lle::{num_complex::Complex64, SPhaMod};
 use num_traits::zero;
 use std::collections::BTreeMap;
 
@@ -12,6 +14,13 @@ pub trait Controller<E> {
     fn sync_paras(&mut self, engine: &mut E);
     fn steps(&self) -> u32;
 }
+
+pub type LleSolver<NL> = lle::LleSolver<
+    f64,
+    Vec<Complex64>,
+    lle::LinearOpAdd<f64, (lle::DiffOrder, Complex64), (lle::DiffOrder, Complex64)>,
+    NL,
+>;
 
 #[derive(Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct LleController {
@@ -36,8 +45,8 @@ impl Default for LleController {
     }
 }
 
-impl<NL: Default + lle::NonLinearOp<f64>> Controller<crate::LleSolver<NL>> for LleController {
-    fn construct_engine(&self, dim: usize) -> crate::LleSolver<NL> {
+impl<NL: Default + lle::NonLinearOp<f64>> Controller<LleSolver<NL>> for LleController {
+    fn construct_engine(&self, dim: usize) -> LleSolver<NL> {
         use lle::LinearOp;
         let properties = &self.properties;
         let step_dist = properties["step dist"].value.f64().unwrap();
@@ -46,7 +55,7 @@ impl<NL: Default + lle::NonLinearOp<f64>> Controller<crate::LleSolver<NL>> for L
         let alpha = properties["alpha"].value.f64().unwrap();
         let mut init = vec![zero(); dim];
         default_add_random(init.iter_mut());
-        crate::LleSolver::builder()
+        LleSolver::builder()
             .state(init.to_vec())
             .step_dist(step_dist)
             .linear((0, -(Complex64::i() * alpha + 1.)).add((2, -Complex64::i() * linear / 2.)))
@@ -55,7 +64,7 @@ impl<NL: Default + lle::NonLinearOp<f64>> Controller<crate::LleSolver<NL>> for L
             .build()
     }
     // todo: use seed
-    fn construct_with_seed(&self, dim: usize, _seed: u32) -> crate::LleSolver<NL> {
+    fn construct_with_seed(&self, dim: usize, _seed: u32) -> LleSolver<NL> {
         use lle::LinearOp;
         let properties = &self.properties;
         let step_dist = properties["step dist"].value.f64().unwrap();
@@ -64,7 +73,7 @@ impl<NL: Default + lle::NonLinearOp<f64>> Controller<crate::LleSolver<NL>> for L
         let alpha = properties["alpha"].value.f64().unwrap();
         let mut init = vec![zero(); dim];
         default_add_random(init.iter_mut());
-        crate::LleSolver::builder()
+        LleSolver::builder()
             .state(init.to_vec())
             .step_dist(step_dist)
             .linear((0, -(Complex64::i() * alpha + 1.)).add((2, -Complex64::i() * linear / 2.)))
@@ -82,7 +91,7 @@ impl<NL: Default + lle::NonLinearOp<f64>> Controller<crate::LleSolver<NL>> for L
         crate::config::config(dim, self.properties.values_mut(), ui)
     }
 
-    fn sync_paras(&mut self, engine: &mut crate::LleSolver<NL>) {
+    fn sync_paras(&mut self, engine: &mut LleSolver<NL>) {
         crate::synchronize_properties(&self.properties, engine);
     }
 
@@ -113,7 +122,7 @@ impl Record for (&[Complex64], &[Complex64]) {
     }
 }
 
-impl<NL: lle::NonLinearOp<f64>> Simulator for crate::LleSolver<NL> {
+impl<NL: lle::NonLinearOp<f64>> Simulator for LleSolver<NL> {
     type State = [Complex64];
     fn states(&self) -> &Self::State {
         use lle::Evolver;

@@ -9,19 +9,13 @@ mod property;
 
 use std::{collections::BTreeMap, f64::consts::PI};
 
-use controller::{Controller, Core, LleController, Simulator};
+use controller::{Controller, Core, Simulator};
 use drawer::ViewField;
 use egui::DragValue;
 use lle::{num_complex::Complex64, LinearOp, NonLinearOp};
 use property::Property;
 
 use crate::controller::Record;
-type LleSolver<NL> = lle::LleSolver<
-    f64,
-    Vec<Complex64>,
-    lle::LinearOpAdd<f64, (lle::DiffOrder, Complex64), (lle::DiffOrder, Complex64)>,
-    NL,
->;
 
 pub const FONT: &str = "Arial";
 
@@ -46,7 +40,7 @@ fn default_add_random<'a>(state: impl Iterator<Item = &'a mut Complex64>) {
 
 fn synchronize_properties<NL: NonLinearOp<f64>>(
     props: &BTreeMap<String, Property>,
-    engine: &mut LleSolver<NL>,
+    engine: &mut crate::controller::LleSolver<NL>,
 ) {
     puffin::profile_function!();
     engine.linear = (0, -(Complex64::i() * props["alpha"].get_value_f64() + 1.))
@@ -56,8 +50,22 @@ fn synchronize_properties<NL: NonLinearOp<f64>>(
     engine.step_dist = props["step dist"].get_value_f64();
 }
 
-pub type App<NL> = GenApp<LleController, LleSolver<NL>>;
+fn synchronize_properties_no_pump<NL: NonLinearOp<f64>>(
+    props: &BTreeMap<String, Property>,
+    engine: &mut crate::controller::LleSolver<NL>,
+) {
+    puffin::profile_function!();
+    engine.linear = (0, -(Complex64::i() * props["alpha"].get_value_f64() + 1.))
+        .add((2, -Complex64::i() * props["linear"].get_value_f64() / 2.))
+        .into();
+    engine.step_dist = props["step dist"].get_value_f64();
+}
 
+//pub type App = GenApp<crate::controller::LleController, crate::controller::LleSolver<lle::SPhaMod>>;
+
+pub type App =
+    GenApp<crate::controller::clle::CoupleLleController, crate::controller::clle::CLleSolver>;
+    
 #[derive(serde::Deserialize, serde::Serialize)]
 #[serde(bound(
     serialize = "P: serde::Serialize",
