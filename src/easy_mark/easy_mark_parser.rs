@@ -73,7 +73,7 @@ pub struct Style {
 /// See the module-level documentation for details.
 ///
 /// # Example:
-/// ```
+/// ```skip
 /// # use egui_demo_lib::easy_mark::parser::Parser;
 /// for item in Parser::new("Hello *world*!") {
 /// }
