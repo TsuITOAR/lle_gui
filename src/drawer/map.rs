@@ -248,7 +248,7 @@ impl RawMapVisualizer<f64> {
                 }),
         )?;
         draw_area.present()?;
-        return Ok(chart_map.into_coord_trans());
+        Ok(chart_map.into_coord_trans())
     }
 }
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
@@ -350,6 +350,7 @@ impl ColorMapVisualizer<f64> {
         )
     }
 }
+
 #[allow(unused)]
 impl<B> ColorMapVisualizer<B> {
     pub fn set_color_range(&mut self, x: DrawRange<Range<B>>) -> &mut Self {

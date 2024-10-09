@@ -1,9 +1,30 @@
+use std::str::FromStr;
+
 use egui::{DragValue, Key, Slider};
-use num_traits::ToPrimitive;
+use num_traits::FromPrimitive;
+
+pub trait Num:
+    num_traits::Num
+    + num_traits::ToPrimitive
+    + num_traits::FromPrimitive
+    + Copy
+    + eframe::emath::Numeric
+{
+}
+
+impl<T> Num for T where
+    T: num_traits::Num
+        + num_traits::ToPrimitive
+        + num_traits::FromPrimitive
+        + Copy
+        + eframe::emath::Numeric
+{
+}
+
 
 #[derive(Debug, PartialEq, PartialOrd, serde::Deserialize, serde::Serialize)]
-pub(crate) struct Property {
-    pub(crate) value: PropertyValue,
+pub(crate) struct Property<T: Num + Copy> {
+    pub(crate) value: ValueRange<T>,
     pub(crate) label: String,
     pub(crate) symbol: Option<String>,
     pub(crate) show_editor: Option<bool>,
@@ -125,144 +146,33 @@ impl<T: egui::emath::Numeric + std::str::FromStr> ValueRange<T> {
     }
 }
 
-impl ValueRange<f64> {
-    pub(crate) fn new_float(v: f64) -> Self {
+impl<T: Copy + Num + FromPrimitive> ValueRange<T> {
+    pub(crate) fn new(v: T) -> Self {
         Self {
             value: v,
-            range: Some((v - 10., v + 20.)),
+            range: Some((
+                v - <T as egui::emath::Numeric>::from_f64(10.),
+                v + <T as egui::emath::Numeric>::from_f64(20.),
+            )),
             unit: None,
         }
     }
 }
 
-#[allow(unused)]
-impl ValueRange<i32> {
-    pub(crate) fn new_int(v: i32) -> Self {
+
+impl<T: Num + Copy> Property<T> {
+    pub fn new(v: T, label: impl ToString) -> Self {
         Self {
-            value: v,
-            range: None,
-            unit: None,
-        }
-    }
-}
-
-impl ValueRange<u32> {
-    pub(crate) fn new_uint(v: u32) -> Self {
-        Self {
-            value: v,
-            range: None,
-            unit: None,
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, PartialOrd, serde::Deserialize, serde::Serialize)]
-pub(crate) enum PropertyValue {
-    F64(ValueRange<f64>),
-    I32(ValueRange<i32>),
-    U32(ValueRange<u32>),
-}
-
-impl PropertyValue {
-    pub(crate) fn f64(&self) -> Option<f64> {
-        match self {
-            Self::F64(v) => Some(v.value),
-            _ => None,
-        }
-    }
-    #[allow(unused)]
-    pub(crate) fn i32(&self) -> Option<i32> {
-        match self {
-            Self::I32(v) => Some(v.value),
-            _ => None,
-        }
-    }
-    #[allow(unused)]
-    pub(crate) fn u32(&self) -> Option<u32> {
-        match self {
-            Self::U32(v) => Some(v.value),
-            _ => None,
-        }
-    }
-    fn unit<T: ToPrimitive>(&mut self, u: T) {
-        match self {
-            Self::F64(v) => v.unit(u.to_f64().unwrap()),
-            Self::I32(v) => v.unit(u.to_i32().unwrap()),
-            Self::U32(v) => v.unit(u.to_u32().unwrap()),
-        }
-    }
-    fn show(&mut self, ui: &mut egui::Ui, label: &str, suffix: Option<&str>) {
-        match self {
-            Self::F64(v) => v.show(ui, label, suffix),
-            Self::I32(v) => v.show(ui, label, suffix),
-            Self::U32(v) => v.show(ui, label, suffix),
-        }
-    }
-    fn show_with_slider(
-        &mut self,
-        ui: &mut egui::Ui,
-        label: &str,
-        show_editor: &mut bool,
-        suffix: Option<&str>,
-    ) {
-        match self {
-            Self::F64(v) => v.show_with_slider(ui, label, show_editor, suffix),
-            Self::I32(v) => v.show_with_slider(ui, label, show_editor, suffix),
-            Self::U32(v) => v.show_with_slider(ui, label, show_editor, suffix),
-        }
-    }
-}
-
-macro_rules! from_range {
-    ($($t:ty=>$i:ident)*) => {
-        $(
-            impl From<ValueRange<$t>> for PropertyValue {
-                fn from(v: ValueRange<$t>) -> Self {
-                    Self::$i(v)
-                }
-            }
-        )*
-    };
-}
-
-from_range!(
-    f64=>F64
-    i32=>I32
-    u32=>U32
-);
-
-impl Property {
-    pub fn new_float(v: f64, label: impl ToString) -> Self {
-        Self {
-            value: ValueRange::new_float(v).into(),
+            value: ValueRange::new(v),
             label: label.to_string(),
             symbol: None,
             show_editor: Some(false),
             value_suffix: None,
         }
     }
-    pub fn new_float_no_slider(v: f64, label: impl ToString) -> Self {
+    pub fn new_no_slider(v: T, label: impl ToString) -> Self {
         Self {
-            value: ValueRange::new_float(v).into(),
-            label: label.to_string(),
-            symbol: None,
-            show_editor: None,
-            value_suffix: None,
-        }
-    }
-    #[allow(unused)]
-    pub fn new_int(v: i32, label: impl ToString) -> Self {
-        Self {
-            value: ValueRange::new_int(v).into(),
-            label: label.to_string(),
-            symbol: None,
-            show_editor: None,
-            value_suffix: None,
-        }
-    }
-    pub fn new_uint(v: u32, label: impl ToString) -> Self {
-        Self {
-            value: ValueRange::new_uint(v).into(),
+            value: ValueRange::new(v),
             label: label.to_string(),
             symbol: None,
             show_editor: None,
@@ -273,7 +183,10 @@ impl Property {
         self.symbol = symbol.to_string().into();
         self
     }
-    pub fn unit<T: ToPrimitive>(mut self, unit: T) -> Self {
+    pub fn unit(mut self, unit: T) -> Self
+    where
+        T: FromStr,
+    {
         self.value.unit(unit);
         self
     }
@@ -292,16 +205,17 @@ impl Property {
         &self.value
     } */
 
-    pub fn get_value_f64(&self) -> f64 {
-        match self.value {
-            PropertyValue::F64(ref v) => v.value,
-            PropertyValue::I32(ref v) => v.value as f64,
-            PropertyValue::U32(ref v) => v.value as f64,
-        }
+    pub fn range(mut self, range: (T, T)) -> Self {
+        self.value.range = Some(range);
+        self
+    }
+
+    pub fn get_value(&self) -> T {
+        self.value.value
     }
 }
 
-impl Property {
+impl<T: Num + FromStr> Property<T> {
     /* pub(crate) fn value_suffix(&self) -> Option<String> {
         self.value_suffix
             .clone()

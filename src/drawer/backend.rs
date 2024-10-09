@@ -242,7 +242,7 @@ impl<'a> EguiBackend<'a> {
     }
 }
 
-impl<'a> DrawingBackend for EguiBackend<'a> {
+impl DrawingBackend for EguiBackend<'_> {
     type ErrorType = std::io::Error;
 
     fn get_size(&self) -> (u32, u32) {

@@ -5,16 +5,16 @@ use super::*;
 #[derive(Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct CoupleLleController {
     a: LleController,
-    pos: Property,
-    g: Property,
+    pos: Property<i32>,
+    g: Property<f64>,
 }
 
 impl Default for CoupleLleController {
     fn default() -> Self {
         Self {
             a: LleController::default(),
-            pos: Property::new_int(0, "pos"),
-            g: Property::new_float(100., "g"),
+            pos: Property::new(0, "pos"),
+            g: Property::new(100., "g").range((0., 100.)),
         }
     }
 }
@@ -35,15 +35,16 @@ pub type CLleSolver = lle::CoupledLleSolver<
 impl Controller<CLleSolver> for CoupleLleController {
     fn construct_engine(&self, dim: usize) -> CLleSolver {
         use lle::LinearOp;
-        let properties = &self.a.properties;
-        let step_dist = properties["step dist"].value.f64().unwrap();
-        let pump = properties["pump"].value.f64().unwrap();
-        let linear = properties["linear"].value.f64().unwrap();
-        let alpha = properties["alpha"].value.f64().unwrap();
-        let pos = self.pos.value.i32().unwrap();
-        let g = self.g.value.f64().unwrap();
+
+        let step_dist = self.a.step_dist.get_value();
+        let pump = self.a.pump.get_value();
+        let linear = self.a.linear.get_value();
+        let alpha = self.a.alpha.get_value();
+        let pos = self.pos.get_value();
+        let g = self.g.get_value();
+
         let mut init = vec![zero(); dim];
-        default_add_random(init.iter_mut());
+        default_add_random(init.as_mut_slice());
         CLleSolver::builder()
             .component1(
                 LleSolver::builder()
@@ -77,38 +78,71 @@ impl Controller<CLleSolver> for CoupleLleController {
     }
 
     // todo: use seed
-    fn construct_with_seed(&self, dim: usize, _seed: u32) -> CLleSolver {
-        self.construct_engine(dim)
+    fn construct_with_seed(&self, dim: usize, seed: u64) -> CLleSolver {
+        use lle::LinearOp;
+
+        let step_dist = self.a.step_dist.get_value();
+        let pump = self.a.pump.get_value();
+        let linear = self.a.linear.get_value();
+        let alpha = self.a.alpha.get_value();
+        let pos = self.pos.get_value();
+        let g = self.g.get_value();
+
+        let mut init = vec![zero(); dim];
+        default_add_random_with_seed(init.as_mut_slice(), seed);
+        CLleSolver::builder()
+            .component1(
+                LleSolver::builder()
+                    .state(init.to_vec())
+                    .step_dist(step_dist)
+                    .linear(
+                        (0, -(Complex64::i() * alpha + 1.)).add((2, -Complex64::i() * linear / 2.)),
+                    )
+                    .nonlin(SPhaMod::default())
+                    .constant(Complex64::from(pump))
+                    .build(),
+            )
+            .component2(
+                LleSolver::builder()
+                    .state(init.to_vec())
+                    .step_dist(step_dist)
+                    .linear(
+                        (0, -(Complex64::i() * alpha + 1.)).add((2, -Complex64::i() * linear / 2.)),
+                    )
+                    .nonlin(SPhaMod::default())
+                    .build(),
+            )
+            .couple(
+                lle::ModeSplit {
+                    mode: pos as _,
+                    strength: g,
+                }
+                .with_linear(lle::XPhaMod),
+            )
+            .build()
     }
 
     fn show_in_control_panel(&mut self, ui: &mut egui::Ui) {
-        for p in self.a.properties.values_mut() {
-            p.show_in_control_panel(ui)
-        }
+        <crate::controller::LleController as crate::controller::Controller<
+            LleSolver<SPhaMod>>>::show_in_control_panel(&mut self.a,ui);
+
         self.g.show_in_control_panel(ui);
         self.pos.show_in_control_panel(ui);
     }
 
     fn show_in_start_window(&mut self, dim: &mut usize, ui: &mut egui::Ui) {
-        crate::config::config(
-            dim,
-            self.a
-                .properties
-                .values_mut()
-                .chain([&mut self.g, &mut self.pos]),
-            ui,
-        )
+        crate::config::config(dim, &mut self.a, ui)
     }
 
     fn sync_paras(&mut self, engine: &mut CLleSolver) {
-        crate::synchronize_properties(&self.a.properties, &mut engine.component1);
-        crate::synchronize_properties_no_pump(&self.a.properties, &mut engine.component2);
-        engine.couple.couple.strength = self.g.value.f64().unwrap();
-        engine.couple.couple.mode = self.pos.value.i32().unwrap() as _;
+        crate::synchronize_properties(&self.a, &mut engine.component1);
+        crate::synchronize_properties_no_pump(&self.a, &mut engine.component2);
+        engine.couple.couple.strength = self.g.get_value();
+        engine.couple.couple.mode = self.pos.get_value();
     }
 
     fn steps(&self) -> u32 {
-        self.a.properties["steps"].value.u32().unwrap()
+        self.a.steps.get_value()
     }
 }
 
