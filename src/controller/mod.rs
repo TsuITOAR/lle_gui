@@ -132,10 +132,14 @@ impl<NL: lle::NonLinearOp<f64>> Simulator for LleSolver<NL> {
 }
 
 #[derive(serde::Deserialize, serde::Serialize, Debug)]
+#[serde(bound(
+    serialize = "P: serde::Serialize",
+    deserialize = "P: for<'a> serde::Deserialize<'a>"
+))]
 pub struct Core<P, S> {
     pub(crate) dim: usize,
     pub(crate) controller: P,
-    #[serde(skip, default = "Default::default")]
+    #[serde(skip, default)]
     pub(crate) simulator: Option<S>,
 }
 

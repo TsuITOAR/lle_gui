@@ -8,8 +8,8 @@ edition = "2021"
 
 
 [dependencies]
-egui = "^0.27"
-eframe = { version = "^0.27", features = [
+egui = "^0.29"
+eframe = { version = "^0.29", features = [
     "accesskit",     # Make egui comptaible with screen readers. NOTE: adds a lot of dependencies.
     "default_fonts", # Embed the default egui fonts.
     "glow",          # Use the glow rendering backend. Alternative: "wgpu".
@@ -17,33 +17,39 @@ eframe = { version = "^0.27", features = [
     "puffin",
 ] }
 
-egui_plot = "^0.27"
-puffin_egui = "^0.27"
+puffin_egui = { version = "^0.29", git = "https://github.com/tedsteen/puffin.git", rev = "11771eb" } #remove git after crates updated
+egui_plot = "^0.29"
 
-serde = { version = "1", features = [
+serde = { version = "^1", features = [
     "derive",
 ] } # You only need this if you want app persistence
 lle = { git = "https://github.com/TsuITOAR/Lle.git" }
 rand = "^0.8"
-anyhow = "*"
+anyhow = "^1"
 log = "^0.4"
 enum-iterator = "^2"
 #egui-plotter = "^0.3"
 plotters = "^0.3"
-getset = "0.1.2"
+getset = "^0.1"
 plotters-backend = "0.3.5"
 num-traits = "0.2.19"
+iterator_ilp = "2.1.2"
 #rayon = { version = "^1.8", optional = true }
 
 # native:
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-puffin = { version = "0.19.0", features = ["packing"] }
+puffin = { version = "^0.19", git = "https://github.com/tedsteen/puffin.git", rev = "11771eb", features = [
+    "packing",
+] }
 env_logger = "^0.11"
 
 # web:
 [target.'cfg(target_arch = "wasm32")'.dependencies]
-puffin = { version = "0.19.0", features = ["packing", "web"] }
-wasm-bindgen-futures = "0.4"
+puffin = { version = "^0.19", git = "https://github.com/tedsteen/puffin.git", rev = "11771eb", features = [
+    "packing",
+    "web",
+] }
+wasm-bindgen-futures = "^0.4"
 getrandom = { version = "^0.2", features = ["js"] }
 instant = { version = "^0.1", features = ["wasm-bindgen"] }
 

@@ -173,7 +173,11 @@ impl LleChart {
                     )
                         .into(),
                 );
-                let mut ui = ui.child_ui(rect, *ui.layout());
+                let mut ui = ui.new_child(
+                    egui::UiBuilder::default()
+                        .max_rect(rect)
+                        .layout(*ui.layout()),
+                );
                 if ss.show_history.is_some() {
                     let h = (rect.height() - ui.spacing().item_spacing.y) / 2.;
                     ss.plot_in(d.iter().copied(), &mut ui, running, Some(h));
@@ -182,7 +186,11 @@ impl LleChart {
                     let ss = ss.show_history.as_mut().expect("checked some");
                     ui.add_space(ui.spacing().item_spacing.y);
                     let (_id, rect) = ui.allocate_space(ui.available_size());
-                    let cui = ui.child_ui(rect, *ui.layout());
+                    let cui = ui.new_child(
+                        egui::UiBuilder::default()
+                            .max_rect(rect)
+                            .layout(*ui.layout()),
+                    );
                     #[allow(unused_must_use)]
                     {
                         ss.draw_mat_on_ui(data.len(), &cui)

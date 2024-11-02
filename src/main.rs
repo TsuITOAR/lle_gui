@@ -20,7 +20,7 @@ fn main() -> eframe::Result<()> {
     eframe::run_native(
         "LLE GUI",
         native_options,
-        Box::new(|cc| Box::new(lle_gui::App::new(cc))),
+        Box::new(|cc| Ok(Box::new(lle_gui::App::new(cc)))),
     )
 }
 
