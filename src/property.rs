@@ -21,7 +21,6 @@ impl<T> Num for T where
 {
 }
 
-
 #[derive(Debug, PartialEq, PartialOrd, serde::Deserialize, serde::Serialize)]
 pub(crate) struct Property<T: Num + Copy> {
     pub(crate) value: ValueRange<T>,
@@ -158,7 +157,6 @@ impl<T: Copy + Num + FromPrimitive> ValueRange<T> {
         }
     }
 }
-
 
 impl<T: Num + Copy> Property<T> {
     pub fn new(v: T, label: impl ToString) -> Self {
