@@ -92,7 +92,7 @@ impl Default for LleController {
             step_dist: Property::new_no_slider(8e-4, "step dist")
                 .symbol("Δt")
                 .unit(1E-4),
-            steps: Property::new(100, "steps").symbol("steps"),
+            steps: Property::new_no_slider(100, "steps").symbol("steps"),
         }
     }
 }
