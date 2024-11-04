@@ -278,6 +278,7 @@ impl ColorMapVisualizer<f64> {
     fn fetch(&mut self, data: &[Complex64], proc: &mut Process, chunk_size: usize) -> &mut Self {
         puffin::profile_function!();
         self.clear();
+        // todo: use rayon to parallelize the process
         match self.max_log {
             Some(max) => {
                 self.matrix.reserve(chunk_size * max.get());

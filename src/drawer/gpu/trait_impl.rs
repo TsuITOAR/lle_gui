@@ -1,3 +1,4 @@
+use iterator_ilp::IteratorILP;
 use lle::num_complex::Complex64;
 
 use crate::drawer::chart::{DrawMat, Process};
@@ -17,20 +18,22 @@ impl DrawMat for Drawer {
         puffin::profile_function!();
         let mut log = self.data();
         let max_log = self.max_log().unwrap().get();
-
-        for (r, d) in data.rchunks(chunk_size).enumerate().take(max_log).rev() {
-            let start = (max_log - 1 - r) * chunk_size;
-            let end = start + chunk_size;
-            log[start..end].copy_from_slice(&proc.proc_f32(d));
+        use rayon::prelude::*;
+        {
+            puffin::profile_scope!("process data");
+            data.rchunks(chunk_size)
+                .take(max_log)
+                .collect::<Vec<&[Complex64]>>()
+                .into_par_iter()
+                .map(|d| proc.clone().proc_f32(d))
+                .zip(log.par_rchunks_exact_mut(chunk_size).into_par_iter())
+                .for_each(|(src, dst)| {
+                    dst.clone_from_slice(&src);
+                })
         }
 
-        let (max, min) = log
-            .chunks(chunk_size)
-            .map(|x| {
-                x.iter()
-                    .fold((0f32, 1f32), |(a, b), &c| (a.max(c), b.min(c)))
-            })
-            .fold((0f32, 1f32), |(a, b), (c, d)| (a.max(c), b.min(d)));
+        let (max, min) = search_max_min(&log);
+
         drop(log);
         self.uniforms_mut().z_range = [min, max];
     }
@@ -44,4 +47,20 @@ impl DrawMat for Drawer {
         self.data()
             .resize((self.uniforms().height * self.uniforms().width) as _, 0.0);
     }
+}
+
+fn search_max_min(data: &[f32]) -> (f32, f32) {
+    puffin::profile_function!();
+    debug_assert!(data.len() % 2 == 0);
+    data.chunks(2)
+        .map(|x| (x[0], x[1]))
+        .reduce_ilp::<8>(|(a, b), (c, d)| (a.max(c).max(d), b.min(c).min(d)))
+        .unwrap()
+    /* let (max, min) = log
+    .chunks(chunk_size)
+    .map(|x| {
+        x.iter()
+            .fold((0f32, 1f32), |(a, b), &c| (a.max(c), b.min(c)))
+    })
+    .fold((0f32, 1f32), |(a, b), (c, d)| (a.max(c), b.min(d))); */
 }

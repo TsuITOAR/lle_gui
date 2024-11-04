@@ -353,7 +353,30 @@ impl Process {
             ..Default::default()
         }
     }
+
+    pub fn proc_by_ref(&self, data: &[Complex64]) -> Vec<f64> {
+        let mut data = data.to_owned();
+        if let Some(mut fft) = self.fft.as_ref().cloned() {
+            let (f, b) = fft.get_fft(data.len());
+            debug_assert_eq!(b.len(), f.get_inplace_scratch_len());
+            f.process_with_scratch(&mut data, b);
+            let split_pos = (data.len() + 1) / 2; //for odd situations, need to shift (len+1)/2..len, for evens, len/2..len
+            let (pos_freq, neg_freq) = data.split_at_mut(split_pos);
+            data = neg_freq.iter().chain(pos_freq.iter()).copied().collect();
+        }
+
+        if self.db_scale {
+            self.component
+                .extract(data.into_iter())
+                .map({ |x: f64| x.log10() * 20. } as fn(_) -> _)
+                .collect()
+        } else {
+            self.component.extract(data.into_iter()).collect()
+        }
+    }
+
     pub fn proc(&mut self, data: &[Complex64]) -> Vec<f64> {
+        //puffin::profile_function!();
         let Process {
             fft,
             component,
@@ -378,7 +401,29 @@ impl Process {
         }
     }
 
+    pub fn proc_f32_by_ref(&self, data: &[Complex64]) -> Vec<f32> {
+        let mut data = data.to_owned();
+        if let Some(mut fft) = self.fft.as_ref().cloned() {
+            let (f, b) = fft.get_fft(data.len());
+            debug_assert_eq!(b.len(), f.get_inplace_scratch_len());
+            f.process_with_scratch(&mut data, b);
+            let split_pos = (data.len() + 1) / 2; //for odd situations, need to shift (len+1)/2..len, for evens, len/2..len
+            let (pos_freq, neg_freq) = data.split_at_mut(split_pos);
+            data = neg_freq.iter().chain(pos_freq.iter()).copied().collect();
+        }
+
+        if self.db_scale {
+            self.component
+                .extract(data.into_iter())
+                .map({ |x: f64| (x as f32).log10() * 20. } as fn(_) -> _)
+                .collect()
+        } else {
+            self.component.extract_f32(data.into_iter()).collect()
+        }
+    }
+
     pub fn proc_f32(&mut self, data: &[Complex64]) -> Vec<f32> {
+        //puffin::profile_function!();
         let Process {
             fft,
             component,
