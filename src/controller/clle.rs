@@ -14,7 +14,7 @@ impl Default for CoupleLleController {
         Self {
             a: LleController::default(),
             pos: Property::new(0, "pos"),
-            g: Property::new(100., "g").range((0., 100.)),
+            g: Property::new(0., "g").range((0., 100.)),
         }
     }
 }
