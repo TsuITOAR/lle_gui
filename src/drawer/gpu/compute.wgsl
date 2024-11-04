@@ -16,7 +16,7 @@ var<uniform> uniforms: Uniforms;
 @group(0) @binding(3)
 var<storage, read> colormap: array<u32>;
 
-@compute @workgroup_size(16, 8, 1)
+@compute @workgroup_size(8, 8, 1)
 fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     let index = global_id.x + global_id.y * uniforms.width;
     let value = (raw_data[index] - uniforms.z_range[0]) / (uniforms.z_range[1] - uniforms.z_range[0]);

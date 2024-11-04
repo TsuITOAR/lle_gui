@@ -328,7 +328,7 @@ impl ColorMapVisualizer<f64> {
         self.raw
             .draw_on(&self.matrix, &draw_area, chunk_size, style)
     }
-    
+
     #[allow(clippy::type_complexity)]
     fn draw_mat_on_ui<'a>(
         &self,
