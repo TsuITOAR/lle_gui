@@ -13,7 +13,7 @@ impl Default for CoupleLleController {
     fn default() -> Self {
         Self {
             a: LleController::default(),
-            pos: Property::new(0, "pos"),
+            pos: Property::new_no_slider(0, "pos"),
             g: Property::new(0., "g").range((0., 100.)),
         }
     }
