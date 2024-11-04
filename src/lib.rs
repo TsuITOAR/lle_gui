@@ -266,9 +266,14 @@ where
             return;
         }
         if *running || step {
-            puffin::profile_scope!("calculate");
-            simulator.run(controller.steps());
-            view.log_his(simulator.states().record_first());
+            {
+                puffin::profile_scope!("calculate");
+                simulator.run(controller.steps());
+            }
+            {
+                puffin::profile_scope!("record state");
+                view.log_his(simulator.states().record_first());
+            }
             ctx.request_repaint()
         }
         view.visualize_state(

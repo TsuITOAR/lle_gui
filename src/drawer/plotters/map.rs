@@ -159,6 +159,7 @@ impl<Backend> RawMapVisualizer<f64, Backend> {
 const COLOR_MAP: plotters::prelude::ViridisRGB = plotters::prelude::ViridisRGB {};
 
 impl RawMapVisualizer<f64> {
+    #[allow(clippy::type_complexity)]
     pub fn draw_on<DB: DrawingBackend>(
         &self,
         matrix: &[f64],
@@ -327,6 +328,8 @@ impl ColorMapVisualizer<f64> {
         self.raw
             .draw_on(&self.matrix, &draw_area, chunk_size, style)
     }
+    
+    #[allow(clippy::type_complexity)]
     fn draw_mat_on_ui<'a>(
         &self,
         chunk_size: usize,

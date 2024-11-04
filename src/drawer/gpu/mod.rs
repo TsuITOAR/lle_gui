@@ -310,6 +310,9 @@ impl Drawer {
     }
 
     pub(crate) fn set_height(&mut self, height: u32) {
+        if height <= 1 {
+            return;
+        }
         self.uniforms.height = height;
         self.axis_drawer.y_range = 0.0f32..=(height - 1) as f32;
         self.data()
