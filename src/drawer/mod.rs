@@ -5,11 +5,13 @@ use lle::{
 };
 use std::{fmt::Debug, ops::RangeInclusive};
 
-mod backend;
 pub mod chart;
-pub mod map;
 
-pub use rand::*;
+#[cfg(feature = "gpu")]
+pub mod gpu;
+
+#[cfg(feature = "plotters")]
+pub mod plotters;
 
 #[cfg(target_arch = "wasm32")]
 use instant::Instant;
@@ -105,9 +107,31 @@ impl ViewField {
             crate::toggle_option_with(ui, &mut self.f_chart, "freq domain", default_f_chart);
         });
     }
-    pub(crate) fn visualize_state(&mut self, data: &[Complex64], ctx: &Context, running: bool) {
+    pub(crate) fn visualize_state(
+        &mut self,
+        data: &[Complex64],
+        ctx: &Context,
+        running: bool,
+        #[cfg(feature = "gpu")] render_state: &eframe::egui_wgpu::RenderState,
+    ) {
         puffin::profile_function!();
-        LleChart::plot_on_new_window(&mut self.r_chart, data, ctx, running, &self.history);
-        LleChart::plot_on_new_window(&mut self.f_chart, data, ctx, running, &self.history);
+        LleChart::plot_on_new_window(
+            &mut self.r_chart,
+            data,
+            ctx,
+            running,
+            &self.history,
+            #[cfg(feature = "gpu")]
+            render_state,
+        );
+        LleChart::plot_on_new_window(
+            &mut self.f_chart,
+            data,
+            ctx,
+            running,
+            &self.history,
+            #[cfg(feature = "gpu")]
+            render_state,
+        );
     }
 }

@@ -1,18 +1,23 @@
 #![warn(clippy::all, rust_2018_idioms)]
 #![feature(unboxed_closures)]
 #![feature(fn_traits)]
+#![feature(hasher_prefixfree_extras)]
 mod config;
 mod controller;
 mod drawer;
 mod easy_mark;
 mod property;
 
-use std::f64::consts::PI;
+/*
+mod test_app;
+pub use test_app::TestApp;
+*/
 
 use controller::{Controller, Core, Simulator};
 use drawer::ViewField;
 use egui::DragValue;
 use lle::{num_complex::Complex64, LinearOp, NonLinearOp};
+use std::f64::consts::PI;
 
 use crate::controller::Record;
 
@@ -76,12 +81,22 @@ fn synchronize_properties_no_pump<NL: NonLinearOp<f64>>(
 pub type App =
     GenApp<crate::controller::clle::CoupleLleController, crate::controller::clle::CLleSolver>;
 
+pub struct GenApp<P, S> {
+    core: Core<P, S>,
+    slider_len: Option<f32>,
+    view: ViewField,
+    seed: Option<u64>,
+    running: bool,
+    profiler: bool,
+    #[cfg(feature = "gpu")]
+    render_state: eframe::egui_wgpu::RenderState,
+}
 #[derive(serde::Deserialize, serde::Serialize)]
 #[serde(bound(
     serialize = "P: serde::Serialize",
     deserialize = "P: for<'a> serde::Deserialize<'a>"
 ))]
-pub struct GenApp<P, S> {
+struct GenAppStorage<P, S> {
     core: Core<P, S>,
     slider_len: Option<f32>,
     #[serde(default)]
@@ -94,7 +109,7 @@ pub struct GenApp<P, S> {
     profiler: bool,
 }
 
-impl<P: Default + Controller<S>, S: Simulator> Default for GenApp<P, S> {
+impl<P: Default + Controller<S>, S: Simulator> Default for GenAppStorage<P, S> {
     fn default() -> Self {
         Self {
             core: Core::new(P::default(), 128),
@@ -106,6 +121,8 @@ impl<P: Default + Controller<S>, S: Simulator> Default for GenApp<P, S> {
         }
     }
 }
+
+const APP_NAME: &str = "LLE Simulator";
 
 impl<P: Controller<S> + Default, S: Simulator> GenApp<P, S>
 where
@@ -123,9 +140,20 @@ where
 
         // Load previous app state (if any).
         // Note that you must enable the `persistence` feature for this to work.
-        cc.storage.map_or_else(Default::default, |e| {
-            eframe::get_value(e, eframe::APP_KEY).unwrap_or_default()
-        })
+        let s: GenAppStorage<P, S> = cc.storage.map_or_else(Default::default, |e| {
+            eframe::get_value(e, APP_NAME).unwrap_or_default()
+        });
+
+        Self {
+            core: s.core,
+            slider_len: s.slider_len,
+            view: s.view,
+            seed: s.seed,
+            running: s.running,
+            profiler: s.profiler,
+            #[cfg(feature = "gpu")]
+            render_state: cc.wgpu_render_state.as_ref().unwrap().clone(),
+        }
 
         /* if let Some(storage) = cc.storage {
             return eframe::get_value(storage, eframe::APP_KEY).unwrap_or_default();
@@ -137,7 +165,7 @@ where
 
 impl<P, S> eframe::App for GenApp<P, S>
 where
-    P: Default + Controller<S> + serde::Serialize,
+    P: Default + Controller<S> + serde::Serialize + Clone,
     S: Simulator<State = [Complex64]>,
 {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
@@ -150,6 +178,8 @@ where
             seed,
             running,
             profiler,
+            #[cfg(feature = "gpu")]
+            render_state,
         } = self;
 
         let Core {
@@ -240,12 +270,26 @@ where
             view.log_his(simulator.states().record_first());
             ctx.request_repaint()
         }
-        view.visualize_state(simulator.states().record_first(), ctx, *running || step);
+        view.visualize_state(
+            simulator.states().record_first(),
+            ctx,
+            *running || step,
+            #[cfg(feature = "gpu")]
+            render_state,
+        );
     }
 
     /// Called by the frame work to save state before shutdown.
     fn save(&mut self, storage: &mut dyn eframe::Storage) {
-        eframe::set_value(storage, eframe::APP_KEY, self);
+        let state = GenAppStorage {
+            core: self.core.save_copy(),
+            slider_len: self.slider_len,
+            view: self.view.clone(),
+            seed: self.seed,
+            running: self.running,
+            profiler: self.profiler,
+        };
+        eframe::set_value(storage, APP_NAME, &state);
     }
 }
 

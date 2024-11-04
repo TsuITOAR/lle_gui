@@ -74,7 +74,7 @@ impl<NL: Default + lle::NonLinearOp<f64>> Controller<LleSolver<NL>> for LleContr
     }
 }
 
-#[derive(Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct LleController {
     pub(crate) alpha: Property<f64>,
     pub(crate) pump: Property<f64>,
@@ -141,6 +141,16 @@ pub struct Core<P, S> {
     pub(crate) controller: P,
     #[serde(skip, default)]
     pub(crate) simulator: Option<S>,
+}
+
+impl<P: Clone, S> Core<P, S> {
+    pub(crate) fn save_copy(&self) -> Self {
+        Self {
+            dim: self.dim,
+            controller: self.controller.clone(),
+            simulator: None,
+        }
+    }
 }
 
 impl<P: Default, S> Default for Core<P, S> {

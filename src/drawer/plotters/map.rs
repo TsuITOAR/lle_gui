@@ -1,12 +1,13 @@
+use crate::drawer::chart::{self, Process};
+
 use super::backend::EguiBackend;
-use lle::num_traits::Pow;
+use lle::{num_complex::Complex64, num_traits::Pow};
 use plotters::{
     coord::Shift,
     prelude::*,
     style::{RelativeSize, SizeDesc},
 };
 
-use super::{chart::Process, *};
 use std::{marker::PhantomData, num::NonZeroUsize, ops::Range};
 
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
@@ -274,12 +275,7 @@ impl ColorMapVisualizer<f64> {
         self.raw.color_range = Default::default();
     }
 
-    pub fn fetch(
-        &mut self,
-        data: &[Complex64],
-        proc: &mut Process,
-        chunk_size: usize,
-    ) -> &mut Self {
+    fn fetch(&mut self, data: &[Complex64], proc: &mut Process, chunk_size: usize) -> &mut Self {
         puffin::profile_function!();
         self.clear();
         match self.max_log {
@@ -299,12 +295,7 @@ impl ColorMapVisualizer<f64> {
         self
     }
 
-    pub fn update(
-        &mut self,
-        data: &[Complex64],
-        proc: &mut Process,
-        chunk_size: usize,
-    ) -> &mut Self {
+    fn update(&mut self, data: &[Complex64], proc: &mut Process, chunk_size: usize) -> &mut Self {
         match self.max_log {
             Some(_) => {
                 self.fetch(data, proc, chunk_size);
@@ -334,7 +325,7 @@ impl ColorMapVisualizer<f64> {
         self.raw
             .draw_on(&self.matrix, &draw_area, chunk_size, style)
     }
-    pub fn draw_mat_on_ui<'a>(
+    fn draw_mat_on_ui<'a>(
         &self,
         chunk_size: usize,
         ui: &'a egui::Ui,
@@ -348,6 +339,33 @@ impl ColorMapVisualizer<f64> {
             chunk_size,
             Style::from_ui(ui),
         )
+    }
+}
+
+impl chart::DrawMat for ColorMapVisualizer {
+    #[allow(unused_must_use)]
+    fn draw_mat_on_ui(
+        &mut self,
+        chunk_size: usize,
+        ui: &mut egui::Ui,
+    ) -> Result<(), eframe::Error> {
+        puffin::profile_function!();
+        Self::draw_mat_on_ui(self, chunk_size, ui).unwrap();
+        Ok(())
+    }
+    fn fetch(&mut self, data: &[Complex64], proc: &mut Process, chunk_size: usize) {
+        puffin::profile_function!();
+        Self::fetch(self, data, proc, chunk_size);
+    }
+    fn update(&mut self, data: &[Complex64], proc: &mut Process, chunk_size: usize) {
+        puffin::profile_function!();
+        Self::update(self, data, proc, chunk_size);
+    }
+    fn max_log(&self) -> Option<NonZeroUsize> {
+        self.max_log
+    }
+    fn set_max_log(&mut self, max_log: NonZeroUsize) {
+        self.max_log = Some(max_log);
     }
 }
 

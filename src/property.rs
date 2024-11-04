@@ -21,7 +21,7 @@ impl<T> Num for T where
 {
 }
 
-#[derive(Debug, PartialEq, PartialOrd, serde::Deserialize, serde::Serialize)]
+#[derive(Debug, Clone, PartialEq, PartialOrd, serde::Deserialize, serde::Serialize)]
 pub(crate) struct Property<T: Num + Copy> {
     pub(crate) value: ValueRange<T>,
     pub(crate) label: String,

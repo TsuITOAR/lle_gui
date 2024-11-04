@@ -2,7 +2,7 @@ use lle::CoupleOp;
 
 use super::*;
 
-#[derive(Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct CoupleLleController {
     a: LleController,
     pos: Property<i32>,
