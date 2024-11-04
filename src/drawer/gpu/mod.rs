@@ -13,6 +13,7 @@ pub use vertex::Vertex;
 mod resource;
 use resource::RenderResources;
 
+mod axis;
 mod trait_impl;
 
 #[repr(C)]
@@ -38,6 +39,7 @@ pub struct Drawer {
     uniforms: Uniforms,
     data: Arc<Mutex<Vec<RawDataFormat>>>,
     current_row: u32,
+    axis_drawer: axis::AxisDrawer,
 }
 
 impl std::fmt::Debug for Drawer {
@@ -46,6 +48,7 @@ impl std::fmt::Debug for Drawer {
             .field("uniforms", &self.uniforms)
             .field("data", &self.data.lock())
             .field("current_row", &self.current_row)
+            .field("axis_drawer", &self.axis_drawer)
             .finish()
     }
 }
@@ -267,11 +270,18 @@ impl Drawer {
 
         map.insert(name_hash, resource);
 
+        let axis_drawer = axis::AxisDrawer {
+            x_range: 0.0f32..=(uniforms.width - 1) as f32,
+            y_range: 0.0f32..=(uniforms.height - 1) as f32,
+            ..Default::default()
+        };
+
         Self {
             name_hash,
             uniforms,
             data: Arc::new(Mutex::new(data)),
             current_row: 0,
+            axis_drawer,
         }
     }
 
@@ -299,19 +309,31 @@ impl Drawer {
         self.uniforms
     }
 
-    pub(crate) fn uniforms_mut(&mut self) -> &mut Uniforms {
-        &mut self.uniforms
+    pub(crate) fn set_height(&mut self, height: u32) {
+        self.uniforms.height = height;
+        self.axis_drawer.y_range = 0.0f32..=(height - 1) as f32;
+        self.data()
+            .resize((self.uniforms().height * self.uniforms().width) as _, 0.0);
+    }
+
+    pub(crate) fn set_z_ragne(&mut self, range: [f32; 2]) {
+        self.uniforms.z_range = range;
     }
 }
 
 impl Drawer {
     pub fn show(&mut self, ui: &mut egui::Ui) {
         //log::info!("Showing drawer");
-        let rect = ui.max_rect();
+        let max_rect = ui.max_rect();
+        let (rect, _, _) = self.axis_drawer.get_remained_rect(max_rect);
+
         /* let (rect, response) =
         ui.allocate_exact_size(egui::Vec2::splat(300.0), egui::Sense::drag()); */
         ui.painter()
             .add(egui_wgpu::Callback::new_paint_callback(rect, self.clone()));
+
+        self.axis_drawer
+            .draw_axes_with_labels_and_ticks(ui, max_rect);
         /* egui::Frame::canvas(ui.style())
         .show(ui, |ui| {
             self.draw(ui);

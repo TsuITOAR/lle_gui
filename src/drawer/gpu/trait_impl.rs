@@ -35,7 +35,7 @@ impl DrawMat for Drawer {
         let (max, min) = search_max_min(&log);
 
         drop(log);
-        self.uniforms_mut().z_range = [min, max];
+        self.set_z_ragne([min, max]);
     }
 
     fn max_log(&self) -> Option<std::num::NonZero<usize>> {
@@ -43,9 +43,7 @@ impl DrawMat for Drawer {
     }
 
     fn set_max_log(&mut self, max_log: std::num::NonZero<usize>) {
-        self.uniforms_mut().height = max_log.get() as u32;
-        self.data()
-            .resize((self.uniforms().height * self.uniforms().width) as _, 0.0);
+        self.set_height(max_log.get() as u32);
     }
 }
 

@@ -316,6 +316,7 @@ impl ColorMapVisualizer<f64> {
         self
     }
 
+    #[allow(clippy::type_complexity)]
     pub fn draw_mat<DB: DrawingBackend>(
         &self,
         draw_area: DrawingArea<DB, Shift>,

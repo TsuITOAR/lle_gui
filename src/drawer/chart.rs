@@ -345,6 +345,7 @@ pub struct Process {
     pub(crate) db_scale: bool,
 }
 
+#[allow(dead_code)]
 impl Process {
     pub(crate) fn new_freq_domain() -> Self {
         Self {

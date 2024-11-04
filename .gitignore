@@ -2,3 +2,4 @@
 /dist
 Cargo.lock
 .vscode
+rust-toolchain

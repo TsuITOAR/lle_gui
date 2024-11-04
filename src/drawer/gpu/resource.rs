@@ -91,9 +91,9 @@ impl RenderResources {
             cpass.set_bind_group(0, &self.compute_bind_group, &[]);
             const WORKGROUP_SIZE: (u8, u8, u8) = (16, 8, 1);
             let dispatch_x =
-                (self.uniforms.width + WORKGROUP_SIZE.0 as u32 - 1) / WORKGROUP_SIZE.0 as u32;
+                self.uniforms.width.div_ceil(WORKGROUP_SIZE.0 as u32);
             let dispatch_y =
-                (self.uniforms.height + WORKGROUP_SIZE.1 as u32 - 1) / WORKGROUP_SIZE.1 as u32;
+                self.uniforms.height.div_ceil(WORKGROUP_SIZE.1 as u32);
             let dispatch_z = 1;
             cpass.dispatch_workgroups(dispatch_x, dispatch_y, dispatch_z);
         }

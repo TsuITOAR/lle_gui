@@ -2,6 +2,7 @@
 #![feature(unboxed_closures)]
 #![feature(fn_traits)]
 #![feature(hasher_prefixfree_extras)]
+#![feature(type_alias_impl_trait)]
 mod config;
 mod controller;
 mod drawer;
