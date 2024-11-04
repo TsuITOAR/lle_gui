@@ -1,3 +1,5 @@
+# TODO List
+
 1. display
     1. ~~debug tool for plot parameters~~
     2. ~~better view strategy~~
@@ -16,3 +18,7 @@
 4. custom data
     1. numeric input
     2. graphic interface input
+
+5. more control strategy
+    1. linked parameters
+    2. parameters scouting
