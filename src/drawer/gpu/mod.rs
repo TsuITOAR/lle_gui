@@ -275,7 +275,7 @@ impl Drawer {
         }
     }
 
-    pub fn push_row(&mut self, row_data: &[f32], range: [f32; 2]) {
+    /* pub fn push_row(&mut self, row_data: &[f32], range: [f32; 2]) {
         let start = (self.current_row * self.uniforms.width) as usize;
         let end = start + self.uniforms.width as usize;
         self.data.lock()[start..end].copy_from_slice(row_data);
@@ -289,7 +289,7 @@ impl Drawer {
             0,
             bytemuck::cast_slice(&[self.uniforms]),
         ); */
-    }
+    } */
 
     pub(crate) fn data(&self) -> egui::mutex::MutexGuard<'_, Vec<RawDataFormat>> {
         self.data.lock()
@@ -355,7 +355,7 @@ impl egui_wgpu::CallbackTrait for Drawer {
         resource.update_raw_buffer(device, queue, bytemuck::cast_slice(&self.data.lock()));
         resource.compute_texture(egui_encoder);
         resource.refresh_texture(egui_encoder);
-        vec![]
+        Vec::new()
     }
 
     fn paint(

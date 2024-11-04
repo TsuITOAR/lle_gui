@@ -133,7 +133,6 @@ impl RenderResources {
 }
 
 impl RenderResources {
-    
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn get_compute_pipeline(
         device: &wgpu::Device,

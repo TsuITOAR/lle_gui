@@ -396,7 +396,7 @@ impl Process {
         if *db_scale {
             component
                 .extract(data.into_iter())
-                .map({ |x: f64| (x.log10() * 20.) as _ } as fn(_) -> _)
+                .map({ |x: f64| ((x as f32).log10() * 20.) as _ } as fn(_) -> _)
                 .collect()
         } else {
             component.extract_f32(data.into_iter()).collect()
