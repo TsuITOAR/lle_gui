@@ -237,7 +237,7 @@ where
                     *running = !*running;
                 };
                 let step_button = egui::Button::new("⏩").sense(egui::Sense::click_and_drag());
-                step = ui.add(step_button).dragged();
+                step = ui.add(step_button).is_pointer_button_down_on();
                 reset = ui.button("⏹").clicked();
                 destruct = ui.button("⏏").clicked();
             });
@@ -256,13 +256,16 @@ where
 
         if reset {
             let en = core.simulator.take();
-            *core = Default::default();
-            core.simulator = en;
+            *core = Core {
+                dim: *dim,
+                controller: Default::default(),
+                simulator: en,
+            };
             return;
         }
         if destruct {
             core.simulator = None;
-            self.view = Default::default();
+            *view = Default::default();
             return;
         }
         if *running || step {
@@ -270,10 +273,7 @@ where
                 puffin::profile_scope!("calculate");
                 simulator.run(controller.steps());
             }
-            {
-                puffin::profile_scope!("record state");
-                view.log_his(simulator.states().record_first());
-            }
+            view.log_his(simulator.states().record_first());
             ctx.request_repaint()
         }
         view.visualize_state(

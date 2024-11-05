@@ -2,6 +2,8 @@ use std::ops::RangeInclusive;
 
 use egui::{Align2, FontId, Pos2, Rect, Stroke, Ui};
 
+use crate::drawer::chart::Y_AXIS_MIN_WIDTH;
+
 #[derive(Debug, Clone)]
 pub struct AxisDrawer {
     pub x_axis_height: f32,
@@ -15,13 +17,14 @@ pub struct AxisDrawer {
     pub x_range: RangeInclusive<f32>,
     pub y_range: RangeInclusive<f32>,
     pub tick_interval_base: u8,
+    pub align_x_axis: Option<(f32, f32)>,
 }
 
 impl Default for AxisDrawer {
     fn default() -> Self {
         Self {
             x_axis_height: 40.0,
-            y_axis_width: 40.0,
+            y_axis_width: Y_AXIS_MIN_WIDTH,
             x_label: None,
             y_label: None,
             label_font: None,
@@ -31,6 +34,7 @@ impl Default for AxisDrawer {
             x_range: 0.0f32..=100.0,
             y_range: 0.0f32..=100.0,
             tick_interval_base: 10,
+            align_x_axis: None,
         }
     }
 }
@@ -40,14 +44,28 @@ impl AxisDrawer {
         let Self {
             x_axis_height,
             y_axis_width,
+            align_x_axis,
             ..
         } = self;
+        const THRES: f32 = 80.;
+        let align_x_axis = match align_x_axis {
+            Some((x1, x2)) if x1 - rect.left() < THRES && rect.right() - x2 < THRES => {
+                Some((x1, x2))
+            }
+            _ => None,
+        };
 
         let x_axis_height = *x_axis_height;
-        let y_axis_width = *y_axis_width;
+        let y_axis_width = align_x_axis
+            .map(|x| x.0 - rect.left())
+            .unwrap_or(*y_axis_width);
 
         let min = rect.left_top();
-        let max = rect.right_bottom();
+        let mut max = rect.right_bottom();
+        if let Some(x) = align_x_axis {
+            max.x = *x.1;
+        }
+
         let x_axis_rect = Rect::from_two_pos(
             Pos2::new(min.x + y_axis_width, max.y - x_axis_height),
             Pos2::new(max.x, max.y),
@@ -119,7 +137,7 @@ impl AxisDrawer {
         );
 
         // 绘制 X 轴刻度和刻度标签
-        const TICK_LABEL_HEIGHT: f32 = 5.0;
+        const MIN_X_TICK_LABEL_HEIGHT: f32 = 5.0;
 
         for x in Self::calculate_tick_pos(x_range, base) {
             let x_pos = (x - self.x_range.start()) / (self.x_range.end() - self.x_range.start())
@@ -131,8 +149,10 @@ impl AxisDrawer {
                 .line_segment([tick_start, tick_end], axis_stroke);
 
             // 绘制刻度标签
-            let tick_label_pos =
-                Pos2::new(x_pos, x_axis_rect.top() + tick_length + TICK_LABEL_HEIGHT);
+            let tick_label_pos = Pos2::new(
+                x_pos,
+                x_axis_rect.top() + (tick_length + 1.0).max(MIN_X_TICK_LABEL_HEIGHT),
+            );
             ui.painter().text(
                 tick_label_pos,
                 Align2::CENTER_TOP,
@@ -142,7 +162,7 @@ impl AxisDrawer {
             );
         }
 
-        const TICK_LABEL_WIDTH: f32 = 5.0;
+        const MIN_Y_TICK_LABEL_WIDTH: f32 = 5.0;
         // 绘制 Y 轴刻度和刻度标签
 
         for y in Self::calculate_tick_pos(y_range, base) {
@@ -155,7 +175,10 @@ impl AxisDrawer {
                 .line_segment([tick_start, tick_end], axis_stroke);
 
             // 绘制刻度标签
-            let tick_label_pos = Pos2::new(y_axis_rect.right() - TICK_LABEL_WIDTH, y_pos);
+            let tick_label_pos = Pos2::new(
+                y_axis_rect.right() - (tick_length + 1.0).max(MIN_Y_TICK_LABEL_WIDTH),
+                y_pos,
+            );
             ui.painter().text(
                 tick_label_pos,
                 Align2::RIGHT_CENTER,

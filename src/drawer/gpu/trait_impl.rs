@@ -1,7 +1,7 @@
 use iterator_ilp::IteratorILP;
 use lle::num_complex::Complex64;
 
-use crate::drawer::chart::{DrawMat, Process};
+use crate::drawer::{chart::DrawMat, Process};
 
 use super::Drawer;
 
@@ -45,6 +45,11 @@ impl DrawMat for Drawer {
     fn set_max_log(&mut self, max_log: std::num::NonZero<usize>) {
         self.set_height(max_log.get() as u32);
     }
+
+    fn set_align_x_axis(&mut self, align: impl Into<Option<(f32, f32)>>) {
+        self.axis_drawer.align_x_axis = align.into();
+    }
+    
 }
 
 fn search_max_min(data: &[f32]) -> (f32, f32) {

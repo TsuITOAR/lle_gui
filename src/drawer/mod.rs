@@ -1,9 +1,12 @@
-use egui::{Context, Response};
+use egui::Context;
 use lle::{
     num_complex::Complex64,
     num_traits::{Float, FromPrimitive},
 };
 use std::{fmt::Debug, ops::RangeInclusive};
+
+mod process;
+pub use process::Process;
 
 pub mod chart;
 
@@ -34,7 +37,7 @@ pub(crate) fn default_f_chart() -> Option<LleChart> {
     Some(LleChart {
         name: "freq domain".to_string(),
         kind: PlotKind::Line,
-        proc: chart::Process::new_freq_domain(),
+        proc: Process::new_freq_domain(),
         smart_plot: Some(Default::default()),
         show_history: None,
     })

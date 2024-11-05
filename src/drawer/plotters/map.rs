@@ -1,6 +1,7 @@
-use crate::drawer::chart::{self, Process};
-
 use super::backend::EguiBackend;
+
+use crate::drawer::{chart, Process};
+
 use lle::{num_complex::Complex64, num_traits::Pow};
 use plotters::{
     coord::Shift,
