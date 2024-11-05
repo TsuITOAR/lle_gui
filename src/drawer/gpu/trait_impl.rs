@@ -49,7 +49,6 @@ impl DrawMat for Drawer {
     fn set_align_x_axis(&mut self, align: impl Into<Option<(f32, f32)>>) {
         self.axis_drawer.align_x_axis = align.into();
     }
-    
 }
 
 fn search_max_min(data: &[f32]) -> (f32, f32) {
