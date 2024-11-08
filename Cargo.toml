@@ -48,6 +48,8 @@ iterator_ilp = "^2.1.2"
 colorous = "^1.0.14"
 bytemuck = "^1.19.0"
 rayon = "^1"
+#rfd = "0.15.0"
+#bincode = "1.3.3"
 #rayon = { version = "^1.8", optional = true }
 
 # native:

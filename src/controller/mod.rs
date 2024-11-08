@@ -97,31 +97,15 @@ impl Default for LleController {
     }
 }
 
-pub trait Simulator {
-    type State: ?Sized + Record;
-    fn states(&self) -> &Self::State;
+pub trait Simulator<'a> {
+    type State: 'a;
+    fn states(&'a self) -> Self::State;
     fn run(&mut self, steps: u32);
 }
 
-pub trait Record {
-    fn record_first(&self) -> &[Complex64];
-}
-
-impl Record for [Complex64] {
-    fn record_first(&self) -> &[Complex64] {
-        self
-    }
-}
-
-impl Record for (&[Complex64], &[Complex64]) {
-    fn record_first(&self) -> &[Complex64] {
-        self.0
-    }
-}
-
-impl<NL: lle::NonLinearOp<f64>> Simulator for LleSolver<NL> {
-    type State = [Complex64];
-    fn states(&self) -> &Self::State {
+impl<'a, NL: lle::NonLinearOp<f64>> Simulator<'a> for LleSolver<NL> {
+    type State = &'a [Complex64];
+    fn states(&'a self) -> Self::State {
         use lle::Evolver;
         self.state()
     }
@@ -163,10 +147,10 @@ impl<P: Default, S> Default for Core<P, S> {
     }
 }
 
-impl<P, S> Core<P, S>
+impl<'a, P, S> Core<P, S>
 where
     P: Controller<S>,
-    S: Simulator,
+    S: Simulator<'a>,
 {
     pub fn new(controller: P, dim: usize) -> Self {
         Self {

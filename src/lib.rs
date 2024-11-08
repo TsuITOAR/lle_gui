@@ -8,7 +8,7 @@ mod controller;
 mod drawer;
 mod easy_mark;
 mod property;
-
+mod views;
 /*
 mod test_app;
 pub use test_app::TestApp;
@@ -19,8 +19,7 @@ use drawer::ViewField;
 use egui::DragValue;
 use lle::{num_complex::Complex64, LinearOp, NonLinearOp};
 use std::f64::consts::PI;
-
-use crate::controller::Record;
+use views::{Views, Visualize};
 
 pub const FONT: &str = "Arial";
 
@@ -79,13 +78,18 @@ fn synchronize_properties_no_pump<NL: NonLinearOp<f64>>(
 
 //pub type App = GenApp<crate::controller::LleController, crate::controller::LleSolver<lle::SPhaMod>>;
 
-pub type App =
-    GenApp<crate::controller::clle::CoupleLleController, crate::controller::clle::CLleSolver>;
+pub type AppC = crate::controller::clle::CoupleLleController;
 
-pub struct GenApp<P, S> {
+pub type AppS = crate::controller::clle::CLleSolver;
+
+pub type AppV = [ViewField; 2];
+
+pub type App = GenApp<AppC, AppS, AppV>;
+
+pub struct GenApp<P, S, V> {
     core: Core<P, S>,
     slider_len: Option<f32>,
-    view: ViewField,
+    view: Views<V>,
     seed: Option<u64>,
     running: bool,
     profiler: bool,
@@ -94,14 +98,14 @@ pub struct GenApp<P, S> {
 }
 #[derive(serde::Deserialize, serde::Serialize)]
 #[serde(bound(
-    serialize = "P: serde::Serialize",
-    deserialize = "P: for<'a> serde::Deserialize<'a>"
+    serialize = "P: serde::Serialize, Views<V>: serde::Serialize",
+    deserialize = "P: for<'a> serde::Deserialize<'a>, Views<V>: for<'a> serde::Deserialize<'a> + Default"
 ))]
-struct GenAppStorage<P, S> {
+struct GenAppStorage<P, S, V> {
     core: Core<P, S>,
     slider_len: Option<f32>,
     #[serde(default)]
-    view: ViewField,
+    views: Views<V>,
     #[serde(skip)]
     seed: Option<u64>,
     #[serde(skip)]
@@ -110,12 +114,15 @@ struct GenAppStorage<P, S> {
     profiler: bool,
 }
 
-impl<P: Default + Controller<S>, S: Simulator> Default for GenAppStorage<P, S> {
+impl<'a, P: Default + Controller<S>, S: Simulator<'a>, V> Default for GenAppStorage<P, S, V>
+where
+    Views<V>: Default + Visualize<S::State>,
+{
     fn default() -> Self {
         Self {
             core: Core::new(P::default(), 128),
             slider_len: None,
-            view: ViewField::default(),
+            views: <Views<V> as Default>::default(),
             seed: None,
             running: false,
             profiler: false,
@@ -125,9 +132,11 @@ impl<P: Default + Controller<S>, S: Simulator> Default for GenAppStorage<P, S> {
 
 const APP_NAME: &str = "LLE Simulator";
 
-impl<P: Controller<S> + Default, S: Simulator> GenApp<P, S>
+impl<P, S, V> GenApp<P, S, V>
 where
-    for<'a> P: serde::Deserialize<'a>,
+    for<'a> S: Simulator<'a>,
+    for<'a> P: serde::Deserialize<'a> + Default + Controller<S>,
+    for<'a> Views<V>: serde::Deserialize<'a> + Default + Visualize<<S as Simulator<'a>>::State>,
 {
     /// Called once before the first frame.
     pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
@@ -141,14 +150,14 @@ where
 
         // Load previous app state (if any).
         // Note that you must enable the `persistence` feature for this to work.
-        let s: GenAppStorage<P, S> = cc.storage.map_or_else(Default::default, |e| {
+        let s: GenAppStorage<P, S, V> = cc.storage.map_or_else(Default::default, |e| {
             eframe::get_value(e, APP_NAME).unwrap_or_default()
         });
 
         Self {
             core: s.core,
             slider_len: s.slider_len,
-            view: s.view,
+            view: s.views,
             seed: s.seed,
             running: s.running,
             profiler: s.profiler,
@@ -164,10 +173,13 @@ where
     }
 }
 
-impl<P, S> eframe::App for GenApp<P, S>
+type State<'a> = [&'a [Complex64]; 2];
+
+impl<P, S, V> eframe::App for GenApp<P, S, V>
 where
     P: Default + Controller<S> + serde::Serialize + Clone,
-    S: Simulator<State = [Complex64]>,
+    for<'a> S: Simulator<'a, State = State<'a>>,
+    for<'a> Views<V>: Default + Visualize<State<'a>> + serde::Serialize + Clone,
 {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         puffin::GlobalProfiler::lock().new_frame(); // call once per frame!
@@ -242,10 +254,10 @@ where
                 destruct = ui.button("⏏").clicked();
             });
 
-            view.toggle_record_his(ui, simulator.states().record_first());
+            view.toggle_record_his(ui, simulator.states());
 
             ui.separator();
-            view.show_which(ui);
+            view.config(ui);
             ui.separator();
             view.show_fps(ui);
 
@@ -273,11 +285,11 @@ where
                 puffin::profile_scope!("calculate");
                 simulator.run(controller.steps());
             }
-            view.log_his(simulator.states().record_first());
+            view.record(simulator.states());
             ctx.request_repaint()
         }
-        view.visualize_state(
-            simulator.states().record_first(),
+        view.plot(
+            simulator.states(),
             ctx,
             *running || step,
             #[cfg(feature = "gpu")]
@@ -290,7 +302,7 @@ where
         let state = GenAppStorage {
             core: self.core.save_copy(),
             slider_len: self.slider_len,
-            view: self.view.clone(),
+            views: self.view.clone(),
             seed: self.seed,
             running: self.running,
             profiler: self.profiler,

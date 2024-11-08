@@ -117,7 +117,7 @@ impl LleChart {
     pub(crate) fn control_panel_history(
         &mut self,
         ui: &mut egui::Ui,
-        his: &Option<(Vec<Complex64>, usize)>,
+        his: &Option<History>,
         running: bool,
         #[cfg(feature = "gpu")] render_state: &eframe::egui_wgpu::RenderState,
     ) {
@@ -136,7 +136,7 @@ impl LleChart {
             Some(ss) if show_his => {
                 let his = his.as_ref().unwrap();
                 if running {
-                    ss.update(&his.0, &mut self.proc, his.1);
+                    ss.update(&his.data, &mut self.proc, his.dim);
                 }
                 let mut v = ss.max_log().map(|x| x.get()).unwrap_or_default();
                 ui.horizontal(|ui| {
@@ -146,7 +146,7 @@ impl LleChart {
                 let new = NonZeroUsize::new(v);
                 if new != ss.max_log() {
                     ss.set_max_log(new.unwrap());
-                    ss.fetch(&his.0, &mut self.proc, his.1);
+                    ss.fetch(&his.data, &mut self.proc, his.dim);
                 }
             }
             None if show_his => {
@@ -155,8 +155,8 @@ impl LleChart {
                     #[cfg(not(feature = "gpu"))]
                     let mut t = ColorMapDrawer::default();
                     #[cfg(feature = "gpu")]
-                    let mut t = ColorMapDrawer::new(&self.name, his.1 as _, 100, render_state);
-                    t.fetch(&his.0, &mut self.proc, his.1);
+                    let mut t = ColorMapDrawer::new(&self.name, his.dim as _, 100, render_state);
+                    t.fetch(&his.data, &mut self.proc, his.dim);
                     t
                 })
             }
@@ -169,7 +169,7 @@ impl LleChart {
         data: &[Complex64],
         ctx: &Context,
         running: bool,
-        his: &Option<(Vec<Complex64>, usize)>,
+        his: &Option<History>,
         #[cfg(feature = "gpu")] render_state: &eframe::egui_wgpu::RenderState,
     ) {
         if let Some(ss) = s {

@@ -146,14 +146,14 @@ impl Controller<CLleSolver> for CoupleLleController {
     }
 }
 
-impl Simulator for CLleSolver {
-    type State = [Complex64];
+impl<'a> Simulator<'a> for CLleSolver {
+    type State = [&'a [Complex64]; 2];
     fn run(&mut self, steps: u32) {
         use lle::Evolver;
         self.evolve_n(steps)
     }
-    fn states(&self) -> &Self::State {
+    fn states(&'a self) -> Self::State {
         use lle::Evolver;
-        self.state()
+        [self.component1.state(), self.component2.state()]
     }
 }
