@@ -8,7 +8,10 @@ mod controller;
 mod drawer;
 mod easy_mark;
 mod property;
+mod util;
 mod views;
+
+pub use util::*;
 /*
 mod test_app;
 pub use test_app::TestApp;
@@ -17,74 +20,26 @@ pub use test_app::TestApp;
 use controller::{Controller, Core, Simulator};
 use drawer::ViewField;
 use egui::DragValue;
-use lle::{num_complex::Complex64, LinearOp, NonLinearOp};
-use std::f64::consts::PI;
+
 use views::{Views, Visualize};
 
 pub const FONT: &str = "Arial";
 
-pub(crate) fn add_random(intensity: f64, sigma: f64, state: &mut [Complex64], seed: Option<u64>) {
-    use rand::Rng;
-    if let Some(seed) = seed {
-        use rand::SeedableRng;
-        let mut rand = rand::rngs::StdRng::seed_from_u64(seed);
-        state.iter_mut().for_each(|x| {
-            *x += (Complex64::i() * rand.gen::<f64>() * 2. * PI).exp()
-                * (-(rand.gen::<f64>() / sigma).powi(2) / 2.).exp()
-                / ((2. * PI).sqrt() * sigma)
-                * intensity
-        })
-    } else {
-        let mut rand = rand::thread_rng();
-        state.iter_mut().for_each(|x| {
-            *x += (Complex64::i() * rand.gen::<f64>() * 2. * PI).exp()
-                * (-(rand.gen::<f64>() / sigma).powi(2) / 2.).exp()
-                / ((2. * PI).sqrt() * sigma)
-                * intensity
-        })
-    }
-}
+pub type AppStandard =
+    GenApp<crate::controller::LleController, crate::controller::LleSolver<lle::SPhaMod>, ViewField>;
 
-fn default_add_random(state: &mut [Complex64]) {
-    add_random((2. * PI).sqrt() * 1e5, 1e5, state, None)
-}
+pub type AppCosDispersion = GenApp<
+    crate::controller::disper::DisperLleController,
+    crate::controller::disper::LleSolver<lle::SPhaMod>,
+    ViewField,
+>;
 
-fn default_add_random_with_seed(state: &mut [Complex64], seed: u64) {
-    add_random((2. * PI).sqrt() * 1e5, 1e5, state, Some(seed))
-}
+pub type AppClleC = crate::controller::clle::CoupleLleController;
+pub type AppClleS = crate::controller::clle::CLleSolver;
+pub type AppClleV = [ViewField; 2];
+pub type AppClle = GenApp<AppClleC, AppClleS, AppClleV>;
 
-fn synchronize_properties<NL: NonLinearOp<f64>>(
-    props: &controller::LleController,
-    engine: &mut crate::controller::LleSolver<NL>,
-) {
-    puffin::profile_function!();
-    engine.linear = (0, -(Complex64::i() * props.alpha.get_value() + 1.))
-        .add((2, -Complex64::i() * props.linear.get_value() / 2.))
-        .into();
-    engine.constant = Complex64::from(props.pump.get_value()).into();
-    engine.step_dist = props.step_dist.get_value();
-}
-
-fn synchronize_properties_no_pump<NL: NonLinearOp<f64>>(
-    props: &controller::LleController,
-    engine: &mut crate::controller::LleSolver<NL>,
-) {
-    puffin::profile_function!();
-    engine.linear = (0, -(Complex64::i() * props.alpha.get_value() + 1.))
-        .add((2, -Complex64::i() * props.linear.get_value() / 2.))
-        .into();
-    engine.step_dist = props.step_dist.get_value();
-}
-
-//pub type App = GenApp<crate::controller::LleController, crate::controller::LleSolver<lle::SPhaMod>>;
-
-pub type AppC = crate::controller::clle::CoupleLleController;
-
-pub type AppS = crate::controller::clle::CLleSolver;
-
-pub type AppV = [ViewField; 2];
-
-pub type App = GenApp<AppC, AppS, AppV>;
+pub type App = AppStandard;
 
 pub struct GenApp<P, S, V> {
     core: Core<P, S>,
@@ -173,13 +128,12 @@ where
     }
 }
 
-type State<'a> = [&'a [Complex64]; 2];
-
 impl<P, S, V> eframe::App for GenApp<P, S, V>
 where
     P: Default + Controller<S> + serde::Serialize + Clone,
-    for<'a> S: Simulator<'a, State = State<'a>>,
-    for<'a> Views<V>: Default + Visualize<State<'a>> + serde::Serialize + Clone,
+    for<'a> S: Simulator<'a>,
+    for<'a> Views<V>:
+        Default + Visualize<<S as controller::Simulator<'a>>::State> + serde::Serialize + Clone,
 {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         puffin::GlobalProfiler::lock().new_frame(); // call once per frame!
@@ -308,51 +262,5 @@ where
             profiler: self.profiler,
         };
         eframe::set_value(storage, APP_NAME, &state);
-    }
-}
-
-pub(crate) fn toggle_option<T: Default>(
-    ui: &mut egui::Ui,
-    v: &mut Option<T>,
-    text: impl Into<egui::WidgetText>,
-) -> egui::Response {
-    let mut ch = v.is_some();
-    let r = ui.toggle_value(&mut ch, text);
-    if v.is_none() && ch {
-        *v = T::default().into();
-    } else if !ch {
-        *v = None;
-    }
-
-    r
-}
-
-pub(crate) fn toggle_option_with<T, F>(
-    ui: &mut egui::Ui,
-    v: &mut Option<T>,
-    text: impl Into<egui::WidgetText>,
-    f: F,
-) -> egui::Response
-where
-    F: FnOnce() -> Option<T>,
-{
-    let mut ch = v.is_some();
-    //let r = ui.checkbox(&mut ch, text);
-    let r = ui.toggle_value(&mut ch, text);
-    if v.is_none() && ch {
-        *v = f();
-    } else if !ch {
-        *v = None;
-    }
-
-    r
-}
-
-fn show_profiler(show: &mut bool, ui: &mut egui::Ui) {
-    if ui.toggle_value(show, "profile performance").clicked() {
-        puffin::set_scopes_on(*show); // Remember to call this, or puffin will be disabled!
-    }
-    if *show {
-        puffin_egui::profiler_ui(ui)
     }
 }

@@ -32,6 +32,27 @@ impl<const L: usize> Default for Views<[ViewField; L]> {
     }
 }
 
+impl<'de> serde::Deserialize<'de> for Views<ViewField> {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        Ok(Self {
+            views: ViewField::deserialize(deserializer)?,
+            last_plot: None,
+        })
+    }
+}
+
+impl serde::Serialize for Views<ViewField> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        self.views.serialize(serializer)
+    }
+}
+
 impl<'de, const L: usize> serde::Deserialize<'de> for Views<[ViewField; L]> {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
@@ -141,6 +162,36 @@ impl<'a> Visualize<&'a [Complex64]> for ViewField {
         #[cfg(feature = "gpu")] render_state: &eframe::egui_wgpu::RenderState,
     ) {
         self.visualize_state(
+            data,
+            ctx,
+            running,
+            #[cfg(feature = "gpu")]
+            render_state,
+        );
+    }
+}
+
+impl<'a> Visualize<&'a [Complex64]> for Views<ViewField> {
+    fn toggle_record_his(&mut self, ui: &mut egui::Ui, data: &'a [Complex64]) {
+        self.views.toggle_record_his(ui, data);
+    }
+
+    fn config(&mut self, ui: &mut egui::Ui) {
+        self.views.show_which(ui);
+    }
+
+    fn record(&mut self, data: &'a [Complex64]) {
+        self.views.log_his(data);
+    }
+
+    fn plot(
+        &mut self,
+        data: &'a [Complex64],
+        ctx: &egui::Context,
+        running: bool,
+        #[cfg(feature = "gpu")] render_state: &eframe::egui_wgpu::RenderState,
+    ) {
+        self.views.visualize_state(
             data,
             ctx,
             running,

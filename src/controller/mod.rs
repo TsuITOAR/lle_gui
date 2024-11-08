@@ -1,4 +1,5 @@
 pub mod clle;
+pub mod disper;
 
 use lle::{num_complex::Complex64, SPhaMod};
 use num_traits::zero;
@@ -32,7 +33,7 @@ impl<NL: Default + lle::NonLinearOp<f64>> Controller<LleSolver<NL>> for LleContr
         LleSolver::builder()
             .state(init.to_vec())
             .step_dist(step_dist)
-            .linear((0, -(Complex64::i() * alpha + 1.)).add((2, -Complex64::i() * linear / 2.)))
+            .linear((0, -(Complex64::i() * alpha + 1.)).add((2, Complex64::i() * linear / 2.)))
             .nonlin(NL::default())
             .constant(Complex64::from(pump))
             .build()
@@ -103,7 +104,13 @@ pub trait Simulator<'a> {
     fn run(&mut self, steps: u32);
 }
 
-impl<'a, NL: lle::NonLinearOp<f64>> Simulator<'a> for LleSolver<NL> {
+impl<
+        'a,
+        S: AsMut<[Complex64]> + AsRef<[Complex64]>,
+        L: lle::LinearOp<f64>,
+        NL: lle::NonLinearOp<f64>,
+    > Simulator<'a> for lle::LleSolver<f64, S, L, NL>
+{
     type State = &'a [Complex64];
     fn states(&'a self) -> Self::State {
         use lle::Evolver;
