@@ -1,23 +1,27 @@
 use lle::{num_complex::Complex64, Freq, LinearOp, Step};
 use num_traits::{zero, Zero};
 
-use crate::{default_add_random, default_add_random_with_seed};
+use crate::random::RandomNoise;
 
 use super::{Controller, Property};
 
+#[allow(unused)]
+pub type App =
+    crate::GenApp<DisperLleController, LleSolver<lle::SPhaMod>, crate::drawer::ViewField>;
+
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
 pub struct CosDispersionProperty {
-    center_pos: Property<isize>,
-    period: Property<usize>,
+    center_pos: Property<f64>,
+    period: Property<f64>,
     strength: Property<f64>,
 }
 
 impl Default for CosDispersionProperty {
     fn default() -> Self {
         Self {
-            center_pos: Property::new_no_slider(0, "Center Position").range((-20, 20)),
-            period: Property::new_no_slider(1, "Period").range((10, 100)),
-            strength: Property::new(0.0, "Strength").range((0.0, 10.)),
+            center_pos: Property::new(0., "Center Position").range((-20., 20.)),
+            period: Property::new(10., "Period").range((10., 100.)),
+            strength: Property::new(0.0, "Strength").range((-50., 50.)),
         }
     }
 }
@@ -40,20 +44,20 @@ impl CosDispersionProperty {
 
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
 pub struct CosDispersion {
-    center_pos: isize,
-    period: usize,
+    center_pos: f64,
+    period: f64,
     strength: f64,
 }
 
 impl LinearOp<f64> for CosDispersion {
     fn get_value(&self, _step: Step, freq: Freq) -> Complex64 {
-        Complex64::i()
-            * (1.
-                - ((freq as f64 - self.center_pos as f64) / self.period as f64
-                    * std::f64::consts::PI
-                    * 2.)
-                    .cos())
-            * -self.strength
+        let f = |f: Freq| {
+            -((f as f64 - self.center_pos) / self.period * std::f64::consts::PI * 2.).cos()
+        };
+        let _ff = |f: Freq| {
+            ((f as f64 - self.center_pos) / self.period * std::f64::consts::PI * 2.).sin()
+        };
+        -Complex64::i() * (f(freq) - f(0)) * self.strength
     }
     fn skip(&self) -> bool {
         self.strength.is_zero()
@@ -78,35 +82,14 @@ pub struct DisperLleController {
 }
 
 impl<NL: Default + lle::NonLinearOp<f64>> Controller<LleSolver<NL>> for DisperLleController {
-    fn construct_engine(&self, dim: usize) -> LleSolver<NL> {
+    fn construct_engine(&self, dim: usize, r: &mut RandomNoise) -> LleSolver<NL> {
         use lle::LinearOp;
         let step_dist = self.basic.step_dist.get_value();
         let pump = self.basic.pump.get_value();
         let linear = self.basic.linear.get_value();
         let alpha = self.basic.alpha.get_value();
         let mut init = vec![zero(); dim];
-        default_add_random(init.as_mut_slice());
-        LleSolver::builder()
-            .state(init.to_vec())
-            .step_dist(step_dist)
-            .linear(
-                (0, -(Complex64::i() * alpha + 1.))
-                    .add((2, Complex64::i() * linear / 2.))
-                    .add(self.disper.generate_op()),
-            )
-            .nonlin(NL::default())
-            .constant(Complex64::from(pump))
-            .build()
-    }
-    fn construct_with_seed(&self, dim: usize, seed: u64) -> LleSolver<NL> {
-        use lle::LinearOp;
-        let step_dist = self.basic.step_dist.get_value();
-        let pump = self.basic.pump.get_value();
-        let linear = self.basic.linear.get_value();
-        let alpha = self.basic.alpha.get_value();
-
-        let mut init = vec![zero(); dim];
-        default_add_random_with_seed(init.as_mut_slice(), seed);
+        r.add_random(init.as_mut_slice());
         LleSolver::builder()
             .state(init.to_vec())
             .step_dist(step_dist)

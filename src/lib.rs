@@ -8,6 +8,7 @@ mod controller;
 mod drawer;
 mod easy_mark;
 mod property;
+mod random;
 mod util;
 mod views;
 
@@ -18,36 +19,22 @@ pub use test_app::TestApp;
 */
 
 use controller::{Controller, Core, Simulator};
-use drawer::ViewField;
 use egui::DragValue;
 
 use views::{Views, Visualize};
 
 pub const FONT: &str = "Arial";
 
-pub type AppStandard =
-    GenApp<crate::controller::LleController, crate::controller::LleSolver<lle::SPhaMod>, ViewField>;
-
-pub type AppCosDispersion = GenApp<
-    crate::controller::disper::DisperLleController,
-    crate::controller::disper::LleSolver<lle::SPhaMod>,
-    ViewField,
->;
-
-pub type AppClleC = crate::controller::clle::CoupleLleController;
-pub type AppClleS = crate::controller::clle::CLleSolver;
-pub type AppClleV = [ViewField; 2];
-pub type AppClle = GenApp<AppClleC, AppClleS, AppClleV>;
-
-pub type App = AppStandard;
+pub type App = controller::App;
 
 pub struct GenApp<P, S, V> {
     core: Core<P, S>,
     slider_len: Option<f32>,
     view: Views<V>,
-    seed: Option<u64>,
     running: bool,
     profiler: bool,
+    random: random::RandomNoise,
+    add_rand: bool,
     #[cfg(feature = "gpu")]
     render_state: eframe::egui_wgpu::RenderState,
 }
@@ -62,11 +49,11 @@ struct GenAppStorage<P, S, V> {
     #[serde(default)]
     views: Views<V>,
     #[serde(skip)]
-    seed: Option<u64>,
-    #[serde(skip)]
     running: bool,
     #[serde(skip)]
     profiler: bool,
+    random: random::RandomNoise,
+    add_rand: bool,
 }
 
 impl<'a, P: Default + Controller<S>, S: Simulator<'a>, V> Default for GenAppStorage<P, S, V>
@@ -78,9 +65,10 @@ where
             core: Core::new(P::default(), 128),
             slider_len: None,
             views: <Views<V> as Default>::default(),
-            seed: None,
             running: false,
             profiler: false,
+            random: random::RandomNoise::default(),
+            add_rand: false,
         }
     }
 }
@@ -113,9 +101,10 @@ where
             core: s.core,
             slider_len: s.slider_len,
             view: s.views,
-            seed: s.seed,
             running: s.running,
             profiler: s.profiler,
+            random: s.random,
+            add_rand: s.add_rand,
             #[cfg(feature = "gpu")]
             render_state: cc.wgpu_render_state.as_ref().unwrap().clone(),
         }
@@ -142,9 +131,10 @@ where
             core,
             slider_len,
             view,
-            seed,
             running,
             profiler,
+            random,
+            add_rand,
             #[cfg(feature = "gpu")]
             render_state,
         } = self;
@@ -170,13 +160,7 @@ where
             }
         }
 
-        let simulator = simulator.get_or_insert_with(|| {
-            if let Some(s) = seed {
-                controller.construct_with_seed(*dim, *s)
-            } else {
-                controller.construct_engine(*dim)
-            }
-        });
+        let simulator = simulator.get_or_insert_with(|| controller.construct_engine(*dim, random));
         controller.sync_paras(simulator);
 
         let mut reset = false;
@@ -192,6 +176,8 @@ where
             }
 
             controller.show_in_control_panel(ui);
+
+            random.show(ui, add_rand);
 
             ui.horizontal(|ui| {
                 ui.label("Slider length");
@@ -235,6 +221,10 @@ where
             return;
         }
         if *running || step {
+            if *add_rand {
+                puffin::profile_scope!("add random");
+                simulator.add_rand(random);
+            }
             {
                 puffin::profile_scope!("calculate");
                 simulator.run(controller.steps());
@@ -257,9 +247,10 @@ where
             core: self.core.save_copy(),
             slider_len: self.slider_len,
             views: self.view.clone(),
-            seed: self.seed,
             running: self.running,
             profiler: self.profiler,
+            random: self.random.clone(),
+            add_rand: self.add_rand,
         };
         eframe::set_value(storage, APP_NAME, &state);
     }

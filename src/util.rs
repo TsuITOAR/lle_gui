@@ -1,38 +1,6 @@
-use std::f64::consts::PI;
-
 use lle::{num_complex::Complex64, LinearOp, NonLinearOp};
 
 use crate::controller;
-
-pub(crate) fn add_random(intensity: f64, sigma: f64, state: &mut [Complex64], seed: Option<u64>) {
-    use rand::Rng;
-    if let Some(seed) = seed {
-        use rand::SeedableRng;
-        let mut rand = rand::rngs::StdRng::seed_from_u64(seed);
-        state.iter_mut().for_each(|x| {
-            *x += (Complex64::i() * rand.gen::<f64>() * 2. * PI).exp()
-                * (-(rand.gen::<f64>() / sigma).powi(2) / 2.).exp()
-                / ((2. * PI).sqrt() * sigma)
-                * intensity
-        })
-    } else {
-        let mut rand = rand::thread_rng();
-        state.iter_mut().for_each(|x| {
-            *x += (Complex64::i() * rand.gen::<f64>() * 2. * PI).exp()
-                * (-(rand.gen::<f64>() / sigma).powi(2) / 2.).exp()
-                / ((2. * PI).sqrt() * sigma)
-                * intensity
-        })
-    }
-}
-
-pub fn default_add_random(state: &mut [Complex64]) {
-    add_random((2. * PI).sqrt() * 1e5, 1e5, state, None)
-}
-
-pub fn default_add_random_with_seed(state: &mut [Complex64], seed: u64) {
-    add_random((2. * PI).sqrt() * 1e5, 1e5, state, Some(seed))
-}
 
 pub fn synchronize_properties<NL: NonLinearOp<f64>>(
     props: &controller::LleController,

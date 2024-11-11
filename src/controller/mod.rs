@@ -1,14 +1,16 @@
 pub mod clle;
 pub mod disper;
 
-use lle::{num_complex::Complex64, SPhaMod};
+use lle::{num_complex::Complex64, Evolver, SPhaMod};
 use num_traits::zero;
 
-use crate::{default_add_random, default_add_random_with_seed, property::Property};
+use crate::{property::Property, random::RandomNoise};
+
+#[allow(unused)]
+pub type App = crate::GenApp<LleController, LleSolver<lle::SPhaMod>, crate::drawer::ViewField>;
 
 pub trait Controller<E> {
-    fn construct_engine(&self, dim: usize) -> E;
-    fn construct_with_seed(&self, dim: usize, seed: u64) -> E;
+    fn construct_engine(&self, dim: usize, random: &mut RandomNoise) -> E;
     fn show_in_control_panel(&mut self, ui: &mut egui::Ui);
     fn show_in_start_window(&mut self, dim: &mut usize, ui: &mut egui::Ui);
     fn sync_paras(&mut self, engine: &mut E);
@@ -22,35 +24,18 @@ pub type LleSolver<NL> = lle::LleSolver<
     NL,
 >;
 impl<NL: Default + lle::NonLinearOp<f64>> Controller<LleSolver<NL>> for LleController {
-    fn construct_engine(&self, dim: usize) -> LleSolver<NL> {
+    fn construct_engine(&self, dim: usize, r: &mut RandomNoise) -> LleSolver<NL> {
         use lle::LinearOp;
         let step_dist = self.step_dist.get_value();
         let pump = self.pump.get_value();
         let linear = self.linear.get_value();
         let alpha = self.alpha.get_value();
         let mut init = vec![zero(); dim];
-        default_add_random(init.as_mut_slice());
+        r.add_random(init.as_mut_slice());
         LleSolver::builder()
             .state(init.to_vec())
             .step_dist(step_dist)
             .linear((0, -(Complex64::i() * alpha + 1.)).add((2, Complex64::i() * linear / 2.)))
-            .nonlin(NL::default())
-            .constant(Complex64::from(pump))
-            .build()
-    }
-    fn construct_with_seed(&self, dim: usize, seed: u64) -> LleSolver<NL> {
-        use lle::LinearOp;
-        let step_dist = self.step_dist.get_value();
-        let pump = self.pump.get_value();
-        let linear = self.linear.get_value();
-        let alpha = self.alpha.get_value();
-
-        let mut init = vec![zero(); dim];
-        default_add_random_with_seed(init.as_mut_slice(), seed);
-        LleSolver::builder()
-            .state(init.to_vec())
-            .step_dist(step_dist)
-            .linear((0, -(Complex64::i() * alpha + 1.)).add((2, -Complex64::i() * linear / 2.)))
             .nonlin(NL::default())
             .constant(Complex64::from(pump))
             .build()
@@ -101,6 +86,7 @@ impl Default for LleController {
 pub trait Simulator<'a> {
     type State: 'a;
     fn states(&'a self) -> Self::State;
+    fn add_rand(&mut self, random: &mut RandomNoise);
     fn run(&mut self, steps: u32);
 }
 
@@ -119,6 +105,9 @@ impl<
     fn run(&mut self, steps: u32) {
         use lle::Evolver;
         self.evolve_n(steps as _);
+    }
+    fn add_rand(&mut self, r: &mut RandomNoise) {
+        r.add_random(self.state_mut());
     }
 }
 

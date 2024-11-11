@@ -2,6 +2,9 @@ use lle::CoupleOp;
 
 use super::*;
 
+#[allow(unused)]
+pub type App = crate::GenApp<CoupleLleController, CLleSolver, [crate::drawer::ViewField; 2]>;
+
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct CoupleLleController {
     a: LleController,
@@ -33,7 +36,7 @@ pub type CLleSolver = lle::CoupledLleSolver<
 >;
 
 impl Controller<CLleSolver> for CoupleLleController {
-    fn construct_engine(&self, dim: usize) -> CLleSolver {
+    fn construct_engine(&self, dim: usize, r: &mut RandomNoise) -> CLleSolver {
         use lle::LinearOp;
 
         let step_dist = self.a.step_dist.get_value();
@@ -44,52 +47,7 @@ impl Controller<CLleSolver> for CoupleLleController {
         let g = self.g.get_value();
 
         let mut init = vec![zero(); dim];
-        default_add_random(init.as_mut_slice());
-        CLleSolver::builder()
-            .component1(
-                LleSolver::builder()
-                    .state(init.to_vec())
-                    .step_dist(step_dist)
-                    .linear(
-                        (0, -(Complex64::i() * alpha + 1.)).add((2, -Complex64::i() * linear / 2.)),
-                    )
-                    .nonlin(SPhaMod::default())
-                    .constant(Complex64::from(pump))
-                    .build(),
-            )
-            .component2(
-                LleSolver::builder()
-                    .state(init.to_vec())
-                    .step_dist(step_dist)
-                    .linear(
-                        (0, -(Complex64::i() * alpha + 1.)).add((2, -Complex64::i() * linear / 2.)),
-                    )
-                    .nonlin(SPhaMod::default())
-                    .build(),
-            )
-            .couple(
-                lle::ModeSplit {
-                    mode: pos as _,
-                    strength: g,
-                }
-                .with_linear(lle::XPhaMod),
-            )
-            .build()
-    }
-
-    // todo: use seed
-    fn construct_with_seed(&self, dim: usize, seed: u64) -> CLleSolver {
-        use lle::LinearOp;
-
-        let step_dist = self.a.step_dist.get_value();
-        let pump = self.a.pump.get_value();
-        let linear = self.a.linear.get_value();
-        let alpha = self.a.alpha.get_value();
-        let pos = self.pos.get_value();
-        let g = self.g.get_value();
-
-        let mut init = vec![zero(); dim];
-        default_add_random_with_seed(init.as_mut_slice(), seed);
+        r.add_random(init.as_mut_slice());
         CLleSolver::builder()
             .component1(
                 LleSolver::builder()
@@ -155,5 +113,9 @@ impl<'a> Simulator<'a> for CLleSolver {
     fn states(&'a self) -> Self::State {
         use lle::Evolver;
         [self.component1.state(), self.component2.state()]
+    }
+    fn add_rand(&mut self, r: &mut RandomNoise) {
+        self.component1.add_rand(r);
+        self.component2.add_rand(r);
     }
 }

@@ -74,7 +74,7 @@ impl<T: egui::emath::Numeric + std::str::FromStr> ValueRange<T> {
     }
     pub(crate) fn show(&mut self, ui: &mut egui::Ui, label: &str, suffix: Option<&str>) {
         ui.label(label);
-        let drag_value = DragValue::new(&mut self.value);
+        let drag_value = DragValue::new(&mut self.value).update_while_editing(false);
         let drag_value = if let Some(u) = self.unit {
             custom_drag(drag_value, u)
         } else {
@@ -131,11 +131,19 @@ impl<T: egui::emath::Numeric + std::str::FromStr> ValueRange<T> {
             .open(show_editor)
             .show(ctx, |ui| {
                 ui.horizontal(|ui| {
-                    ui.add(DragValue::new(&mut range.0).speed(1.));
+                    ui.add(
+                        DragValue::new(&mut range.0)
+                            .speed(1.)
+                            .update_while_editing(false),
+                    );
                     ui.label("Lower bound");
                 });
                 ui.horizontal(|ui| {
-                    ui.add(DragValue::new(&mut range.1).speed(1.));
+                    ui.add(
+                        DragValue::new(&mut range.1)
+                            .speed(1.)
+                            .update_while_editing(false),
+                    );
                     ui.label("Upper bound");
                 });
             });
