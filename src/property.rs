@@ -36,13 +36,7 @@ fn custom_drag<T: egui::emath::Numeric + std::str::FromStr>(
 ) -> DragValue<'_> {
     let unit = unit.to_f64();
     drag_value
-        .custom_formatter(move |x, _r| format!("{}×{:E}", x / unit, unit))
-        .custom_parser(move |s| {
-            s.split('×')
-                .next()
-                .map(|x| x.parse().ok().map(|x: T| x.to_f64() * unit))
-                .unwrap_or(None)
-        })
+        .custom_formatter(move |x, _r| format!("{:E}", x))
         .speed(unit)
 }
 
@@ -52,18 +46,14 @@ fn custom_slider<T: egui::emath::Numeric + std::str::FromStr>(
 ) -> Slider<'_> {
     let unit = unit.to_f64();
     slider
-        .custom_parser(move |s| {
-            s.split('×')
-                .next()
-                .map(|x| x.parse().ok().map(|x: T| x.to_f64() * unit))
-                .unwrap_or(None)
-        })
-        .custom_formatter(move |x, _r| format!("{}×{:E}", x / unit, unit))
+        .step_by(unit)
+        .custom_formatter(move |x, _r| format!("{:E}", x))
 }
 
 #[derive(Debug, Clone, PartialEq, PartialOrd, serde::Deserialize, serde::Serialize)]
 pub(crate) struct ValueRange<T> {
     pub(crate) value: T,
+    pub(crate) clamp: bool,
     pub(crate) range: Option<(T, T)>,
     pub(crate) unit: Option<T>,
 }
@@ -74,17 +64,19 @@ impl<T: egui::emath::Numeric + std::str::FromStr> ValueRange<T> {
     }
     pub(crate) fn show(&mut self, ui: &mut egui::Ui, label: &str, suffix: Option<&str>) {
         ui.label(label);
-        let drag_value = DragValue::new(&mut self.value).update_while_editing(false);
-        let drag_value = if let Some(u) = self.unit {
-            custom_drag(drag_value, u)
-        } else {
-            drag_value
-        };
-        if let Some(s) = suffix {
-            ui.add(drag_value.suffix(s));
-        } else {
-            ui.add(drag_value);
+        let mut drag_value = DragValue::new(&mut self.value)
+            .update_while_editing(false)
+            .clamp_existing_to_range(self.clamp);
+        if let Some(u) = self.unit {
+            drag_value = custom_drag(drag_value, u);
         }
+        if let (Some(range), true) = (self.range, self.clamp) {
+            drag_value = drag_value.range(range.0..=range.1);
+        }
+        if let Some(s) = suffix {
+            drag_value = drag_value.suffix(s);
+        }
+        ui.add(drag_value);
     }
 
     pub(crate) fn show_with_slider(
@@ -94,7 +86,12 @@ impl<T: egui::emath::Numeric + std::str::FromStr> ValueRange<T> {
         show_editor: &mut bool,
         suffix: Option<&str>,
     ) {
-        let Self { value, range, unit } = self;
+        let Self {
+            value,
+            range,
+            unit,
+            clamp,
+        } = self;
         debug_assert!(range.is_some());
         if range.is_none() {
             self.show(ui, label, suffix);
@@ -106,21 +103,23 @@ impl<T: egui::emath::Numeric + std::str::FromStr> ValueRange<T> {
                 *show_editor = !*show_editor;
             }
             ui.add({
-                let slider = Slider::new(value, range.0..=range.1)
+                let mut slider = Slider::new(value, range.0..=range.1)
                     .text(label)
                     .smart_aim(false)
                     .max_decimals(10)
-                    .min_decimals(5);
-                let slider = if let Some(u) = unit {
-                    custom_slider(slider, *u)
-                } else {
-                    slider
-                };
-                if let Some(s) = suffix {
-                    slider.suffix(s)
-                } else {
-                    slider
+                    .min_decimals(5)
+                    .clamping(if *clamp {
+                        egui::SliderClamping::Edits
+                    } else {
+                        egui::SliderClamping::Never
+                    });
+                if let Some(u) = unit {
+                    slider = custom_slider(slider, *u);
                 }
+                if let Some(s) = suffix {
+                    slider = slider.suffix(s);
+                }
+                slider
             });
         });
         let ctx = ui.ctx();
@@ -161,15 +160,21 @@ impl<T: Copy + Num + FromPrimitive> ValueRange<T> {
                 v - <T as egui::emath::Numeric>::from_f64(10.),
                 v + <T as egui::emath::Numeric>::from_f64(20.),
             )),
+            clamp: false,
             unit: None,
         }
+    }
+
+    pub(crate) fn clamp(mut self, clamp: bool) -> Self {
+        self.clamp = clamp;
+        self
     }
 }
 
 impl<T: Num + Copy> Property<T> {
     pub fn new(v: T, label: impl ToString) -> Self {
         Self {
-            value: ValueRange::new(v),
+            value: ValueRange::new(v).clamp(false),
             label: label.to_string(),
             symbol: None,
             show_editor: Some(false),
@@ -178,7 +183,7 @@ impl<T: Num + Copy> Property<T> {
     }
     pub fn new_no_slider(v: T, label: impl ToString) -> Self {
         Self {
-            value: ValueRange::new(v),
+            value: ValueRange::new(v).clamp(true),
             label: label.to_string(),
             symbol: None,
             show_editor: None,

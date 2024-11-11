@@ -108,6 +108,7 @@ impl RandomNoise {
                     ui.add(
                         egui::Slider::new(&mut self.std_dev, 1E-10..=1E-4)
                             .logarithmic(true)
+                            .clamping(egui::SliderClamping::Never)
                             .text("Amplitude")
                             .custom_formatter(|x, _r| format!("{:E}", x)),
                     );

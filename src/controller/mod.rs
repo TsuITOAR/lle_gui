@@ -74,11 +74,16 @@ impl Default for LleController {
         Self {
             alpha: Property::new(-5., "alpha").symbol('α'),
             pump: Property::new(3.94, "pump").symbol('F'),
-            linear: Property::new(-0.0444, "linear").symbol('β'),
+            linear: Property::new(-0.0444, "linear")
+                .symbol('β')
+                .range((-0.1, 0.1)),
             step_dist: Property::new_no_slider(8e-4, "step dist")
+                .range((1E-10, 1E-3))
                 .symbol("Δt")
                 .unit(1E-4),
-            steps: Property::new_no_slider(100, "steps").symbol("steps"),
+            steps: Property::new_no_slider(100, "steps")
+                .symbol("steps")
+                .range((1, u32::MAX)),
         }
     }
 }
