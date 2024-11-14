@@ -36,7 +36,7 @@ pub type CLleSolver = lle::CoupledLleSolver<
 >;
 
 impl Controller<CLleSolver> for CoupleLleController {
-    fn construct_engine(&self, dim: usize, r: &mut RandomNoise) -> CLleSolver {
+    fn construct_engine(&self, dim: usize) -> CLleSolver {
         use lle::LinearOp;
 
         let step_dist = self.basic.step_dist.get_value();
@@ -46,8 +46,8 @@ impl Controller<CLleSolver> for CoupleLleController {
         let pos = self.pos.get_value();
         let g = self.g.get_value();
 
-        let mut init = vec![zero(); dim];
-        r.add_random(init.as_mut_slice());
+        let init = vec![zero(); dim];
+        //r.add_random(init.as_mut_slice());
         CLleSolver::builder()
             .component1(
                 LleSolver::builder()
@@ -113,6 +113,10 @@ impl<'a> Simulator<'a> for CLleSolver {
     fn states(&'a self) -> Self::State {
         use lle::Evolver;
         [self.component1.state(), self.component2.state()]
+    }
+    fn set_state(&mut self, state: Self::State) {
+        self.component1.set_state(state[0]);
+        self.component2.set_state(state[1]);
     }
     fn add_rand(&mut self, r: &mut RandomNoise) {
         self.component1.add_rand(r);

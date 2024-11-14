@@ -1,8 +1,6 @@
 use lle::{num_complex::Complex64, Freq, LinearOp, Step};
 use num_traits::{zero, Zero};
 
-use crate::random::RandomNoise;
-
 use super::{Controller, Property};
 
 #[allow(unused)]
@@ -82,14 +80,14 @@ pub struct DisperLleController {
 }
 
 impl<NL: Default + lle::NonLinearOp<f64>> Controller<LleSolver<NL>> for DisperLleController {
-    fn construct_engine(&self, dim: usize, r: &mut RandomNoise) -> LleSolver<NL> {
+    fn construct_engine(&self, dim: usize) -> LleSolver<NL> {
         use lle::LinearOp;
         let step_dist = self.basic.step_dist.get_value();
         let pump = self.basic.pump.get_value();
         let linear = self.basic.linear.get_value();
         let alpha = self.basic.alpha.get_value();
-        let mut init = vec![zero(); dim];
-        r.add_random(init.as_mut_slice());
+        let init = vec![zero(); dim];
+        //r.add_random(init.as_mut_slice());
         LleSolver::builder()
             .state(init.to_vec())
             .step_dist(step_dist)

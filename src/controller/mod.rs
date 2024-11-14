@@ -10,7 +10,15 @@ use crate::{property::Property, random::RandomNoise};
 pub type App = crate::GenApp<LleController, LleSolver<lle::SPhaMod>, crate::drawer::ViewField>;
 
 pub trait Controller<E> {
-    fn construct_engine(&self, dim: usize, random: &mut RandomNoise) -> E;
+    fn construct_engine(&self, dim: usize) -> E;
+    fn construct_engine_random_init<'a>(&self, dim: usize, rand: &mut RandomNoise) -> E
+    where
+        E: Simulator<'a>,
+    {
+        let mut e = self.construct_engine(dim);
+        e.add_rand(rand);
+        e
+    }
     fn show_in_control_panel(&mut self, ui: &mut egui::Ui);
     fn show_in_start_window(&mut self, dim: &mut usize, ui: &mut egui::Ui);
     fn sync_paras(&mut self, engine: &mut E);
@@ -24,14 +32,14 @@ pub type LleSolver<NL> = lle::LleSolver<
     NL,
 >;
 impl<NL: Default + lle::NonLinearOp<f64>> Controller<LleSolver<NL>> for LleController {
-    fn construct_engine(&self, dim: usize, r: &mut RandomNoise) -> LleSolver<NL> {
+    fn construct_engine(&self, dim: usize) -> LleSolver<NL> {
         use lle::LinearOp;
         let step_dist = self.step_dist.get_value();
         let pump = self.pump.get_value();
         let linear = self.linear.get_value();
         let alpha = self.alpha.get_value();
-        let mut init = vec![zero(); dim];
-        r.add_random(init.as_mut_slice());
+        let init = vec![zero(); dim];
+        //r.add_random(init.as_mut_slice());
         LleSolver::builder()
             .state(init.to_vec())
             .step_dist(step_dist)
@@ -89,8 +97,10 @@ impl Default for LleController {
 }
 
 pub trait Simulator<'a> {
+    /// this should be a reference to the state of the simulator
     type State: 'a;
     fn states(&'a self) -> Self::State;
+    fn set_state(&mut self, state: Self::State);
     fn add_rand(&mut self, random: &mut RandomNoise);
     fn run(&mut self, steps: u32);
 }
@@ -107,57 +117,14 @@ impl<
         use lle::Evolver;
         self.state()
     }
+    fn set_state(&mut self, state: &[Complex64]) {
+        self.state_mut().copy_from_slice(state);
+    }
     fn run(&mut self, steps: u32) {
         use lle::Evolver;
         self.evolve_n(steps as _);
     }
     fn add_rand(&mut self, r: &mut RandomNoise) {
         r.add_random(self.state_mut());
-    }
-}
-
-#[derive(serde::Deserialize, serde::Serialize, Debug)]
-#[serde(bound(
-    serialize = "P: serde::Serialize",
-    deserialize = "P: for<'a> serde::Deserialize<'a>"
-))]
-pub struct Core<P, S> {
-    pub(crate) dim: usize,
-    pub(crate) controller: P,
-    #[serde(skip, default)]
-    pub(crate) simulator: Option<S>,
-}
-
-impl<P: Clone, S> Core<P, S> {
-    pub(crate) fn save_copy(&self) -> Self {
-        Self {
-            dim: self.dim,
-            controller: self.controller.clone(),
-            simulator: None,
-        }
-    }
-}
-
-impl<P: Default, S> Default for Core<P, S> {
-    fn default() -> Self {
-        Self {
-            dim: 128,
-            controller: P::default(),
-            simulator: None,
-        }
-    }
-}
-
-impl<'a, P, S> Core<P, S>
-where
-    P: Controller<S>,
-    S: Simulator<'a>,
-{
-    pub fn new(controller: P, dim: usize) -> Self {
-        Self {
-            controller,
-            dim,
-            simulator: None,
-        }
     }
 }

@@ -5,6 +5,7 @@
 #![feature(type_alias_impl_trait)]
 mod config;
 mod controller;
+mod core;
 mod drawer;
 mod easy_mark;
 mod property;
@@ -18,7 +19,8 @@ mod test_app;
 pub use test_app::TestApp;
 */
 
-use controller::{Controller, Core, Simulator};
+use controller::{Controller, Simulator};
+use core::{Core, CoreStorage, StoreState};
 use egui::DragValue;
 
 use views::{Views, Visualize};
@@ -29,22 +31,26 @@ pub type App = controller::App;
 
 pub struct GenApp<P, S, V> {
     core: Core<P, S>,
+    setup: bool,
     slider_len: Option<f32>,
-    view: Views<V>,
+    views: Views<V>,
     running: bool,
     profiler: bool,
-    random: random::RandomNoise,
     add_rand: bool,
     #[cfg(feature = "gpu")]
     render_state: eframe::egui_wgpu::RenderState,
 }
 #[derive(serde::Deserialize, serde::Serialize)]
 #[serde(bound(
-    serialize = "P: serde::Serialize, Views<V>: serde::Serialize",
-    deserialize = "P: for<'a> serde::Deserialize<'a>, Views<V>: for<'a> serde::Deserialize<'a> + Default"
+    serialize = "CoreStorage<P, S>: serde::Serialize, Views<V>: serde::Serialize",
+    deserialize = "CoreStorage<P, S>: for<'a> serde::Deserialize<'a>, Views<V>: for<'a> serde::Deserialize<'a> + Default"
 ))]
-struct GenAppStorage<P, S, V> {
-    core: Core<P, S>,
+pub struct GenAppStorage<P, S, V>
+where
+    S: StoreState,
+{
+    core: CoreStorage<P, S>,
+    setup: bool,
     slider_len: Option<f32>,
     #[serde(default)]
     views: Views<V>,
@@ -52,34 +58,19 @@ struct GenAppStorage<P, S, V> {
     running: bool,
     #[serde(skip)]
     profiler: bool,
-    random: random::RandomNoise,
     add_rand: bool,
-}
-
-impl<'a, P: Default + Controller<S>, S: Simulator<'a>, V> Default for GenAppStorage<P, S, V>
-where
-    Views<V>: Default + Visualize<S::State>,
-{
-    fn default() -> Self {
-        Self {
-            core: Core::new(P::default(), 128),
-            slider_len: None,
-            views: <Views<V> as Default>::default(),
-            running: false,
-            profiler: false,
-            random: random::RandomNoise::default(),
-            add_rand: false,
-        }
-    }
 }
 
 const APP_NAME: &str = "LLE Simulator";
 
 impl<P, S, V> GenApp<P, S, V>
 where
-    for<'a> S: Simulator<'a>,
-    for<'a> P: serde::Deserialize<'a> + Default + Controller<S>,
-    for<'a> Views<V>: serde::Deserialize<'a> + Default + Visualize<<S as Simulator<'a>>::State>,
+    GenAppStorage<P, S, V>: Default,
+    P: Default + Controller<S> + for<'a> serde::Deserialize<'a>,
+    S: StoreState,
+    <S as StoreState>::State: serde::Serialize + for<'a> serde::Deserialize<'a>,
+    Views<V>:
+        for<'a> serde::Deserialize<'a> + Default + for<'a> Visualize<<S as Simulator<'a>>::State>,
 {
     /// Called once before the first frame.
     pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
@@ -93,20 +84,20 @@ where
 
         // Load previous app state (if any).
         // Note that you must enable the `persistence` feature for this to work.
-        let s: GenAppStorage<P, S, V> = cc.storage.map_or_else(Default::default, |e| {
+        let c: GenAppStorage<P, S, V> = cc.storage.map_or_else(Default::default, |e| {
             eframe::get_value(e, APP_NAME).unwrap_or_default()
         });
 
-        Self {
-            core: s.core,
-            slider_len: s.slider_len,
-            view: s.views,
-            running: s.running,
-            profiler: s.profiler,
-            random: s.random,
-            add_rand: s.add_rand,
+        GenApp {
+            core: c.core.into(),
+            setup: c.setup,
+            slider_len: c.slider_len,
+            views: c.views,
+            running: c.running,
+            profiler: c.profiler,
+            add_rand: c.add_rand,
             #[cfg(feature = "gpu")]
-            render_state: cc.wgpu_render_state.as_ref().unwrap().clone(),
+            render_state: cc.wgpu_render_state.clone().unwrap(),
         }
 
         /* if let Some(storage) = cc.storage {
@@ -120,7 +111,8 @@ where
 impl<P, S, V> eframe::App for GenApp<P, S, V>
 where
     P: Default + Controller<S> + serde::Serialize + Clone,
-    for<'a> S: Simulator<'a>,
+    S: for<'a> Simulator<'a> + StoreState,
+    <S as StoreState>::State: serde::Serialize + for<'a> serde::Deserialize<'a>,
     for<'a> Views<V>:
         Default + Visualize<<S as controller::Simulator<'a>>::State> + serde::Serialize + Clone,
 {
@@ -129,11 +121,11 @@ where
         puffin::profile_function!();
         let Self {
             core,
+            setup,
             slider_len,
-            view,
+            views: view,
             running,
             profiler,
-            random,
             add_rand,
             #[cfg(feature = "gpu")]
             render_state,
@@ -143,24 +135,28 @@ where
             dim,
             controller,
             simulator,
+            random,
         } = core;
 
-        if simulator.is_none() {
+        if *setup {
             *running = false;
-            let build: bool = egui::Window::new("Set simulation parameters")
+            *setup = egui::Window::new("Set simulation parameters")
                 .show(ctx, |ui| {
                     controller.show_in_start_window(dim, ui);
                     ui.centered_and_justified(|ui| ui.button("✅").clicked())
                         .inner
                 })
-                .map(|x| x.inner.unwrap_or(false))
-                .unwrap_or(true);
-            if !build || *dim == 0 {
+                .unwrap()
+                .inner
+                .unwrap_or(false);
+            if *setup || *dim == 0 {
                 return;
+            } else {
+                *simulator = controller.construct_engine(*dim);
+                simulator.add_rand(random);
             }
         }
 
-        let simulator = simulator.get_or_insert_with(|| controller.construct_engine(*dim, random));
         controller.sync_paras(simulator);
 
         let mut reset = false;
@@ -207,16 +203,20 @@ where
         });
 
         if reset {
-            let en = core.simulator.take();
+            let c = P::default();
+            let mut s = c.construct_engine(*dim);
+            let mut r = random::RandomNoise::default();
+            s.add_rand(&mut r);
             *core = Core {
                 dim: *dim,
-                controller: Default::default(),
-                simulator: en,
+                controller: c,
+                simulator: s,
+                random: r,
             };
             return;
         }
         if destruct {
-            core.simulator = None;
+            *setup = true;
             *view = Default::default();
             return;
         }
@@ -244,14 +244,33 @@ where
     /// Called by the frame work to save state before shutdown.
     fn save(&mut self, storage: &mut dyn eframe::Storage) {
         let state = GenAppStorage {
-            core: self.core.save_copy(),
+            core: (&self.core).into(),
+            setup: self.setup,
             slider_len: self.slider_len,
-            views: self.view.clone(),
+            views: self.views.clone(),
             running: self.running,
             profiler: self.profiler,
-            random: self.random.clone(),
             add_rand: self.add_rand,
         };
         eframe::set_value(storage, APP_NAME, &state);
+    }
+}
+
+impl<P, S, V> Default for GenAppStorage<P, S, V>
+where
+    S: StoreState,
+    CoreStorage<P, S>: Default,
+    Views<V>: Default,
+{
+    fn default() -> Self {
+        Self {
+            core: Default::default(),
+            setup: true,
+            slider_len: None,
+            views: Default::default(),
+            running: false,
+            profiler: false,
+            add_rand: false,
+        }
     }
 }
