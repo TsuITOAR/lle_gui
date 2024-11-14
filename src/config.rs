@@ -28,7 +28,16 @@ pub(crate) fn config<C: ControllerAsGrid>(dim: &mut usize, properties: &mut C, u
         .striped(true)
         .show(ui, |ui| {
             ui.label("Dimension");
-            ui.add(DragValue::new(dim).speed(1));
+            let mut d_log = (*dim as f64).log(2.) as u32;
+            ui.add(
+                DragValue::new(&mut d_log)
+                    .speed(1)
+                    .range(7..=15)
+                    .custom_parser(|s| (Some(2u32.pow(s.parse::<u32>().unwrap_or(7)) as _)))
+                    .custom_formatter(|v, _| format!("{}", 2u32.pow(v as u32)))
+                    .clamp_existing_to_range(true), //.suffix(format!("(2^{})", (*dim as f64).log(2.) as u32)),
+            );
+            *dim = 2u32.pow(d_log) as usize;
             ui.end_row();
             properties.show(ui);
         });

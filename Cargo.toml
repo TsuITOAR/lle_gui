@@ -49,6 +49,9 @@ colorous = "^1.0.14"
 bytemuck = "^1.19.0"
 rayon = "^1"
 rand_distr = { version = "^0.4.3", features = ["serde1"] }
+egui-notify = "^0.17"
+bincode = "1.3.3"
+rfd = "0.15.0"
 #rfd = "0.15.0"
 #bincode = "1.3.3"
 #rayon = { version = "^1.8", optional = true }
@@ -81,4 +84,4 @@ opt-level = 3 # fast and small wasm
 opt-level = 2
 
 [patch."https://github.com/TsuITOAR/Lle.git"]
-# lle = { path = "../Lle" }
+lle = { path = "../Lle" }

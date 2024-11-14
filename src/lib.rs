@@ -8,19 +8,22 @@ mod controller;
 mod core;
 mod drawer;
 mod easy_mark;
+mod file;
+mod notify;
 mod property;
 mod random;
 mod util;
 mod views;
 
+pub use notify::*;
 pub use util::*;
 /*
 mod test_app;
 pub use test_app::TestApp;
 */
 
-use controller::{Controller, Simulator};
-use core::{Core, CoreStorage, StoreState};
+use controller::{Controller, SharedState, Simulator};
+use core::{Core, CoreStorage};
 use egui::DragValue;
 
 use views::{Views, Visualize};
@@ -31,12 +34,13 @@ pub type App = controller::App;
 
 pub struct GenApp<P, S, V> {
     core: Core<P, S>,
-    setup: bool,
+    is_init: bool,
     slider_len: Option<f32>,
     views: Views<V>,
     running: bool,
     profiler: bool,
     add_rand: bool,
+    file: file::File,
     #[cfg(feature = "gpu")]
     render_state: eframe::egui_wgpu::RenderState,
 }
@@ -47,10 +51,10 @@ pub struct GenApp<P, S, V> {
 ))]
 pub struct GenAppStorage<P, S, V>
 where
-    S: StoreState,
+    S: Simulator,
 {
     core: CoreStorage<P, S>,
-    setup: bool,
+    is_init: bool,
     slider_len: Option<f32>,
     #[serde(default)]
     views: Views<V>,
@@ -59,28 +63,23 @@ where
     #[serde(skip)]
     profiler: bool,
     add_rand: bool,
+    file: file::File,
 }
 
 const APP_NAME: &str = "LLE Simulator";
 
 impl<P, S, V> GenApp<P, S, V>
 where
-    GenAppStorage<P, S, V>: Default,
     P: Default + Controller<S> + for<'a> serde::Deserialize<'a>,
-    S: StoreState,
-    <S as StoreState>::State: serde::Serialize + for<'a> serde::Deserialize<'a>,
-    Views<V>:
-        for<'a> serde::Deserialize<'a> + Default + for<'a> Visualize<<S as Simulator<'a>>::State>,
+    S: Simulator,
+    Views<V>: Default
+        + for<'a> serde::Deserialize<'a>
+        + for<'a> Visualize<<S as SharedState<'a>>::SharedState>,
 {
     /// Called once before the first frame.
     pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
         // This is also where you can customized the look at feel of egui using
         // `cc.egui_ctx.set_visuals` and `cc.egui_ctx.set_fonts`.
-
-        // Disable feathering as it causes artifacts
-        cc.egui_ctx.tessellation_options_mut(|tess_options| {
-            tess_options.feathering = false;
-        });
 
         // Load previous app state (if any).
         // Note that you must enable the `persistence` feature for this to work.
@@ -90,57 +89,55 @@ where
 
         GenApp {
             core: c.core.into(),
-            setup: c.setup,
+            is_init: c.is_init,
             slider_len: c.slider_len,
             views: c.views,
             running: c.running,
             profiler: c.profiler,
             add_rand: c.add_rand,
+            file: c.file,
             #[cfg(feature = "gpu")]
             render_state: cc.wgpu_render_state.clone().unwrap(),
         }
-
-        /* if let Some(storage) = cc.storage {
-            return eframe::get_value(storage, eframe::APP_KEY).unwrap_or_default();
-        }
-
-        Default::default() */
     }
 }
 
 impl<P, S, V> eframe::App for GenApp<P, S, V>
 where
-    P: Default + Controller<S> + serde::Serialize + Clone,
-    S: for<'a> Simulator<'a> + StoreState,
-    <S as StoreState>::State: serde::Serialize + for<'a> serde::Deserialize<'a>,
-    for<'a> Views<V>:
-        Default + Visualize<<S as controller::Simulator<'a>>::State> + serde::Serialize + Clone,
+    P: Default + Clone + Controller<S> + serde::Serialize + for<'a> serde::Deserialize<'a>,
+    S: Simulator,
+    Views<V>: Default
+        + for<'a> Visualize<<S as SharedState<'a>>::SharedState>
+        + serde::Serialize
+        + for<'a> serde::Deserialize<'a>
+        + Clone,
 {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        TOASTS.lock().show(ctx);
         puffin::GlobalProfiler::lock().new_frame(); // call once per frame!
         puffin::profile_function!();
         let Self {
             core,
-            setup,
+            is_init,
             slider_len,
-            views: view,
+            views,
             running,
             profiler,
             add_rand,
+            file,
             #[cfg(feature = "gpu")]
             render_state,
         } = self;
 
-        let Core {
-            dim,
-            controller,
-            simulator,
-            random,
-        } = core;
-
-        if *setup {
+        if !*is_init {
+            let Core {
+                dim,
+                controller,
+                simulator,
+                random,
+            } = core;
             *running = false;
-            *setup = egui::Window::new("Set simulation parameters")
+            *is_init = egui::Window::new("Set simulation parameters")
                 .show(ctx, |ui| {
                     controller.show_in_start_window(dim, ui);
                     ui.centered_and_justified(|ui| ui.button("✅").clicked())
@@ -149,7 +146,7 @@ where
                 .unwrap()
                 .inner
                 .unwrap_or(false);
-            if *setup || *dim == 0 {
+            if !*is_init {
                 return;
             } else {
                 *simulator = controller.construct_engine(*dim);
@@ -157,7 +154,7 @@ where
             }
         }
 
-        controller.sync_paras(simulator);
+        core.controller.sync_paras(&mut core.simulator);
 
         let mut reset = false;
         let mut destruct = false;
@@ -171,9 +168,9 @@ where
                 ui.spacing_mut().slider_width = *slider_len;
             }
 
-            controller.show_in_control_panel(ui);
+            core.controller.show_in_control_panel(ui);
 
-            random.show(ui, add_rand);
+            core.random.show(ui, add_rand);
 
             ui.horizontal(|ui| {
                 ui.label("Slider length");
@@ -190,34 +187,44 @@ where
                 destruct = ui.button("⏏").clicked();
             });
 
-            view.toggle_record_his(ui, simulator.states());
+            views.toggle_record_his(ui, core.simulator.states());
 
             ui.separator();
-            view.config(ui);
+            views.config(ui);
             ui.separator();
-            view.show_fps(ui);
+            views.show_fps(ui);
 
             ui.separator();
             egui::warn_if_debug_build(ui);
+            match file.show(ui, core) {
+                Ok(true) => {
+                    *views = Default::default();
+                    views.record(core.simulator.states());
+                }
+                Err(e) => {
+                    TOASTS.lock().error(e.to_string());
+                }
+                _ => {}
+            }
+
+            ui.separator();
             crate::show_profiler(profiler, ui);
         });
 
+        let Core {
+            dim: _,
+            controller,
+            simulator,
+            random,
+        } = core;
+
         if reset {
-            let c = P::default();
-            let mut s = c.construct_engine(*dim);
-            let mut r = random::RandomNoise::default();
-            s.add_rand(&mut r);
-            *core = Core {
-                dim: *dim,
-                controller: c,
-                simulator: s,
-                random: r,
-            };
+            core.reset();
             return;
         }
         if destruct {
-            *setup = true;
-            *view = Default::default();
+            *is_init = false;
+            *views = Default::default();
             return;
         }
         if *running || step {
@@ -229,10 +236,10 @@ where
                 puffin::profile_scope!("calculate");
                 simulator.run(controller.steps());
             }
-            view.record(simulator.states());
+            views.record(simulator.states());
             ctx.request_repaint()
         }
-        view.plot(
+        views.plot(
             simulator.states(),
             ctx,
             *running || step,
@@ -245,32 +252,46 @@ where
     fn save(&mut self, storage: &mut dyn eframe::Storage) {
         let state = GenAppStorage {
             core: (&self.core).into(),
-            setup: self.setup,
+            is_init: self.is_init,
             slider_len: self.slider_len,
             views: self.views.clone(),
             running: self.running,
             profiler: self.profiler,
             add_rand: self.add_rand,
+            file: self.file.clone_for_save(),
         };
         eframe::set_value(storage, APP_NAME, &state);
     }
 }
 
+impl<P, S, V> GenApp<P, S, V>
+where
+    P: Default + Clone + Controller<S> + serde::Serialize + for<'a> serde::Deserialize<'a>,
+    S: Simulator,
+    Views<V>: Default
+        + for<'a> Visualize<<S as SharedState<'a>>::SharedState>
+        + serde::Serialize
+        + for<'a> serde::Deserialize<'a>
+        + Clone,
+{
+}
+
 impl<P, S, V> Default for GenAppStorage<P, S, V>
 where
-    S: StoreState,
-    CoreStorage<P, S>: Default,
+    P: Default + Controller<S>,
+    S: Simulator,
     Views<V>: Default,
 {
     fn default() -> Self {
         Self {
             core: Default::default(),
-            setup: true,
+            is_init: false,
             slider_len: None,
             views: Default::default(),
             running: false,
             profiler: false,
             add_rand: false,
+            file: Default::default(),
         }
     }
 }

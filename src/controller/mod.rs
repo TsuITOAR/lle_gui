@@ -1,29 +1,16 @@
 pub mod clle;
 pub mod disper;
+mod traits;
+
+pub use traits::*;
 
 use lle::{num_complex::Complex64, Evolver, SPhaMod};
-use num_traits::zero;
+use num_traits::{zero, Zero};
 
 use crate::{property::Property, random::RandomNoise};
 
 #[allow(unused)]
 pub type App = crate::GenApp<LleController, LleSolver<lle::SPhaMod>, crate::drawer::ViewField>;
-
-pub trait Controller<E> {
-    fn construct_engine(&self, dim: usize) -> E;
-    fn construct_engine_random_init<'a>(&self, dim: usize, rand: &mut RandomNoise) -> E
-    where
-        E: Simulator<'a>,
-    {
-        let mut e = self.construct_engine(dim);
-        e.add_rand(rand);
-        e
-    }
-    fn show_in_control_panel(&mut self, ui: &mut egui::Ui);
-    fn show_in_start_window(&mut self, dim: &mut usize, ui: &mut egui::Ui);
-    fn sync_paras(&mut self, engine: &mut E);
-    fn steps(&self) -> u32;
-}
 
 pub type LleSolver<NL> = lle::LleSolver<
     f64,
@@ -96,30 +83,55 @@ impl Default for LleController {
     }
 }
 
-pub trait Simulator<'a> {
-    /// this should be a reference to the state of the simulator
-    type State: 'a;
-    fn states(&'a self) -> Self::State;
-    fn set_state(&mut self, state: Self::State);
-    fn add_rand(&mut self, random: &mut RandomNoise);
-    fn run(&mut self, steps: u32);
-}
-
 impl<
         'a,
         S: AsMut<[Complex64]> + AsRef<[Complex64]>,
         L: lle::LinearOp<f64>,
         NL: lle::NonLinearOp<f64>,
-    > Simulator<'a> for lle::LleSolver<f64, S, L, NL>
+    > SharedState<'a> for lle::LleSolver<f64, S, L, NL>
 {
-    type State = &'a [Complex64];
-    fn states(&'a self) -> Self::State {
+    type SharedState = &'a [Complex64];
+    fn states(&'a self) -> Self::SharedState {
         use lle::Evolver;
         self.state()
     }
     fn set_state(&mut self, state: &[Complex64]) {
         self.state_mut().copy_from_slice(state);
     }
+}
+
+impl<
+        S: AsMut<[Complex64]> + AsRef<[Complex64]>,
+        L: lle::LinearOp<f64>,
+        NL: lle::NonLinearOp<f64>,
+    > StoreState for lle::LleSolver<f64, S, L, NL>
+{
+    type OwnedState = Vec<Complex64>;
+    fn get_owned_state(&self) -> Self::OwnedState {
+        self.state().to_vec()
+    }
+    fn set_owned_state(&mut self, state: Self::OwnedState) {
+        if self.state().len() != state.len() {
+            crate::TOASTS.lock().warning(format!(
+                "Skipping restore state for mismatched length between simulator({}) and storage({})",
+                self.state().len(),
+                state.len()
+            ));
+            return;
+        }
+        self.state_mut().copy_from_slice(&state);
+    }
+    fn default_state(dim: usize) -> Self::OwnedState {
+        vec![Complex64::zero(); dim]
+    }
+}
+
+impl<
+        S: AsMut<[Complex64]> + AsRef<[Complex64]>,
+        L: lle::LinearOp<f64>,
+        NL: lle::NonLinearOp<f64>,
+    > Simulator for lle::LleSolver<f64, S, L, NL>
+{
     fn run(&mut self, steps: u32) {
         use lle::Evolver;
         self.evolve_n(steps as _);

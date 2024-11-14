@@ -104,22 +104,43 @@ impl Controller<CLleSolver> for CoupleLleController {
     }
 }
 
-impl<'a> Simulator<'a> for CLleSolver {
-    type State = [&'a [Complex64]; 2];
-    fn run(&mut self, steps: u32) {
-        use lle::Evolver;
-        self.evolve_n(steps)
-    }
-    fn states(&'a self) -> Self::State {
+impl<'a> SharedState<'a> for CLleSolver {
+    type SharedState = [&'a [Complex64]; 2];
+
+    fn states(&'a self) -> Self::SharedState {
         use lle::Evolver;
         [self.component1.state(), self.component2.state()]
     }
-    fn set_state(&mut self, state: Self::State) {
+    fn set_state(&mut self, state: Self::SharedState) {
         self.component1.set_state(state[0]);
         self.component2.set_state(state[1]);
     }
+}
+
+impl StoreState for CLleSolver {
+    type OwnedState = (Vec<Complex64>, Vec<Complex64>);
+    fn get_owned_state(&self) -> Self::OwnedState {
+        (
+            self.component1.get_owned_state(),
+            self.component2.get_owned_state(),
+        )
+    }
+    fn set_owned_state(&mut self, state: Self::OwnedState) {
+        self.component1.set_owned_state(state.0);
+        self.component2.set_owned_state(state.1);
+    }
+    fn default_state(dim: usize) -> Self::OwnedState {
+        (vec![Complex64::zero(); dim], vec![Complex64::zero(); dim])
+    }
+}
+
+impl Simulator for CLleSolver {
     fn add_rand(&mut self, r: &mut RandomNoise) {
         self.component1.add_rand(r);
         self.component2.add_rand(r);
+    }
+    fn run(&mut self, steps: u32) {
+        use lle::Evolver;
+        self.evolve_n(steps)
     }
 }

@@ -94,7 +94,7 @@ pub struct LleChart {
     pub(crate) proc: Process,
     #[serde(default)]
     pub(crate) smart_plot: Option<SmartPlot<f64>>,
-    #[serde(default, skip)]
+    #[serde(skip)]
     pub(crate) show_history: Option<ColorMapDrawer>,
 }
 
