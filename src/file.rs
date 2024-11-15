@@ -58,8 +58,8 @@ mod native {
     impl From<FileStorage> for super::File {
         fn from(f: FileStorage) -> Self {
             Self {
-                read: f.read.map(|x| FileHandle::from(x)),
-                save: f.save.map(|x| FileHandle::from(x)),
+                read: f.read.map(FileHandle::from),
+                save: f.save.map(FileHandle::from),
                 read_spawn: None,
                 read_io_spawn: None,
                 save_spawn: None,
@@ -278,7 +278,7 @@ impl File {
                         spawn(async move {
                             let s = rfd::AsyncFileDialog::new().pick_file().await;
                             ctx.request_repaint();
-                            s.map(|x| x.into())
+                            s
                         })
                     });
                 }
@@ -299,7 +299,7 @@ impl File {
                         spawn(async move {
                             let s = rfd::AsyncFileDialog::new().save_file().await;
                             ctx.request_repaint();
-                            s.map(|x| x.into())
+                            s
                         })
                     });
                 }

@@ -38,7 +38,7 @@ impl History {
     pub fn clear(&mut self) {
         self.data.clear();
     }
-    
+
     //todo: implement this
 
     /* pub fn show(&mut self, ui: &mut egui::Ui) {
