@@ -86,4 +86,4 @@ opt-level = 3 # fast and small wasm
 opt-level = 2
 
 [patch."https://github.com/TsuITOAR/Lle.git"]
-lle = { path = "../Lle" }
+# lle = { path = "../Lle" }
