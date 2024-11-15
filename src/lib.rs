@@ -22,7 +22,7 @@ mod test_app;
 pub use test_app::TestApp;
 */
 
-use controller::{Controller, SharedState, Simulator};
+use controller::{dispersion_line, Controller, SharedState, Simulator};
 use core::{Core, CoreStorage};
 use egui::DragValue;
 
@@ -40,6 +40,7 @@ pub struct GenApp<P, S, V> {
     running: bool,
     profiler: bool,
     add_rand: bool,
+    show_disper: (bool, f64), //show, scale
     file: file::File,
     #[cfg(feature = "gpu")]
     render_state: eframe::egui_wgpu::RenderState,
@@ -63,6 +64,7 @@ where
     #[serde(skip)]
     profiler: bool,
     add_rand: bool,
+    show_disper: (bool, f64),
     file: file::File,
 }
 
@@ -96,6 +98,7 @@ where
             profiler: c.profiler,
             add_rand: c.add_rand,
             file: c.file,
+            show_disper: c.show_disper,
             #[cfg(feature = "gpu")]
             render_state: cc.wgpu_render_state.clone().unwrap(),
         }
@@ -125,6 +128,7 @@ where
             profiler,
             add_rand,
             file,
+            show_disper,
             #[cfg(feature = "gpu")]
             render_state,
         } = self;
@@ -186,6 +190,19 @@ where
                 reset = ui.button("⏹").clicked();
                 destruct = ui.button("⏏").clicked();
             });
+            ui.horizontal(|ui| {
+                ui.checkbox(&mut show_disper.0, "Show dispersion")
+                    .on_hover_text("Show dispersion");
+                if show_disper.0 {
+                    ui.add(DragValue::new(&mut show_disper.1));
+                }
+            });
+
+            if show_disper.0 {
+                let disper = core.controller.dispersion();
+                let points = dispersion_line(disper, core.dim, show_disper.1);
+                views.add_dispersion(points);
+            }
 
             views.toggle_record_his(ui, core.simulator.states());
 
@@ -261,6 +278,7 @@ where
             running: self.running,
             profiler: self.profiler,
             add_rand: self.add_rand,
+            show_disper: self.show_disper,
             file: self.file.clone_for_save(),
         };
         eframe::set_value(storage, APP_NAME, &state);
@@ -294,6 +312,7 @@ where
             running: false,
             profiler: false,
             add_rand: false,
+            show_disper: (false, 1.),
             file: Default::default(),
         }
     }

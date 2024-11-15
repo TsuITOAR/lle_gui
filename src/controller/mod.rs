@@ -3,6 +3,7 @@ pub use traits::*;
 
 pub mod clle;
 pub mod cprt;
+pub mod cprt1;
 pub mod disper;
 pub mod disper_2modes;
 
@@ -21,6 +22,10 @@ pub type LleSolver<NL> = lle::LleSolver<
     NL,
 >;
 impl<NL: Default + lle::NonLinearOp<f64>> Controller<LleSolver<NL>> for LleController {
+    type Dispersion = (lle::DiffOrder, Complex64);
+    fn dispersion(&self) -> Self::Dispersion {
+        (2, Complex64::i() * self.linear.get_value() / 2.)
+    }
     fn construct_engine(&self, dim: usize) -> LleSolver<NL> {
         use lle::LinearOp;
         let step_dist = self.step_dist.get_value();
@@ -141,4 +146,15 @@ impl<
     fn add_rand(&mut self, r: &mut RandomNoise) {
         r.add_random(self.state_mut());
     }
+}
+
+pub fn dispersion_line<L: lle::LinearOp<f64>>(l: L, dim: usize, scale: f64) -> Vec<[f64; 2]> {
+    let dim = dim as i32;
+    let split_pos = (dim + 1) / 2;
+    (0..dim)
+        .map(|i| {
+            let d = l.get_value(0, i - (dim - split_pos));
+            [i as f64, -d.im / scale]
+        })
+        .collect::<_>()
 }

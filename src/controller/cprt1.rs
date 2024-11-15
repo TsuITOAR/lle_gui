@@ -1,78 +1,84 @@
+use std::f64::consts::{FRAC_PI_2, PI};
+
 use lle::{num_complex::Complex64, DiffOrder, Evolver, Freq, LinearOp, LinearOpCached, Step};
 use num_traits::{zero, Zero};
 
 use super::{Controller, Property};
 
 #[allow(unused)]
-pub type App =
-    crate::GenApp<DisperLleController2, LleSolver<lle::SPhaMod>, crate::drawer::ViewField>;
+pub type App = crate::GenApp<CprtLleController, LleSolver<lle::SPhaMod>, crate::drawer::ViewField>;
 
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
-pub struct CosDispersionProperty2 {
+pub struct Cprt1 {
     center_pos: Property<f64>,
     period: Property<f64>,
-    strength: Property<f64>,
+    couple_strength: Property<f64>,
+    frac_d1_2pi: Property<f64>,
 }
 
-impl Default for CosDispersionProperty2 {
+impl Default for Cprt1 {
     fn default() -> Self {
         Self {
             center_pos: Property::new(0., "Center Position").range((-20., 20.)),
             period: Property::new(10., "Period").range((10., 100.)),
-            strength: Property::new(0.0, "Strength").range((-50., 50.)),
+            couple_strength: Property::new(FRAC_PI_2, "Couple strength").range((0., PI)),
+            frac_d1_2pi: Property::new(1E3, "d1/2pi").range((1., 1E9)),
         }
     }
 }
 
-impl CosDispersionProperty2 {
+impl Cprt1 {
     pub(crate) fn show_in_control_panel(&mut self, ui: &mut egui::Ui) {
         self.center_pos.show_in_control_panel(ui);
         self.period.show_in_control_panel(ui);
-        self.strength.show_in_control_panel(ui);
+        self.couple_strength.show_in_control_panel(ui);
+        self.frac_d1_2pi.show_in_control_panel(ui);
     }
 
-    pub fn generate_op(&self) -> CosDispersion2 {
-        CosDispersion2 {
+    pub fn generate_op(&self) -> CprtDispersion1 {
+        CprtDispersion1 {
             center_pos: self.center_pos.get_value(),
             period: self.period.get_value(),
-            strength: self.strength.get_value(),
+            couple_strength: self.couple_strength.get_value(),
+            frac_d1_2pi: self.frac_d1_2pi.get_value(),
         }
     }
 }
 
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
-pub struct CosDispersion2 {
+pub struct CprtDispersion1 {
     center_pos: f64,
     period: f64,
-    strength: f64,
+    couple_strength: f64,
+    frac_d1_2pi: f64,
 }
 
-impl LinearOp<f64> for CosDispersion2 {
+impl LinearOp<f64> for CprtDispersion1 {
     fn get_value(&self, _step: Step, freq: Freq) -> Complex64 {
-        let branch = freq % 2;
-        let f = |f: Freq| {
-            -(((f / 2) as f64 - self.center_pos) / self.period * std::f64::consts::PI * 2.).cos()
+        let f = |f: f64| {
+            let cos1 = ((f - self.center_pos) / self.period * std::f64::consts::PI * 2.).cos();
+
+            let cos2 = self.couple_strength.cos();
+
+            self.frac_d1_2pi * (((cos1 * cos2).acos()).rem_euclid(PI))
         };
-        if branch == 0 {
-            -Complex64::i() * (f(freq) - f(0)) * self.strength
-        } else {
-            Complex64::i() * (f(freq) - f(0)) * self.strength - self.strength * 2.
-        }
+
+        -Complex64::i() * (f(freq as _) - f(0.)) * self.frac_d1_2pi
     }
     fn skip(&self) -> bool {
-        self.strength.is_zero()
+        self.couple_strength.is_zero()
     }
 }
 
 pub type LleSolver<NL> = lle::LleSolver<f64, Vec<Complex64>, LinearOpCached<f64>, NL>;
 
 #[derive(Debug, Clone, Default, serde::Deserialize, serde::Serialize)]
-pub struct DisperLleController2 {
+pub struct CprtLleController {
     basic: super::LleController,
-    disper: CosDispersionProperty2,
+    disper: Cprt1,
 }
 
-impl DisperLleController2 {
+impl CprtLleController {
     pub fn linear_op(&self) -> impl LinearOp<f64> {
         let basic_linear = self.basic.linear.get_value();
         (0, -(Complex64::i() * self.basic.alpha.get_value() + 1.))
@@ -83,8 +89,8 @@ impl DisperLleController2 {
     }
 }
 
-impl<NL: Default + lle::NonLinearOp<f64>> Controller<LleSolver<NL>> for DisperLleController2 {
-    type Dispersion = lle::LinearOpAdd<f64, (DiffOrder, Complex64), CosDispersion2>;
+impl<NL: Default + lle::NonLinearOp<f64>> Controller<LleSolver<NL>> for CprtLleController {
+    type Dispersion = lle::LinearOpAdd<f64, (DiffOrder, Complex64), CprtDispersion1>;
     fn dispersion(&self) -> Self::Dispersion {
         (2, Complex64::i() * self.basic.linear.get_value() / 2.).add(self.disper.generate_op())
     }

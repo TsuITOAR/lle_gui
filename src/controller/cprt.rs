@@ -1,6 +1,6 @@
 use std::f64::consts::{FRAC_PI_2, PI};
 
-use lle::{num_complex::Complex64, Evolver, Freq, LinearOp, LinearOpCached, Step};
+use lle::{num_complex::Complex64, DiffOrder, Evolver, Freq, LinearOp, LinearOpCached, Step};
 use num_traits::{zero, Zero};
 
 use super::{Controller, Property};
@@ -63,14 +63,15 @@ impl LinearOp<f64> for CprtDispersion {
 
             let cos2 = self.couple_strength.cos();
 
-            self.frac_d1_2pi * (((cos1 * cos2).acos() - FRAC_PI_2).rem_euclid(PI) + FRAC_PI_2)
+            self.frac_d1_2pi * (((cos1 * cos2).acos()).rem_euclid(PI))
         };
         let gap = f(self.center_pos) * 2. * self.frac_d1_2pi;
 
         if branch == 0 {
-            -Complex64::i() * (f(freq as _) - f(0.)) * self.frac_d1_2pi
+            Complex64::i() * (-f(freq as _) - (-f(0.))) * self.frac_d1_2pi
         } else {
-            Complex64::i() * (f(freq as _) - f(0.)) * self.frac_d1_2pi - gap * 2.
+            Complex64::i() * (f(freq as _) - (-f(0.))) * self.frac_d1_2pi + self.frac_d1_2pi
+                - gap * 2.
         }
     }
     fn skip(&self) -> bool {
@@ -98,6 +99,10 @@ impl CprtLleController {
 }
 
 impl<NL: Default + lle::NonLinearOp<f64>> Controller<LleSolver<NL>> for CprtLleController {
+    type Dispersion = lle::LinearOpAdd<f64, (DiffOrder, Complex64), CprtDispersion>;
+    fn dispersion(&self) -> Self::Dispersion {
+        (2, Complex64::i() * self.basic.linear.get_value() / 2.).add(self.disper.generate_op())
+    }
     fn construct_engine(&self, dim: usize) -> LleSolver<NL> {
         let step_dist = self.basic.step_dist.get_value();
         let pump = self.basic.pump.get_value();

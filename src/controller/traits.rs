@@ -1,6 +1,8 @@
 use crate::random::RandomNoise;
 
 pub trait Controller<E> {
+    type Dispersion: lle::LinearOp<f64>;
+    fn dispersion(&self) -> Self::Dispersion;
     fn construct_engine(&self, dim: usize) -> E;
     fn construct_engine_random_init(&self, dim: usize, rand: &mut RandomNoise) -> E
     where

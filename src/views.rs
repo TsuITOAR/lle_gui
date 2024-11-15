@@ -93,6 +93,7 @@ pub trait Visualize<State> {
     fn clear_his(&mut self);
     fn config(&mut self, ui: &mut egui::Ui);
     fn record(&mut self, data: State);
+    fn add_dispersion(&mut self, points: Vec<[f64; 2]>);
     fn plot(
         &mut self,
         data: State,
@@ -126,6 +127,12 @@ impl<const L: usize, S, V: Visualize<S>> Visualize<[S; L]> for Views<[V; L]> {
     fn record(&mut self, data: [S; L]) {
         for (view, data) in self.views.iter_mut().zip(data.into_iter()) {
             view.record(data);
+        }
+    }
+
+    fn add_dispersion(&mut self, points: Vec<[f64; 2]>) {
+        for view in self.views.iter_mut() {
+            view.add_dispersion(points.clone());
         }
     }
 
@@ -167,6 +174,11 @@ impl<'a> Visualize<&'a [Complex64]> for ViewField {
         self.log_his(data);
     }
 
+    fn add_dispersion(&mut self, points: Vec<[f64; 2]>) {
+        if let Some(ref mut f) = self.f_chart {
+            f.additional = Some(egui_plot::Points::new(points))
+        }
+    }
     fn plot(
         &mut self,
         data: &'a [Complex64],
@@ -199,6 +211,10 @@ impl<'a> Visualize<&'a [Complex64]> for Views<ViewField> {
 
     fn record(&mut self, data: &'a [Complex64]) {
         self.views.log_his(data);
+    }
+
+    fn add_dispersion(&mut self, points: Vec<[f64; 2]>) {
+        self.views.add_dispersion(points);
     }
 
     fn plot(

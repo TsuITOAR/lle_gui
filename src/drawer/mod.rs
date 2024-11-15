@@ -28,6 +28,7 @@ pub(crate) fn default_r_chart(index: usize) -> Option<LleChart> {
         proc: Default::default(),
         smart_plot: Some(Default::default()),
         show_history: None,
+        additional: None,
     })
 }
 
@@ -38,6 +39,7 @@ pub(crate) fn default_f_chart(index: usize) -> Option<LleChart> {
         proc: Process::new_freq_domain(),
         smart_plot: Some(Default::default()),
         show_history: None,
+        additional: None,
     })
 }
 

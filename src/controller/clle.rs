@@ -1,4 +1,4 @@
-use lle::CoupleOp;
+use lle::{CoupleOp, DiffOrder};
 
 use super::*;
 
@@ -36,6 +36,10 @@ pub type CLleSolver = lle::CoupledLleSolver<
 >;
 
 impl Controller<CLleSolver> for CoupleLleController {
+    type Dispersion = (DiffOrder, Complex64);
+    fn dispersion(&self) -> Self::Dispersion {
+        (2, Complex64::i() * self.basic.linear.get_value() / 2.)
+    }
     fn construct_engine(&self, dim: usize) -> CLleSolver {
         use lle::LinearOp;
 

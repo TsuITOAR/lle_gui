@@ -1,4 +1,4 @@
-use lle::{num_complex::Complex64, Freq, LinearOp, Step};
+use lle::{num_complex::Complex64, DiffOrder, Freq, LinearOp, Step};
 use num_traits::{zero, Zero};
 
 use super::{Controller, Property};
@@ -80,6 +80,10 @@ pub struct DisperLleController {
 }
 
 impl<NL: Default + lle::NonLinearOp<f64>> Controller<LleSolver<NL>> for DisperLleController {
+    type Dispersion = lle::LinearOpAdd<f64, (DiffOrder, Complex64), CosDispersion>;
+    fn dispersion(&self) -> Self::Dispersion {
+        (2, Complex64::i() * self.basic.linear.get_value() / 2.).add(self.disper.generate_op())
+    }
     fn construct_engine(&self, dim: usize) -> LleSolver<NL> {
         use lle::LinearOp;
         let step_dist = self.basic.step_dist.get_value();

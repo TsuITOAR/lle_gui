@@ -86,7 +86,7 @@ impl<T: Debug + Float + PartialOrd + FromPrimitive + Copy> SmartPlot<T> {
     }
 }
 
-#[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
+#[derive(serde::Deserialize, serde::Serialize)]
 pub struct LleChart {
     pub(crate) name: String,
     pub(crate) kind: PlotKind,
@@ -96,6 +96,34 @@ pub struct LleChart {
     pub(crate) smart_plot: Option<SmartPlot<f64>>,
     #[serde(skip)]
     pub(crate) show_history: Option<ColorMapDrawer>,
+    #[serde(skip)]
+    pub(crate) additional: Option<egui_plot::Points>,
+}
+
+impl Clone for LleChart {
+    fn clone(&self) -> Self {
+        Self {
+            name: self.name.clone(),
+            kind: self.kind.clone(),
+            proc: self.proc.clone(),
+            smart_plot: self.smart_plot.clone(),
+            show_history: None,
+            additional: None,
+        }
+    }
+}
+
+impl Debug for LleChart {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("LleChart")
+            .field("name", &self.name)
+            .field("kind", &self.kind)
+            .field("proc", &self.proc)
+            .field("smart_plot", &self.smart_plot)
+            .field("show_history", &self.show_history)
+            .field("additional", &self.additional.is_some())
+            .finish()
+    }
 }
 
 #[cfg(not(feature = "gpu"))]
@@ -343,7 +371,10 @@ impl LleChart {
                 if let Some(bound) = set_bound {
                     plot_ui.set_plot_bounds(bound);
                 }
-                plot_ui.line(line)
+                plot_ui.line(line);
+                if let Some(l) = self.additional.take() {
+                    plot_ui.points(l);
+                }
             })
     }
 }
