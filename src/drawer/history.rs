@@ -35,6 +35,10 @@ impl History {
         self.data.extend_from_slice(data);
     }
 
+    pub fn clear(&mut self) {
+        self.data.clear();
+    }
+    
     //todo: implement this
 
     /* pub fn show(&mut self, ui: &mut egui::Ui) {

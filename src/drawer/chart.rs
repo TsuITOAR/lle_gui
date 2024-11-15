@@ -141,7 +141,11 @@ impl LleChart {
                 let mut v = ss.max_log().map(|x| x.get()).unwrap_or_default();
                 ui.horizontal(|ui| {
                     ui.label("Record length: ");
-                    ui.add(DragValue::new(&mut v).update_while_editing(false))
+                    ui.add(
+                        DragValue::new(&mut v)
+                            .range(2..=usize::MAX)
+                            .update_while_editing(false),
+                    )
                 });
                 let new = NonZeroUsize::new(v);
                 if new != ss.max_log() {

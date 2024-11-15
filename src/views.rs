@@ -90,6 +90,7 @@ impl<V> Views<V> {
 
 pub trait Visualize<State> {
     fn toggle_record_his(&mut self, ui: &mut egui::Ui, data: State);
+    fn clear_his(&mut self);
     fn config(&mut self, ui: &mut egui::Ui);
     fn record(&mut self, data: State);
     fn plot(
@@ -105,6 +106,12 @@ impl<const L: usize, S, V: Visualize<S>> Visualize<[S; L]> for Views<[V; L]> {
     fn toggle_record_his(&mut self, ui: &mut egui::Ui, data: [S; L]) {
         for (view, data) in self.views.iter_mut().zip(data.into_iter()) {
             view.toggle_record_his(ui, data);
+        }
+    }
+
+    fn clear_his(&mut self) {
+        for view in self.views.iter_mut() {
+            view.clear_his();
         }
     }
 
@@ -146,6 +153,12 @@ impl<'a> Visualize<&'a [Complex64]> for ViewField {
         self.toggle_record_his(ui, data);
     }
 
+    fn clear_his(&mut self) {
+        if let Some(ref mut his) = self.history {
+            his.clear();
+        }
+    }
+
     fn config(&mut self, ui: &mut egui::Ui) {
         self.show_which(ui);
     }
@@ -174,6 +187,10 @@ impl<'a> Visualize<&'a [Complex64]> for ViewField {
 impl<'a> Visualize<&'a [Complex64]> for Views<ViewField> {
     fn toggle_record_his(&mut self, ui: &mut egui::Ui, data: &'a [Complex64]) {
         self.views.toggle_record_his(ui, data);
+    }
+
+    fn clear_his(&mut self) {
+        self.views.clear_his();
     }
 
     fn config(&mut self, ui: &mut egui::Ui) {

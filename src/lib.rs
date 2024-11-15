@@ -198,7 +198,8 @@ where
             egui::warn_if_debug_build(ui);
             match file.show(ui, core) {
                 Ok(true) => {
-                    *views = Default::default();
+                    //*views = Default::default();
+                    views.clear_his();
                     views.record(core.simulator.states());
                 }
                 Err(e) => {
