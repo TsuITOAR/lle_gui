@@ -196,7 +196,7 @@ where
 
             ui.separator();
             egui::warn_if_debug_build(ui);
-            match file.show(ui, core) {
+            match file.show(ui, ctx, core) {
                 Ok(true) => {
                     *views = Default::default();
                     views.record(core.simulator.states());
@@ -220,6 +220,8 @@ where
 
         if reset {
             core.reset();
+            *views = Default::default();
+            *file = Default::default();
             return;
         }
         if destruct {
