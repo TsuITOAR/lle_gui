@@ -32,7 +32,7 @@ egui_plot = "^0.29"
 serde = { version = "^1", features = [
     "derive",
 ] } # You only need this if you want app persistence
-lle = { git = "https://github.com/TsuITOAR/Lle.git", default-features = false }
+lle = { git = "https://github.com/TsuITOAR/Lle.git" }
 rand = "^0.8"
 anyhow = "^1"
 log = "^0.4"
