@@ -31,9 +31,15 @@ pub(crate) fn config<C: ControllerAsGrid>(dim: &mut usize, properties: &mut C, u
             let mut d_log = (*dim as f64).log(2.) as u32;
             ui.add(
                 DragValue::new(&mut d_log)
-                    .speed(1)
+                    .speed(0.1)
                     .range(7..=15)
-                    .custom_parser(|s| (Some(2u32.pow(s.parse::<u32>().unwrap_or(7)) as _)))
+                    .custom_parser(|s| {
+                        Some(
+                            (s.parse::<u32>()
+                                .map(|x| (x as f64).log(2.) as u32)
+                                .unwrap_or(7)) as _,
+                        )
+                    })
                     .custom_formatter(|v, _| format!("{}", 2u32.pow(v as u32)))
                     .clamp_existing_to_range(true), //.suffix(format!("(2^{})", (*dim as f64).log(2.) as u32)),
             );
