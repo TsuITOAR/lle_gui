@@ -30,7 +30,7 @@ use views::{Views, Visualize};
 
 pub const FONT: &str = "Arial";
 
-pub type App = controller::disper_2modes::App;
+pub type App = controller::App;
 
 pub struct GenApp<P, S, V> {
     core: Core<P, S>,

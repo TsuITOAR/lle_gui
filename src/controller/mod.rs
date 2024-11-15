@@ -4,6 +4,7 @@ pub use traits::*;
 pub mod clle;
 pub mod disper;
 pub mod disper_2modes;
+pub mod cprt;
 
 use lle::{num_complex::Complex64, Evolver, SPhaMod};
 use num_traits::{zero, Zero};
