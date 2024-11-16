@@ -4,6 +4,7 @@
 #![feature(hasher_prefixfree_extras)]
 #![feature(type_alias_impl_trait)]
 #![feature(try_blocks)]
+mod checkpoint;
 mod config;
 mod controller;
 mod core;
@@ -16,6 +17,7 @@ mod random;
 mod util;
 mod views;
 
+use file::FileManager;
 pub use notify::*;
 pub use util::*;
 /*
@@ -33,7 +35,10 @@ pub const FONT: &str = "Arial";
 
 pub type App = controller::App;
 
-pub struct GenApp<P, S, V> {
+pub struct GenApp<P, S, V>
+where
+    S: Simulator,
+{
     core: Core<P, S>,
     is_init: bool,
     slider_len: Option<f32>,
@@ -42,7 +47,9 @@ pub struct GenApp<P, S, V> {
     profiler: bool,
     add_rand: bool,
     show_disper: (bool, f64), //show, scale
-    file: file::File,
+    check_points: checkpoint::CheckPoints<CoreStorage<P, S>>,
+    file_state: file::FileManager,
+    file_checkpoints: file::FileManager,
     #[cfg(feature = "gpu")]
     render_state: eframe::egui_wgpu::RenderState,
 }
@@ -66,18 +73,21 @@ where
     profiler: bool,
     add_rand: bool,
     show_disper: (bool, f64),
-    file: file::File,
+    check_points: checkpoint::CheckPoints<CoreStorage<P, S>>,
+    file_state: file::FileManager,
+    file_checkpoints: file::FileManager,
 }
 
 const APP_NAME: &str = "LLE Simulator";
 
 impl<P, S, V> GenApp<P, S, V>
 where
-    P: Default + Controller<S> + for<'a> serde::Deserialize<'a>,
+    P: Default + Controller<S> + for<'a> serde::Deserialize<'a> + Clone,
     S: Simulator,
     Views<V>: Default
         + for<'a> serde::Deserialize<'a>
         + for<'a> Visualize<<S as SharedState<'a>>::SharedState>,
+    S::OwnedState: Clone,
 {
     /// Called once before the first frame.
     pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
@@ -98,8 +108,10 @@ where
             running: c.running,
             profiler: c.profiler,
             add_rand: c.add_rand,
-            file: c.file,
+            file_state: c.file_state,
+            file_checkpoints: c.file_checkpoints,
             show_disper: c.show_disper,
+            check_points: c.check_points.clone(),
             #[cfg(feature = "gpu")]
             render_state: cc.wgpu_render_state.clone().unwrap(),
         }
@@ -110,6 +122,7 @@ impl<P, S, V> eframe::App for GenApp<P, S, V>
 where
     P: Default + Clone + Controller<S> + serde::Serialize + for<'a> serde::Deserialize<'a>,
     S: Simulator,
+    S::OwnedState: Clone,
     Views<V>: Default
         + for<'a> Visualize<<S as SharedState<'a>>::SharedState>
         + serde::Serialize
@@ -128,8 +141,10 @@ where
             running,
             profiler,
             add_rand,
-            file,
+            file_state,
+            file_checkpoints,
             show_disper,
+            check_points,
             #[cfg(feature = "gpu")]
             render_state,
         } = self;
@@ -214,7 +229,7 @@ where
 
             ui.separator();
             egui::warn_if_debug_build(ui);
-            match file.show(ui, ctx, core) {
+            match file_state.show_save_load(ui, core) {
                 Ok(true) => {
                     //*views = Default::default();
                     views.clear_his();
@@ -227,6 +242,17 @@ where
             }
 
             ui.separator();
+
+            if check_points.show(ui, core) {
+                views.clear_his();
+                views.record(core.simulator.states());
+            }
+            if let Err(e) = file_checkpoints.show_save_load(ui, check_points) {
+                TOASTS.lock().error(e.to_string());
+            }
+
+            ui.separator();
+
             crate::show_profiler(profiler, ui);
         });
 
@@ -240,7 +266,8 @@ where
         if reset {
             core.reset();
             *views = Default::default();
-            *file = Default::default();
+            *file_state = FileManager::default_state();
+            *file_checkpoints = FileManager::default_check_points();
             return;
         }
         if destruct {
@@ -279,8 +306,10 @@ where
             running: self.running,
             profiler: self.profiler,
             add_rand: self.add_rand,
+            check_points: self.check_points.clone(),
             show_disper: self.show_disper,
-            file: self.file.clone_for_save(),
+            file_state: self.file_state.clone_for_save(),
+            file_checkpoints: self.file_checkpoints.clone_for_save(),
         };
         eframe::set_value(storage, APP_NAME, &state);
     }
@@ -314,7 +343,9 @@ where
             profiler: false,
             add_rand: false,
             show_disper: (false, 1.),
-            file: Default::default(),
+            check_points: Default::default(),
+            file_state: FileManager::default_state(),
+            file_checkpoints: FileManager::default_check_points(),
         }
     }
 }

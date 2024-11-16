@@ -40,36 +40,37 @@ mod native {
         }
     }
 
-    #[derive(Debug, Default, serde::Deserialize, serde::Serialize)]
+    #[derive(Debug, serde::Deserialize, serde::Serialize)]
     pub struct FileStorage {
-        read: Option<PathBuf>,
-        save: Option<PathBuf>,
+        pub(crate) name: String,
+        pub(crate) read: Option<PathBuf>,
+        pub(crate) save: Option<PathBuf>,
     }
 
-    impl<'a> From<&'a super::File> for FileStorage {
-        fn from(f: &'a super::File) -> Self {
-            Self {
-                read: f.read.clone().map(|x| x.path().to_owned()),
-                save: f.save.clone().map(|x| x.path().to_owned()),
-            }
-        }
-    }
-
-    impl From<FileStorage> for super::File {
+    impl From<FileStorage> for super::FileManager {
         fn from(f: FileStorage) -> Self {
             Self {
-                read: f.read.map(FileHandle::from),
-                save: f.save.map(FileHandle::from),
-                read_spawn: None,
-                read_io_spawn: None,
-                save_spawn: None,
-                save_io_spawn: None,
-                cache: None,
+                name: f.name,
+                files: super::FilePaths {
+                    read: f.read.map(FileHandle::from),
+                    save: f.save.map(FileHandle::from),
+                },
+                futures: Default::default(),
             }
         }
     }
 
-    impl serde::Serialize for super::File {
+    impl From<&super::FileManager> for FileStorage {
+        fn from(f: &super::FileManager) -> Self {
+            Self {
+                name: f.name.clone(),
+                read: f.files.read.as_ref().map(|x| x.path().to_path_buf()),
+                save: f.files.save.as_ref().map(|x| x.path().to_path_buf()),
+            }
+        }
+    }
+
+    impl serde::Serialize for super::FileManager {
         fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
         where
             S: serde::Serializer,
@@ -78,7 +79,7 @@ mod native {
         }
     }
 
-    impl<'de> serde::Deserialize<'de> for super::File {
+    impl<'de> serde::Deserialize<'de> for super::FileManager {
         fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
         where
             D: serde::Deserializer<'de>,
@@ -87,11 +88,8 @@ mod native {
         }
     }
 
-    pub fn show_file_name(file: Option<&FileHandle>, ui: &mut egui::Ui) {
-        ui.add(egui::Label::new(
-            file.map(FileHandle::file_name)
-                .unwrap_or("Not set".to_string()),
-        ));
+    pub fn file_name(file: Option<&FileHandle>) -> Option<String> {
+        file.map(FileHandle::file_name)
     }
 }
 
@@ -132,31 +130,48 @@ mod wasm {
     }
 
     #[derive(Debug, Default, serde::Deserialize, serde::Serialize)]
-    pub struct FileStorage {}
+    pub struct FileStorage {
+        name: String,
+    }
 
-    impl serde::Serialize for super::File {
-        fn serialize<S>(&self, _serializer: S) -> Result<S::Ok, S::Error>
+    impl From<FileStorage> for super::FileManager {
+        fn from(f: FileStorage) -> Self {
+            Self {
+                name: f.name,
+                files: Default::default(),
+                futures: Default::default(),
+            }
+        }
+    }
+
+    impl From<&super::FileManager> for FileStorage {
+        fn from(f: &super::FileManager) -> Self {
+            Self {
+                name: f.name.clone(),
+            }
+        }
+    }
+
+    impl serde::Serialize for super::FileManager {
+        fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
         where
             S: serde::Serializer,
         {
-            FileStorage::default().serialize(_serializer)
+            FileStorage::from(self).serialize(serializer)
         }
     }
 
-    impl<'de> serde::Deserialize<'de> for super::File {
-        fn deserialize<D>(_deserializer: D) -> Result<Self, D::Error>
+    impl<'de> serde::Deserialize<'de> for super::FileManager {
+        fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
         where
             D: serde::Deserializer<'de>,
         {
-            Ok(Self::default())
+            FileStorage::deserialize(deserializer).map(Self::from)
         }
     }
 
-    pub fn show_file_name(file: Option<&FileHandle>, ui: &mut egui::Ui) {
-        ui.add(egui::Label::new(
-            file.map(FileHandle::file_name)
-                .unwrap_or("Not set".to_string()),
-        ));
+    pub fn file_name(file: Option<&FileHandle>) -> Option<String> {
+        file.map(FileHandle::file_name)
     }
 }
 
@@ -166,19 +181,39 @@ use wasm::*;
 #[cfg(not(target_arch = "wasm32"))]
 use native::*;
 
+use crate::{
+    controller::{Controller, Simulator},
+    core::{Core, CoreStorage},
+};
+
 #[derive(Debug, Default)]
-pub struct File {
-    read: Option<FileHandle>,
+pub struct FileFutures {
+    write_spawn: Option<FutureFileHandle>,
     read_spawn: Option<FutureFileHandle>,
     read_io_spawn: Option<FutureFileReadHandle>,
-    save: Option<FileHandle>,
-    save_spawn: Option<FutureFileHandle>,
     save_io_spawn: Option<FutureFileSaveHandle>,
     cache: Option<Arc<Vec<u8>>>,
 }
 
-impl File {
-    pub fn poll<P: for<'de> serde::Deserialize<'de>>(&mut self, p: &mut P) -> anyhow::Result<bool> {
+#[derive(Debug, Default, Clone)]
+pub struct FilePaths {
+    read: Option<FileHandle>,
+    save: Option<FileHandle>,
+}
+
+#[derive(Debug)]
+pub struct FileManager {
+    name: String,
+    files: FilePaths,
+    futures: FileFutures,
+}
+
+impl FileFutures {
+    pub fn poll<P: for<'de> serde::Deserialize<'de>>(
+        &mut self,
+        p: &mut P,
+        files: &mut FilePaths,
+    ) -> anyhow::Result<bool> {
         let mut changed = false;
         if let Some(data) = try_poll(&mut self.read_io_spawn) {
             let state = bincode::deserialize(&data)?;
@@ -190,32 +225,77 @@ impl File {
         try_poll(&mut self.save_io_spawn);
 
         if let Some(Some(read)) = try_poll(&mut self.read_spawn) {
-            self.update_read(read)?;
+            files.update_read(read)?;
+            self.cache = None;
         }
 
-        if let Some(Some(save)) = try_poll(&mut self.save_spawn) {
-            self.update_save(save)?;
+        if let Some(Some(save)) = try_poll(&mut self.write_spawn) {
+            files.update_save(save)?;
         }
 
         Ok(changed)
     }
 
-    pub(crate) fn clone_for_save(&self) -> Self {
-        Self {
-            read: self.read.clone(),
-            save: self.save.clone(),
-            cache: None,
-            read_spawn: None,
-            save_spawn: None,
-            read_io_spawn: None,
-            save_io_spawn: None,
+    pub(crate) fn spawn_read_browser<S: Extension>(&mut self) -> anyhow::Result<()> {
+        self.read_spawn.get_or_insert_with(|| {
+            spawn(async move {
+                rfd::AsyncFileDialog::new()
+                    .add_filter("model", &[S::extension()])
+                    .add_filter("all", &["*"])
+                    .pick_file()
+                    .await
+            })
+        });
+        Ok(())
+    }
+
+    pub(crate) fn spawn_write_browser<S: Extension>(&mut self) -> anyhow::Result<()> {
+        self.write_spawn.get_or_insert_with(|| {
+            spawn(async move {
+                rfd::AsyncFileDialog::new()
+                    .add_filter("model", &[S::extension()])
+                    .add_filter("all", &["*"])
+                    .save_file()
+                    .await
+            })
+        });
+        Ok(())
+    }
+
+    pub(crate) fn spawn_read(&mut self, file: &FileHandle) -> anyhow::Result<()> {
+        if let Some(ref data) = self.cache {
+            let data = data.clone();
+            self.read_io_spawn = Some(spawn(async move { data }));
+            Ok(())
+        } else {
+            let file = file.clone();
+            self.read_io_spawn = Some(spawn(async move {
+                let data = file.read().await;
+                Arc::new(data)
+            }));
+            Ok(())
         }
     }
 
+    pub(crate) fn spawn_write<T: serde::Serialize>(
+        &mut self,
+        file: &FileHandle,
+        t: &T,
+    ) -> anyhow::Result<()> {
+        let file = file.clone();
+        let serialized_data = bincode::serialize(t)?;
+        self.save_io_spawn = Some(spawn(async move {
+            let serialized_data = serialized_data;
+            file.write(&serialized_data).await?;
+            Ok(())
+        }));
+        Ok(())
+    }
+}
+
+impl FilePaths {
     pub(crate) fn update_read(&mut self, read: FileHandle) -> anyhow::Result<()> {
         self.read = Some(read);
-        self.cache = None;
-
         Ok(())
     }
 
@@ -223,64 +303,66 @@ impl File {
         self.save = Some(save);
         Ok(())
     }
+}
 
-    pub(crate) fn save_state<P: serde::Serialize>(&mut self, state: &P) -> anyhow::Result<()> {
-        if let Some(ref s) = self.save {
-            let serialized_data = bincode::serialize(state)?;
-            let s = s.clone();
-            self.save_io_spawn = Some(spawn(async move {
-                let serialized_data = serialized_data;
-                s.write(&serialized_data).await?;
-                Ok(())
-            }));
-        } else {
-            bail!("Save path not set");
+impl FileManager {
+    pub(crate) fn default_state() -> Self {
+        Self::new("Save state")
+    }
+
+    pub(crate) fn default_check_points() -> Self {
+        Self::new("Save checkpoints")
+    }
+
+    pub fn new(n: impl ToString) -> Self {
+        Self {
+            name: n.to_string(),
+            files: Default::default(),
+            futures: Default::default(),
         }
+    }
 
+    pub(crate) fn clone_for_save(&self) -> Self {
+        Self {
+            name: self.name.clone(),
+            files: self.files.clone(),
+            futures: Default::default(),
+        }
+    }
+
+    pub fn start_read(&mut self) -> anyhow::Result<()> {
+        if let Some(ref read) = self.files.read {
+            self.futures.spawn_read(read)?;
+        } else {
+            bail!("Read file not set");
+        }
+        Ok(())
+    }
+    pub fn start_write<T: serde::Serialize>(&mut self, s: &T) -> anyhow::Result<()> {
+        if let Some(ref save) = self.files.save {
+            self.futures.spawn_write(save, s)?;
+        } else {
+            bail!("Save file not set");
+        }
         Ok(())
     }
 
-    pub(crate) fn load_state(&mut self) -> anyhow::Result<()> {
-        if let Some(ref data) = self.cache {
-            let data = data.clone();
-            self.read_io_spawn = Some(spawn(async move { data }));
-            Ok(())
-        } else if let Some(ref s) = self.read {
-            let s = s.clone();
-            self.read_io_spawn = Some(spawn(async move {
-                let data = s.read().await;
-                Arc::new(data)
-            }));
-            Ok(())
-        } else {
-            bail!("Read path not set");
-        }
-    }
-}
-
-impl File {
-    pub fn show<S: serde::Serialize + for<'de> serde::Deserialize<'de>>(
-        &mut self,
-        ui: &mut egui::Ui,
-        ctx: &egui::Context,
-        s: &mut S,
-    ) -> anyhow::Result<bool> {
-        ui.collapsing("File", |ui| -> anyhow::Result<()> {
+    pub fn show_save_load<S>(&mut self, ui: &mut egui::Ui, s: &mut S) -> anyhow::Result<bool>
+    where
+        S: Extension + serde::Serialize + for<'de> serde::Deserialize<'de>,
+    {
+        ui.collapsing(self.name.clone(), |ui| -> anyhow::Result<()> {
             ui.horizontal(|ui| -> anyhow::Result<()> {
                 if ui.button("Read").clicked() {
-                    self.load_state()?;
+                    self.start_read()?;
                 }
-                show_file_name(self.read.as_ref(), ui);
                 //ui.add(egui::TextEdit::singleline(&mut self.read).hint_text("File path to load"));
-                if ui.button("Browse").clicked() {
-                    let ctx = ctx.clone();
-                    self.read_spawn.get_or_insert_with(|| {
-                        spawn(async move {
-                            let s = rfd::AsyncFileDialog::new().pick_file().await;
-                            ctx.request_repaint();
-                            s
-                        })
-                    });
+                let file = self.files.read.as_ref();
+                if ui
+                    .button(file_name(file).unwrap_or("Set read path".to_string()))
+                    .clicked()
+                {
+                    self.futures.spawn_read_browser::<S>()?;
                 }
 
                 Ok(())
@@ -289,32 +371,51 @@ impl File {
 
             ui.horizontal(|ui| -> anyhow::Result<()> {
                 if ui.button("Save").clicked() {
-                    self.save_state(s)?;
+                    self.start_write(s)?;
                 }
-                show_file_name(self.save.as_ref(), ui);
                 //ui.add(egui::TextEdit::singleline(&mut self.save).hint_text("File path to save"));
-                if ui.button("Browse").clicked() {
-                    let ctx = ctx.clone();
-                    self.save_spawn.get_or_insert_with(|| {
-                        spawn(async move {
-                            let s = rfd::AsyncFileDialog::new().save_file().await;
-                            ctx.request_repaint();
-                            s
-                        })
-                    });
+                let file = self.files.save.as_ref();
+                if ui
+                    .button(file_name(file).unwrap_or("Set save path".to_string()))
+                    .clicked()
+                {
+                    self.futures.spawn_write_browser::<S>()?;
                 }
 
                 Ok(())
             })
             .inner?;
             if ui.button("Refresh cache").clicked() {
-                self.cache = None;
+                self.futures.cache = None;
             }
             Ok(())
         })
         .body_returned
         .unwrap_or(Ok(()))?;
-        let changed = self.poll(s)?;
+        let changed = self.futures.poll(s, &mut self.files)?;
         Ok(changed)
     }
+}
+
+pub trait Extension {
+    const EXTENSION: &'static str;
+    fn extension() -> String {
+        Self::EXTENSION.to_string()
+    }
+}
+
+impl<C, S> Extension for Core<C, S>
+where
+    C: Controller<S>,
+    S: Simulator,
+{
+    const EXTENSION: &'static str = C::EXTENSION;
+}
+
+impl<C, S> Extension for CoreStorage<C, S>
+where
+    C: Controller<S>,
+    S: Simulator,
+{
+    const EXTENSION: &'static str = C::EXTENSION;
 }

@@ -6,20 +6,20 @@ use crate::{
 };
 
 #[derive(Debug)]
-pub struct Core<P, S> {
+pub struct Core<C, S> {
     pub(crate) dim: usize,
-    pub(crate) controller: P,
+    pub(crate) controller: C,
     pub(crate) simulator: S,
     pub(crate) random: RandomNoise,
 }
 
-impl<P, S> Default for Core<P, S>
+impl<C, S> Default for Core<C, S>
 where
-    P: Default + Controller<S>,
+    C: Default + Controller<S>,
 {
     fn default() -> Self {
         let dim: usize = 128;
-        let controller = P::default();
+        let controller = C::default();
         let simulator = controller.construct_engine(dim);
         Self {
             dim,
@@ -30,12 +30,12 @@ where
     }
 }
 
-impl<P, S> Core<P, S>
+impl<C, S> Core<C, S>
 where
-    P: Controller<S>,
+    C: Controller<S>,
     S: Simulator,
 {
-    pub fn new(controller: P, dim: usize) -> Self {
+    pub fn new(controller: C, dim: usize) -> Self {
         let simulator = controller.construct_engine(dim);
         Self {
             controller,
@@ -46,9 +46,9 @@ where
     }
 }
 
-impl<P, Q> serde::Serialize for Core<P, Q>
+impl<C, Q> serde::Serialize for Core<C, Q>
 where
-    P: serde::Serialize + Clone,
+    C: serde::Serialize + Clone,
     Q: Simulator,
     <Q as StoreState>::OwnedState: serde::Serialize,
 {
@@ -61,16 +61,16 @@ where
     }
 }
 
-impl<'a, P, S> serde::Deserialize<'a> for Core<P, S>
+impl<'a, C, S> serde::Deserialize<'a> for Core<C, S>
 where
-    for<'de> P: serde::Deserialize<'de> + Controller<S>,
+    for<'de> C: serde::Deserialize<'de> + Controller<S>,
     S: Simulator,
 {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: serde::Deserializer<'a>,
     {
-        Ok(CoreStorage::<P, S>::deserialize(deserializer)?.into())
+        Ok(CoreStorage::<C, S>::deserialize(deserializer)?.into())
     }
 }
 
@@ -89,12 +89,27 @@ where
     pub(crate) random: RandomNoise,
 }
 
-impl<'a, P, S> From<&'a Core<P, S>> for CoreStorage<P, S>
+impl<P, S: Simulator> Clone for CoreStorage<P, S>
 where
     P: Clone,
+    S::OwnedState: Clone,
+{
+    fn clone(&self) -> Self {
+        Self {
+            dim: self.dim,
+            controller: self.controller.clone(),
+            simulator_state: self.simulator_state.clone(),
+            random: self.random.clone(),
+        }
+    }
+}
+
+impl<'a, C, S> From<&'a Core<C, S>> for CoreStorage<C, S>
+where
+    C: Clone,
     S: Simulator,
 {
-    fn from(core: &'a Core<P, S>) -> Self {
+    fn from(core: &'a Core<C, S>) -> Self {
         Self {
             dim: core.dim,
             controller: core.controller.clone(),
@@ -104,12 +119,12 @@ where
     }
 }
 
-impl<P, S> From<CoreStorage<P, S>> for Core<P, S>
+impl<C, S> From<CoreStorage<C, S>> for Core<C, S>
 where
-    P: Controller<S>,
+    C: Controller<S>,
     S: Simulator,
 {
-    fn from(storage: CoreStorage<P, S>) -> Self {
+    fn from(storage: CoreStorage<C, S>) -> Self {
         let mut e = storage.controller.construct_engine(storage.dim);
         e.set_owned_state(storage.simulator_state);
         Self {
@@ -121,16 +136,16 @@ where
     }
 }
 
-impl<P, S> Default for CoreStorage<P, S>
+impl<C, S> Default for CoreStorage<C, S>
 where
-    P: Default + Controller<S>,
+    C: Default + Controller<S>,
     S: Simulator,
 {
     fn default() -> Self {
         let dim: usize = 128;
         Self {
             dim,
-            controller: P::default(),
+            controller: C::default(),
             simulator_state: S::default_state(dim),
             random: RandomNoise::default(),
         }

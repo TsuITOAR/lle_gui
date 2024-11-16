@@ -159,4 +159,39 @@ impl PlotKind {
             }
         })
     }
+
+    pub(crate) fn plot<'a>(
+        &self,
+        plot: egui_plot::Plot<'_>,
+        ui: &mut egui::Ui,
+        bound: Option<egui_plot::PlotBounds>,
+        elements: impl Iterator<Item = (egui_plot::PlotPoints, Option<&'a str>)>,
+    ) -> egui_plot::PlotResponse<()> {
+        plot.show(ui, |plot_ui| {
+            if let Some(bound) = bound {
+                plot_ui.set_plot_bounds(bound);
+            }
+
+            match self {
+                PlotKind::Line => {
+                    elements.for_each(|(e, d)| {
+                        if let Some(d) = d {
+                            plot_ui.line(egui_plot::Line::new(e).name(d));
+                        } else {
+                            plot_ui.line(egui_plot::Line::new(e));
+                        }
+                    });
+                }
+                PlotKind::Points => {
+                    elements.for_each(|(e, d)| {
+                        if let Some(d) = d {
+                            plot_ui.points(egui_plot::Points::new(e).name(d));
+                        } else {
+                            plot_ui.points(egui_plot::Points::new(e));
+                        }
+                    });
+                }
+            }
+        })
+    }
 }

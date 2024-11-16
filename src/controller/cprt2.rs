@@ -10,14 +10,14 @@ pub type App =
     crate::GenApp<CprtLleController, LleSolver<lle::SPhaMod, Complex64>, crate::drawer::ViewField>;
 
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
-pub struct Cprt1 {
+pub struct Cprt {
     center_pos: Property<f64>,
     period: Property<f64>,
     couple_strength: Property<f64>,
     frac_d1_2pi: Property<f64>,
 }
 
-impl Default for Cprt1 {
+impl Default for Cprt {
     fn default() -> Self {
         Self {
             center_pos: Property::new(0., "Center Position").range((-20., 20.)),
@@ -28,7 +28,7 @@ impl Default for Cprt1 {
     }
 }
 
-impl Cprt1 {
+impl Cprt {
     pub(crate) fn show_in_control_panel(&mut self, ui: &mut egui::Ui) {
         self.center_pos.show_in_control_panel(ui);
         self.period.show_in_control_panel(ui);
@@ -36,8 +36,8 @@ impl Cprt1 {
         self.frac_d1_2pi.show_in_control_panel(ui);
     }
 
-    pub fn generate_op(&self) -> CprtDispersion1 {
-        CprtDispersion1 {
+    pub fn generate_op(&self) -> CprtDispersion {
+        CprtDispersion {
             center_pos: self.center_pos.get_value(),
             period: self.period.get_value(),
             couple_strength: self.couple_strength.get_value(),
@@ -47,24 +47,33 @@ impl Cprt1 {
 }
 
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
-pub struct CprtDispersion1 {
+pub struct CprtDispersion {
     center_pos: f64,
     period: f64,
     couple_strength: f64,
     frac_d1_2pi: f64,
 }
 
-impl LinearOp<f64> for CprtDispersion1 {
+impl LinearOp<f64> for CprtDispersion {
     fn get_value(&self, _step: Step, freq: Freq) -> Complex64 {
+        let branch = freq % 2;
         let f = |f: f64| {
-            let cos1 = ((f - self.center_pos) / self.period * std::f64::consts::PI * 2.).cos();
+            let cos1 =
+                ((f.div_euclid(2.) - self.center_pos) / self.period * std::f64::consts::PI * 2.)
+                    .cos();
 
             let cos2 = self.couple_strength.cos();
 
             self.frac_d1_2pi * (((cos1 * cos2).acos()).rem_euclid(PI))
         };
+        let gap = f(self.center_pos) * 2. * self.frac_d1_2pi;
 
-        -Complex64::i() * (f(freq as _) - f(0.)) * self.frac_d1_2pi
+        if branch == 0 {
+            Complex64::i() * (-f(freq as _) - (-f(0.))) * self.frac_d1_2pi
+        } else {
+            Complex64::i() * (f(freq as _) - (-f(0.))) * self.frac_d1_2pi + self.frac_d1_2pi
+                - gap * 2.
+        }
     }
     fn skip(&self) -> bool {
         self.couple_strength.is_zero()
@@ -76,7 +85,7 @@ pub type LleSolver<NL, C> = lle::LleSolver<f64, Vec<Complex64>, LinearOpCached<f
 #[derive(Debug, Clone, Default, serde::Deserialize, serde::Serialize)]
 pub struct CprtLleController {
     basic: super::LleController,
-    disper: Cprt1,
+    disper: Cprt,
 }
 
 impl CprtLleController {
@@ -93,7 +102,8 @@ impl CprtLleController {
 impl<NL: Default + lle::NonLinearOp<f64>> Controller<LleSolver<NL, Complex64>>
     for CprtLleController
 {
-    type Dispersion = lle::LinearOpAdd<f64, (DiffOrder, Complex64), CprtDispersion1>;
+    const EXTENSION: &'static str = "cprt";
+    type Dispersion = lle::LinearOpAdd<f64, (DiffOrder, Complex64), CprtDispersion>;
     fn dispersion(&self) -> Self::Dispersion {
         (2, Complex64::i() * self.basic.linear.get_value() / 2.)
             .add_linear_op(self.disper.generate_op())

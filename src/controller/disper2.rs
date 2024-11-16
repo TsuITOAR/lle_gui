@@ -89,6 +89,7 @@ impl DisperLleController2 {
 impl<NL: Default + lle::NonLinearOp<f64>> Controller<LleSolver<NL, Complex64>>
     for DisperLleController2
 {
+    const EXTENSION: &'static str = "dis2";
     type Dispersion = lle::LinearOpAdd<f64, (DiffOrder, Complex64), CosDispersion2>;
     fn dispersion(&self) -> Self::Dispersion {
         (2, Complex64::i() * self.basic.linear.get_value() / 2.)

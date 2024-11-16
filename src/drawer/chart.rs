@@ -254,12 +254,9 @@ impl LleChart {
                             .max_rect(rect)
                             .layout(*ui.layout()),
                     );
-                    #[allow(unused_must_use)]
-                    {
-                        history
-                            .draw_mat_on_ui(data.len(), &mut cui)
-                            .expect("can't plot colormap");
-                    }
+                    history
+                        .draw_mat_on_ui(data.len(), &mut cui)
+                        .expect("can't plot colormap");
                 } else {
                     chart.plot_in(data.into_iter(), &mut ui, running, None);
                 }
@@ -283,23 +280,12 @@ impl LleChart {
         let desc = self.proc.component.desc();
         let additional = self.additional.take();
         let plot = self.plot(ui, height);
-        match plot_kind {
-            PlotKind::Line => plot.show(ui, |plot_ui| {
-                if let Some(bound) = bound {
-                    plot_ui.set_plot_bounds(bound);
-                }
-                plot_ui.line(egui_plot::Line::new(line).name(desc));
-                if let Some(additional) = additional {
-                    plot_ui.line(egui_plot::Line::new(additional));
-                }
-            }),
-            PlotKind::Points => plot.show(ui, |plot_ui| {
-                plot_ui.points(egui_plot::Points::new(line).name(desc));
-                if let Some(additional) = additional {
-                    plot_ui.points(egui_plot::Points::new(additional));
-                }
-            }),
-        }
+        plot_kind.plot(
+            plot,
+            ui,
+            bound,
+            std::iter::once((line, Some(desc))).chain(additional.map(|x| (x, None))),
+        )
     }
 
     pub(crate) fn convert_data(

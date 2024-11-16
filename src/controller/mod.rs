@@ -3,9 +3,9 @@ pub use traits::*;
 
 pub mod clle;
 pub mod cprt;
-pub mod cprt1;
+pub mod cprt2;
 pub mod disper;
-pub mod disper_2modes;
+pub mod disper2;
 
 use lle::{num_complex::Complex64, ConstOp, Evolver, SPhaMod};
 use num_traits::{zero, Zero};
@@ -24,6 +24,7 @@ pub type LleSolver<NL, C> = lle::LleSolver<
     C,
 >;
 impl<NL: Default + lle::NonLinearOp<f64>> Controller<LleSolver<NL, Complex64>> for LleController {
+    const EXTENSION: &'static str = "lle";
     type Dispersion = (lle::DiffOrder, Complex64);
     fn dispersion(&self) -> Self::Dispersion {
         (2, Complex64::i() * self.linear.get_value() / 2.)
@@ -153,6 +154,9 @@ impl<
     }
     fn add_rand(&mut self, r: &mut RandomNoise) {
         r.add_random(self.state_mut());
+    }
+    fn cur_step(&self) -> u32 {
+        <Self as lle::Evolver<f64>>::cur_step(self)
     }
 }
 

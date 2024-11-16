@@ -81,9 +81,11 @@ pub struct DisperLleController {
 }
 
 impl<NL: Default + lle::NonLinearOp<f64>> Controller<LleSolver<NL>> for DisperLleController {
+    const EXTENSION: &'static str = "dis";
     type Dispersion = lle::LinearOpAdd<f64, (DiffOrder, Complex64), CosDispersion>;
     fn dispersion(&self) -> Self::Dispersion {
-        (2, Complex64::i() * self.basic.linear.get_value() / 2.).add_linear_op(self.disper.generate_op())
+        (2, Complex64::i() * self.basic.linear.get_value() / 2.)
+            .add_linear_op(self.disper.generate_op())
     }
     fn construct_engine(&self, dim: usize) -> LleSolver<NL> {
         use lle::LinearOp;
@@ -106,7 +108,7 @@ impl<NL: Default + lle::NonLinearOp<f64>> Controller<LleSolver<NL>> for DisperLl
             .build()
     }
     fn show_in_control_panel(&mut self, ui: &mut egui::Ui) {
-        Controller::<super::LleSolver<NL,Complex64>>::show_in_control_panel(&mut self.basic, ui);
+        Controller::<super::LleSolver<NL, Complex64>>::show_in_control_panel(&mut self.basic, ui);
         self.disper.show_in_control_panel(ui);
     }
 

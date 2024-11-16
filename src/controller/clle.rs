@@ -38,6 +38,7 @@ pub type CLleSolver = lle::CoupledLleSolver<
 >;
 
 impl Controller<CLleSolver> for CoupleLleController {
+    const EXTENSION: &'static str = "clle";
     type Dispersion = (DiffOrder, Complex64);
     fn dispersion(&self) -> Self::Dispersion {
         (2, Complex64::i() * self.basic.linear.get_value() / 2.)
@@ -151,5 +152,8 @@ impl Simulator for CLleSolver {
     fn run(&mut self, steps: u32) {
         use lle::Evolver;
         self.evolve_n(steps)
+    }
+    fn cur_step(&self) -> u32 {
+        <Self as lle::Evolver<f64>>::cur_step(self)
     }
 }

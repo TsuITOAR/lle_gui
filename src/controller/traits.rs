@@ -1,6 +1,7 @@
 use crate::random::RandomNoise;
 
 pub trait Controller<E> {
+    const EXTENSION: &'static str;
     type Dispersion: lle::LinearOp<f64>;
     fn dispersion(&self) -> Self::Dispersion;
     fn construct_engine(&self, dim: usize) -> E;
@@ -37,4 +38,5 @@ pub trait StoreState {
 pub trait Simulator: for<'a> SharedState<'a> + StoreState {
     fn add_rand(&mut self, random: &mut RandomNoise);
     fn run(&mut self, steps: u32);
+    fn cur_step(&self) -> u32;
 }
