@@ -89,6 +89,7 @@ impl<V> Views<V> {
 }
 
 pub trait Visualize<State> {
+    fn adjust_to_state(&mut self, data: State);
     fn toggle_record_his(&mut self, ui: &mut egui::Ui, data: State);
     fn clear_his(&mut self);
     fn config(&mut self, ui: &mut egui::Ui);
@@ -104,6 +105,11 @@ pub trait Visualize<State> {
 }
 
 impl<const L: usize, S, V: Visualize<S>> Visualize<[S; L]> for Views<[V; L]> {
+    fn adjust_to_state(&mut self, data: [S; L]) {
+        for (view, data) in self.views.iter_mut().zip(data.into_iter()) {
+            view.adjust_to_state(data);
+        }
+    }
     fn toggle_record_his(&mut self, ui: &mut egui::Ui, data: [S; L]) {
         for (view, data) in self.views.iter_mut().zip(data.into_iter()) {
             view.toggle_record_his(ui, data);
@@ -156,6 +162,17 @@ impl<const L: usize, S, V: Visualize<S>> Visualize<[S; L]> for Views<[V; L]> {
 }
 
 impl<'a> Visualize<&'a [Complex64]> for ViewField {
+    fn adjust_to_state(&mut self, data: &'a [Complex64]) {
+        if let Some(ref mut f) = self.f_chart {
+            f.adjust_to_state(data);
+        }
+        if let Some(ref mut r) = self.r_chart {
+            r.adjust_to_state(data);
+        }
+        self.clear_his();
+        self.record(data);
+    }
+
     fn toggle_record_his(&mut self, ui: &mut egui::Ui, data: &'a [Complex64]) {
         self.toggle_record_his(ui, data);
     }
@@ -197,6 +214,9 @@ impl<'a> Visualize<&'a [Complex64]> for ViewField {
 }
 
 impl<'a> Visualize<&'a [Complex64]> for Views<ViewField> {
+    fn adjust_to_state(&mut self, data: &'a [Complex64]) {
+        self.views.adjust_to_state(data);
+    }
     fn toggle_record_his(&mut self, ui: &mut egui::Ui, data: &'a [Complex64]) {
         self.views.toggle_record_his(ui, data);
     }

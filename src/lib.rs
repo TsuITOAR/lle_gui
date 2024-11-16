@@ -33,7 +33,9 @@ use views::{Views, Visualize};
 
 pub const FONT: &str = "Arial";
 
-pub type App = controller::App;
+mod construct;
+
+pub use construct::App;
 
 pub struct GenApp<P, S, V>
 where
@@ -231,9 +233,7 @@ where
             egui::warn_if_debug_build(ui);
             match file_state.show_save_load(ui, core) {
                 Ok(true) => {
-                    //*views = Default::default();
-                    views.clear_his();
-                    views.record(core.simulator.states());
+                    views.adjust_to_state(core.simulator.states());
                 }
                 Err(e) => {
                     TOASTS.lock().error(e.to_string());
@@ -244,8 +244,7 @@ where
             ui.separator();
 
             if check_points.show(ui, core) {
-                views.clear_his();
-                views.record(core.simulator.states());
+                views.adjust_to_state(core.simulator.states());
             }
             if let Err(e) = file_checkpoints.show_save_load(ui, check_points) {
                 TOASTS.lock().error(e.to_string());

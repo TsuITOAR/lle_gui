@@ -187,11 +187,21 @@ pub struct FftProcess {
 
 impl FftProcess {
     pub(crate) fn get_fft(&mut self, len: usize) -> &mut (Fft, Vec<Complex64>) {
+        if self.target_len().map_or(false, |x| x != len) {
+            crate::TOASTS
+                .lock()
+                .warning("Unmatched FftProcess length, reinitializing");
+            self.s = None;
+        }
         self.s.get_or_insert_with(|| {
             let f = FftPlanner::new().plan_fft_forward(len);
             let buf = vec![Complex64::zero(); f.get_inplace_scratch_len()];
             (f, buf)
         })
+    }
+
+    pub(crate) fn target_len(&self) -> Option<usize> {
+        self.s.as_ref().map(|x| x.1.len())
     }
 }
 

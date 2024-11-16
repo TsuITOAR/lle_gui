@@ -142,6 +142,12 @@ pub(crate) trait DrawMat {
 }
 
 impl LleChart {
+    pub(crate) fn adjust_to_state(&mut self, data: &[Complex64]) {
+        if self.proc.fft.as_ref().map(|x| x.target_len()) == Some(Some(data.len())) {
+            self.proc.fft = Some(crate::drawer::process::FftProcess::default());
+        }
+    }
+
     pub(crate) fn control_panel_history(
         &mut self,
         ui: &mut egui::Ui,
