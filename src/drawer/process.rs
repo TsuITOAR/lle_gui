@@ -119,13 +119,11 @@ impl Process {
     }
 
     pub(crate) fn controller(&mut self, ui: &mut egui::Ui) {
-        ui.horizontal(|ui| {
-            crate::toggle_option(ui, &mut self.fft, "FFT");
-            ui.separator();
-            self.component.show(ui);
-            ui.separator();
-            ui.toggle_value(&mut self.db_scale, "dB scale")
-        });
+        crate::toggle_option(ui, &mut self.fft, "FFT");
+        ui.separator();
+        self.component.show(ui);
+        ui.separator();
+        ui.toggle_value(&mut self.db_scale, "dB scale");
     }
 }
 

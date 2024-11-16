@@ -7,26 +7,28 @@ pub mod cprt1;
 pub mod disper;
 pub mod disper_2modes;
 
-use lle::{num_complex::Complex64, Evolver, SPhaMod};
+use lle::{num_complex::Complex64, ConstOp, Evolver, SPhaMod};
 use num_traits::{zero, Zero};
 
 use crate::{property::Property, random::RandomNoise};
 
 #[allow(unused)]
-pub type App = crate::GenApp<LleController, LleSolver<lle::SPhaMod>, crate::drawer::ViewField>;
+pub type App =
+    crate::GenApp<LleController, LleSolver<lle::SPhaMod, Complex64>, crate::drawer::ViewField>;
 
-pub type LleSolver<NL> = lle::LleSolver<
+pub type LleSolver<NL, C> = lle::LleSolver<
     f64,
     Vec<Complex64>,
     lle::LinearOpAdd<f64, (lle::DiffOrder, Complex64), (lle::DiffOrder, Complex64)>,
     NL,
+    C,
 >;
-impl<NL: Default + lle::NonLinearOp<f64>> Controller<LleSolver<NL>> for LleController {
+impl<NL: Default + lle::NonLinearOp<f64>> Controller<LleSolver<NL, Complex64>> for LleController {
     type Dispersion = (lle::DiffOrder, Complex64);
     fn dispersion(&self) -> Self::Dispersion {
         (2, Complex64::i() * self.linear.get_value() / 2.)
     }
-    fn construct_engine(&self, dim: usize) -> LleSolver<NL> {
+    fn construct_engine(&self, dim: usize) -> LleSolver<NL, Complex64> {
         use lle::LinearOp;
         let step_dist = self.step_dist.get_value();
         let pump = self.pump.get_value();
@@ -37,7 +39,10 @@ impl<NL: Default + lle::NonLinearOp<f64>> Controller<LleSolver<NL>> for LleContr
         LleSolver::builder()
             .state(init.to_vec())
             .step_dist(step_dist)
-            .linear((0, -(Complex64::i() * alpha + 1.)).add((2, Complex64::i() * linear / 2.)))
+            .linear(
+                (0, -(Complex64::i() * alpha + 1.))
+                    .add_linear_op((2, Complex64::i() * linear / 2.)),
+            )
             .nonlin(NL::default())
             .constant(Complex64::from(pump))
             .build()
@@ -57,7 +62,7 @@ impl<NL: Default + lle::NonLinearOp<f64>> Controller<LleSolver<NL>> for LleContr
     fn steps(&self) -> u32 {
         self.steps.get_value()
     }
-    fn sync_paras(&mut self, engine: &mut LleSolver<NL>) {
+    fn sync_paras(&mut self, engine: &mut LleSolver<NL, Complex64>) {
         crate::synchronize_properties(self, engine);
     }
 }
@@ -95,7 +100,8 @@ impl<
         S: AsMut<[Complex64]> + AsRef<[Complex64]>,
         L: lle::LinearOp<f64>,
         NL: lle::NonLinearOp<f64>,
-    > SharedState<'a> for lle::LleSolver<f64, S, L, NL>
+        C: ConstOp<f64>,
+    > SharedState<'a> for lle::LleSolver<f64, S, L, NL, C>
 {
     type SharedState = &'a [Complex64];
     fn states(&'a self) -> Self::SharedState {
@@ -111,7 +117,8 @@ impl<
         S: AsMut<[Complex64]> + AsRef<[Complex64]>,
         L: lle::LinearOp<f64>,
         NL: lle::NonLinearOp<f64>,
-    > StoreState for lle::LleSolver<f64, S, L, NL>
+        C: ConstOp<f64>,
+    > StoreState for lle::LleSolver<f64, S, L, NL, C>
 {
     type OwnedState = Vec<Complex64>;
     fn get_owned_state(&self) -> Self::OwnedState {
@@ -137,7 +144,8 @@ impl<
         S: AsMut<[Complex64]> + AsRef<[Complex64]>,
         L: lle::LinearOp<f64>,
         NL: lle::NonLinearOp<f64>,
-    > Simulator for lle::LleSolver<f64, S, L, NL>
+        C: ConstOp<f64>,
+    > Simulator for lle::LleSolver<f64, S, L, NL, C>
 {
     fn run(&mut self, steps: u32) {
         use lle::Evolver;

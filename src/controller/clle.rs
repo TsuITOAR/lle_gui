@@ -1,4 +1,4 @@
-use lle::{CoupleOp, DiffOrder};
+use lle::{CoupleOp, DiffOrder, NoneOp};
 
 use super::*;
 
@@ -32,6 +32,8 @@ pub type CLleSolver = lle::CoupledLleSolver<
     lle::LinearOpAdd<f64, (lle::DiffOrder, Complex64), (lle::DiffOrder, Complex64)>,
     SPhaMod,
     SPhaMod,
+    Complex64,
+    NoneOp<f64>,
     Couple,
 >;
 
@@ -58,7 +60,8 @@ impl Controller<CLleSolver> for CoupleLleController {
                     .state(init.to_vec())
                     .step_dist(step_dist)
                     .linear(
-                        (0, -(Complex64::i() * alpha + 1.)).add((2, -Complex64::i() * linear / 2.)),
+                        (0, -(Complex64::i() * alpha + 1.))
+                            .add_linear_op((2, -Complex64::i() * linear / 2.)),
                     )
                     .nonlin(SPhaMod::default())
                     .constant(Complex64::from(pump))
@@ -69,7 +72,8 @@ impl Controller<CLleSolver> for CoupleLleController {
                     .state(init.to_vec())
                     .step_dist(step_dist)
                     .linear(
-                        (0, -(Complex64::i() * alpha + 1.)).add((2, -Complex64::i() * linear / 2.)),
+                        (0, -(Complex64::i() * alpha + 1.))
+                            .add_linear_op((2, -Complex64::i() * linear / 2.)),
                     )
                     .nonlin(SPhaMod::default())
                     .build(),
@@ -86,7 +90,8 @@ impl Controller<CLleSolver> for CoupleLleController {
 
     fn show_in_control_panel(&mut self, ui: &mut egui::Ui) {
         <crate::controller::LleController as crate::controller::Controller<
-            LleSolver<SPhaMod>>>::show_in_control_panel(&mut self.basic,ui);
+            LleSolver<SPhaMod, Complex64>,
+        >>::show_in_control_panel(&mut self.basic, ui);
 
         self.g.show_in_control_panel(ui);
         self.pos.show_in_control_panel(ui);

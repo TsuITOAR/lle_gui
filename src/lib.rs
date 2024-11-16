@@ -3,6 +3,7 @@
 #![feature(fn_traits)]
 #![feature(hasher_prefixfree_extras)]
 #![feature(type_alias_impl_trait)]
+#![feature(try_blocks)]
 mod config;
 mod controller;
 mod core;

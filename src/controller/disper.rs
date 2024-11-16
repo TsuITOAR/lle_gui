@@ -71,6 +71,7 @@ pub type LleSolver<NL> = lle::LleSolver<
         CosDispersion,
     >,
     NL,
+    Complex64,
 >;
 
 #[derive(Debug, Clone, Default, serde::Deserialize, serde::Serialize)]
@@ -82,7 +83,7 @@ pub struct DisperLleController {
 impl<NL: Default + lle::NonLinearOp<f64>> Controller<LleSolver<NL>> for DisperLleController {
     type Dispersion = lle::LinearOpAdd<f64, (DiffOrder, Complex64), CosDispersion>;
     fn dispersion(&self) -> Self::Dispersion {
-        (2, Complex64::i() * self.basic.linear.get_value() / 2.).add(self.disper.generate_op())
+        (2, Complex64::i() * self.basic.linear.get_value() / 2.).add_linear_op(self.disper.generate_op())
     }
     fn construct_engine(&self, dim: usize) -> LleSolver<NL> {
         use lle::LinearOp;
@@ -97,15 +98,15 @@ impl<NL: Default + lle::NonLinearOp<f64>> Controller<LleSolver<NL>> for DisperLl
             .step_dist(step_dist)
             .linear(
                 (0, -(Complex64::i() * alpha + 1.))
-                    .add((2, Complex64::i() * linear / 2.))
-                    .add(self.disper.generate_op()),
+                    .add_linear_op((2, Complex64::i() * linear / 2.))
+                    .add_linear_op(self.disper.generate_op()),
             )
             .nonlin(NL::default())
             .constant(Complex64::from(pump))
             .build()
     }
     fn show_in_control_panel(&mut self, ui: &mut egui::Ui) {
-        Controller::<super::LleSolver<NL>>::show_in_control_panel(&mut self.basic, ui);
+        Controller::<super::LleSolver<NL,Complex64>>::show_in_control_panel(&mut self.basic, ui);
         self.disper.show_in_control_panel(ui);
     }
 
@@ -120,8 +121,8 @@ impl<NL: Default + lle::NonLinearOp<f64>> Controller<LleSolver<NL>> for DisperLl
         engine.constant = Complex64::from(self.basic.pump.get_value()).into();
         engine.step_dist = self.basic.step_dist.get_value();
         engine.linear = (0, -(Complex64::i() * self.basic.alpha.get_value() + 1.))
-            .add((2, Complex64::i() * self.basic.linear.get_value() / 2.))
-            .add(self.disper.generate_op())
+            .add_linear_op((2, Complex64::i() * self.basic.linear.get_value() / 2.))
+            .add_linear_op(self.disper.generate_op())
             .into();
     }
 }

@@ -93,11 +93,11 @@ pub struct LleChart {
     #[serde(default)]
     pub(crate) proc: Process,
     #[serde(default)]
-    pub(crate) smart_plot: Option<SmartPlot<f64>>,
+    pub(crate) smart_bound: Option<SmartPlot<f64>>,
     #[serde(skip)]
     pub(crate) show_history: Option<ColorMapDrawer>,
     #[serde(skip)]
-    pub(crate) additional: Option<egui_plot::Points>,
+    pub(crate) additional: Option<egui_plot::PlotPoints>,
 }
 
 impl Clone for LleChart {
@@ -106,7 +106,7 @@ impl Clone for LleChart {
             name: self.name.clone(),
             kind: self.kind.clone(),
             proc: self.proc.clone(),
-            smart_plot: self.smart_plot.clone(),
+            smart_bound: self.smart_bound.clone(),
             show_history: None,
             additional: None,
         }
@@ -119,7 +119,7 @@ impl Debug for LleChart {
             .field("name", &self.name)
             .field("kind", &self.kind)
             .field("proc", &self.proc)
-            .field("smart_plot", &self.smart_plot)
+            .field("smart_plot", &self.smart_bound)
             .field("show_history", &self.show_history)
             .field("additional", &self.additional.is_some())
             .finish()
@@ -153,7 +153,7 @@ impl LleChart {
         if ui
             .add_enabled(
                 his.is_some(),
-                SelectableLabel::new(self.show_history.is_some(), "History log"),
+                SelectableLabel::new(self.show_history.is_some(), "History"),
             )
             .clicked()
         {
@@ -197,21 +197,35 @@ impl LleChart {
     }
 
     pub(crate) fn plot_on_new_window(
-        s: &mut Option<Self>,
+        chart: &mut Option<Self>,
         data: &[Complex64],
         ctx: &Context,
         running: bool,
         his: &Option<History>,
         #[cfg(feature = "gpu")] render_state: &eframe::egui_wgpu::RenderState,
     ) {
-        if let Some(ss) = s {
-            puffin::profile_scope!("plot", &ss.name);
-            let mut open = true;
-            egui::Window::new(&ss.name).open(&mut open).show(ctx, |ui| {
-                ss.proc.controller(ui);
-
+        if chart.is_none() {
+            return;
+        }
+        let name = chart
+            .as_ref()
+            .map(|x| x.name.as_str())
+            .unwrap_or("Empty name");
+        puffin::profile_scope!("plot", name);
+        let mut open = true;
+        egui::Window::new(name)
+            .open(&mut open)
+            .show(ctx, |ui| -> Option<()> {
+                let chart = chart.as_mut().expect("checked branch");
                 ui.horizontal(|ui| {
-                    ss.control_panel_history(
+                    chart.proc.controller(ui);
+                    ui.separator();
+                    chart.kind.controller(ui);
+                    ui.separator();
+                    smarter_bound_controller(&mut chart.smart_bound, ui);
+                });
+                ui.horizontal(|ui| {
+                    chart.control_panel_history(
                         ui,
                         his,
                         running,
@@ -219,38 +233,20 @@ impl LleChart {
                         render_state,
                     )
                 });
-                const MIN_WIDTH: f32 = 256.;
-                const MIN_HEIGHT: f32 = 256.;
-                let data = ss.proc.proc(data);
-                let (_id, rect) = ui.allocate_space(
-                    (
-                        MIN_WIDTH
-                            .max(256. / ui.ctx().pixels_per_point())
-                            .max(ui.available_width()),
-                        MIN_HEIGHT
-                            .max(256. / ui.ctx().pixels_per_point())
-                            .max(ui.available_height()),
-                    )
-                        .into(),
-                );
-                let mut ui = ui.new_child(
-                    egui::UiBuilder::default()
-                        .max_rect(rect)
-                        .layout(*ui.layout()),
-                );
-                if ss.show_history.is_some() {
-                    let h = (rect.height() - ui.spacing().item_spacing.y) / 2.;
+                let data = chart.proc.proc(data);
+                let mut ui = crate::allocate_remained_space(ui);
+                if chart.show_history.is_some() {
+                    let h = (ui.available_height() - ui.spacing().item_spacing.y) / 2.;
 
-                    let r = ss.plot_in(data.iter().copied(), &mut ui, running, Some(h));
+                    let r = chart.plot_in(data.iter().copied(), &mut ui, running, Some(h));
 
                     let min = r.transform.position_from_point_x(0.);
                     let max = r.transform.position_from_point_x((data.len() - 1) as f64);
 
                     ui.separator();
+                    let history = chart.show_history.as_mut().expect("checked brach");
 
-                    let ss = ss.show_history.as_mut().expect("checked some");
-
-                    ss.set_align_x_axis((min, max));
+                    history.set_align_x_axis((min, max));
                     ui.add_space(ui.spacing().item_spacing.y);
                     let (_id, rect) = ui.allocate_space(ui.available_size());
                     let mut cui = ui.new_child(
@@ -260,77 +256,74 @@ impl LleChart {
                     );
                     #[allow(unused_must_use)]
                     {
-                        ss.draw_mat_on_ui(data.len(), &mut cui)
+                        history
+                            .draw_mat_on_ui(data.len(), &mut cui)
                             .expect("can't plot colormap");
                     }
-                    //ui.placer.advance_after_rects(rect, rect, item_spacing);
-                    /* ui.vertical(|ui| {
-                        ss.plot_in(d.iter().copied(), ui, running);
-                        ss.show_history
-                            .as_mut()
-                            .expect("checked some")
-                            .push(d)
-                            .draw_on_ui(data.len(), &ui)
-                            .expect("can't plot colormap");
-                    }); */
                 } else {
-                    ss.plot_in(data, &mut ui, running, None);
+                    chart.plot_in(data.into_iter(), &mut ui, running, None);
                 }
+
+                Some(())
             });
-            if !open {
-                *s = None;
-            }
+        if !open {
+            *chart = None;
         }
     }
 
     pub(crate) fn plot_in(
         &mut self,
-        data: impl IntoIterator<Item = f64>,
+        data: impl ExactSizeIterator<Item = f64>,
         ui: &mut egui::Ui,
         running: bool,
         height: Option<f32>,
     ) -> PlotResponse<()> {
-        match self.kind {
-            PlotKind::Line => self.plot_line(data, ui, running, height),
+        let (bound, line) = self.convert_data(data, running);
+        let plot_kind = &self.kind;
+        let desc = self.proc.component.desc();
+        let additional = self.additional.take();
+        let plot = self.plot(ui, height);
+        match plot_kind {
+            PlotKind::Line => plot.show(ui, |plot_ui| {
+                if let Some(bound) = bound {
+                    plot_ui.set_plot_bounds(bound);
+                }
+                plot_ui.line(egui_plot::Line::new(line).name(desc));
+                if let Some(additional) = additional {
+                    plot_ui.line(egui_plot::Line::new(additional));
+                }
+            }),
+            PlotKind::Points => plot.show(ui, |plot_ui| {
+                plot_ui.points(egui_plot::Points::new(line).name(desc));
+                if let Some(additional) = additional {
+                    plot_ui.points(egui_plot::Points::new(additional));
+                }
+            }),
         }
     }
 
-    pub(crate) fn plot_line(
+    pub(crate) fn convert_data(
         &mut self,
-        evol: impl IntoIterator<Item = f64>,
-        ui: &mut egui::Ui,
+        data: impl ExactSizeIterator<Item = f64>,
         running: bool,
-        height: Option<f32>,
-    ) -> PlotResponse<()> {
-        puffin::profile_function!();
-        use egui_plot::Plot;
-        let mut plot = Plot::new(&self.name)
-            .y_axis_min_width(Y_AXIS_MIN_WIDTH)
-            .x_axis_position(egui_plot::VPlacement::Top);
-        plot = plot.coordinates_formatter(
-            egui_plot::Corner::LeftBottom,
-            egui_plot::CoordinatesFormatter::default(),
-        );
+    ) -> (Option<egui_plot::PlotBounds>, egui_plot::PlotPoints) {
         let mut min = None;
         let mut max = None;
-        let mut n: i32 = 0;
-        let line = egui_plot::Line::new(
-            evol.into_iter()
-                .inspect(|&x| {
-                    if x.is_normal() && *min.get_or_insert(x) > x {
-                        min = Some(x);
-                    }
-                    if x.is_normal() && *max.get_or_insert(x) < x {
-                        max = Some(x);
-                    }
-                    n += 1;
-                })
-                .enumerate()
-                .map(|(x, y)| [x as _, y])
-                .collect::<egui_plot::PlotPoints>(),
-        )
-        .name(self.proc.component.desc());
-        let set_bound = if let (true, Some(smart)) = (running, self.smart_plot.as_mut()) {
+        let n = data.len();
+        let points = data
+            .into_iter()
+            .inspect(|&x| {
+                if x.is_normal() && *min.get_or_insert(x) > x {
+                    min = Some(x);
+                }
+                if x.is_normal() && *max.get_or_insert(x) < x {
+                    max = Some(x);
+                }
+            })
+            .enumerate()
+            .map(|(x, y)| [x as _, y])
+            .collect();
+        let bound = if let (true, Some(smart)) = (running, self.smart_bound.as_mut()) {
             if let (Some(min), Some(max)) = (min, max) {
                 let (y1, y2) = smart.update_range(min..=max).into_inner();
                 Some(egui_plot::PlotBounds::from_min_max([0., y1], [n as _, y2]))
@@ -340,43 +333,46 @@ impl LleChart {
         } else {
             None
         };
-        ui.horizontal(|ui| {
-            crate::toggle_option(ui, &mut self.smart_plot, "Smarter plot");
-            #[cfg(debug_assertions)]
-            if let Some(smart) = self.smart_plot.as_mut() {
-                ui.collapsing("Status", |ui| {
-                    ui.label(format!(
-                        "Plot center,distance: {},{}",
-                        smart.center.unwrap_or(f64::NAN),
-                        smart.dis.unwrap_or(f64::NAN),
-                    ));
-                    ui.label(format!("Plot scale_radix: {}", smart.scale_radix));
-                    ui.label(format!(
-                        "Auto shrink range: {}/{}",
-                        smart.lazy_count.0, smart.lazy_count.1
-                    ));
-                    ui.label(format!(
-                        "Scale magnify factor: {}/{}",
-                        smart.adapt.0, smart.adapt.3
-                    ));
-                    ui.label(format!(
-                        "Refresh threshold of scale factor: ({},{})",
-                        smart.adapt.1, smart.adapt.2
-                    ));
-                });
-            }
-        });
+        (bound, points)
+    }
+
+    fn plot(&self, ui: &mut egui::Ui, height: Option<f32>) -> egui_plot::Plot<'_> {
+        let mut plot = egui_plot::Plot::new(&self.name)
+            .y_axis_min_width(Y_AXIS_MIN_WIDTH)
+            .x_axis_position(egui_plot::VPlacement::Top);
+        plot = plot.coordinates_formatter(
+            egui_plot::Corner::LeftBottom,
+            egui_plot::CoordinatesFormatter::default(),
+        );
         plot.height(height.unwrap_or(ui.available_height()))
-            .show(ui, |plot_ui| {
-                if let Some(bound) = set_bound {
-                    plot_ui.set_plot_bounds(bound);
-                }
-                plot_ui.line(line);
-                if let Some(l) = self.additional.take() {
-                    plot_ui.points(l);
-                }
-            })
     }
 }
 
 pub(crate) const Y_AXIS_MIN_WIDTH: f32 = 40.0;
+
+fn smarter_bound_controller(smart_bound: &mut Option<SmartPlot<f64>>, ui: &mut egui::Ui) {
+    crate::toggle_option(ui, smart_bound, "Smart bound");
+    #[cfg(debug_assertions)]
+    if let Some(smart) = smart_bound.as_mut() {
+        ui.collapsing("Status", |ui| {
+            ui.label(format!(
+                "Plot center,distance: {},{}",
+                smart.center.unwrap_or(f64::NAN),
+                smart.dis.unwrap_or(f64::NAN),
+            ));
+            ui.label(format!("Plot scale_radix: {}", smart.scale_radix));
+            ui.label(format!(
+                "Auto shrink range: {}/{}",
+                smart.lazy_count.0, smart.lazy_count.1
+            ));
+            ui.label(format!(
+                "Scale magnify factor: {}/{}",
+                smart.adapt.0, smart.adapt.3
+            ));
+            ui.label(format!(
+                "Refresh threshold of scale factor: ({},{})",
+                smart.adapt.1, smart.adapt.2
+            ));
+        });
+    }
+}

@@ -6,7 +6,8 @@ use num_traits::{zero, Zero};
 use super::{Controller, Property};
 
 #[allow(unused)]
-pub type App = crate::GenApp<CprtLleController, LleSolver<lle::SPhaMod>, crate::drawer::ViewField>;
+pub type App =
+    crate::GenApp<CprtLleController, LleSolver<lle::SPhaMod, Complex64>, crate::drawer::ViewField>;
 
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
 pub struct Cprt {
@@ -79,7 +80,7 @@ impl LinearOp<f64> for CprtDispersion {
     }
 }
 
-pub type LleSolver<NL> = lle::LleSolver<f64, Vec<Complex64>, LinearOpCached<f64>, NL>;
+pub type LleSolver<NL, C> = lle::LleSolver<f64, Vec<Complex64>, LinearOpCached<f64>, NL, C>;
 
 #[derive(Debug, Clone, Default, serde::Deserialize, serde::Serialize)]
 pub struct CprtLleController {
@@ -91,19 +92,22 @@ impl CprtLleController {
     pub fn linear_op(&self) -> impl LinearOp<f64> {
         let basic_linear = self.basic.linear.get_value();
         (0, -(Complex64::i() * self.basic.alpha.get_value() + 1.))
-            .add(move |_: Step, f: Freq| -> Complex64 {
+            .add_linear_op(move |_: Step, f: Freq| -> Complex64 {
                 Complex64::i() * basic_linear / 2. * ((f / 2) as f64).powi(2)
             })
-            .add(self.disper.generate_op())
+            .add_linear_op(self.disper.generate_op())
     }
 }
 
-impl<NL: Default + lle::NonLinearOp<f64>> Controller<LleSolver<NL>> for CprtLleController {
+impl<NL: Default + lle::NonLinearOp<f64>> Controller<LleSolver<NL, Complex64>>
+    for CprtLleController
+{
     type Dispersion = lle::LinearOpAdd<f64, (DiffOrder, Complex64), CprtDispersion>;
     fn dispersion(&self) -> Self::Dispersion {
-        (2, Complex64::i() * self.basic.linear.get_value() / 2.).add(self.disper.generate_op())
+        (2, Complex64::i() * self.basic.linear.get_value() / 2.)
+            .add_linear_op(self.disper.generate_op())
     }
-    fn construct_engine(&self, dim: usize) -> LleSolver<NL> {
+    fn construct_engine(&self, dim: usize) -> LleSolver<NL, Complex64> {
         let step_dist = self.basic.step_dist.get_value();
         let pump = self.basic.pump.get_value();
         let init = vec![zero(); dim];
@@ -111,13 +115,13 @@ impl<NL: Default + lle::NonLinearOp<f64>> Controller<LleSolver<NL>> for CprtLleC
         LleSolver::builder()
             .state(init.to_vec())
             .step_dist(step_dist)
-            .linear(self.linear_op().cached(dim))
+            .linear(self.linear_op().cached_linear_op(dim))
             .nonlin(NL::default())
             .constant(Complex64::from(pump))
             .build()
     }
     fn show_in_control_panel(&mut self, ui: &mut egui::Ui) {
-        Controller::<super::LleSolver<NL>>::show_in_control_panel(&mut self.basic, ui);
+        Controller::<super::LleSolver<NL, Complex64>>::show_in_control_panel(&mut self.basic, ui);
         self.disper.show_in_control_panel(ui);
     }
 
@@ -128,9 +132,9 @@ impl<NL: Default + lle::NonLinearOp<f64>> Controller<LleSolver<NL>> for CprtLleC
     fn steps(&self) -> u32 {
         self.basic.steps.get_value()
     }
-    fn sync_paras(&mut self, engine: &mut LleSolver<NL>) {
+    fn sync_paras(&mut self, engine: &mut LleSolver<NL, Complex64>) {
         engine.constant = Complex64::from(self.basic.pump.get_value()).into();
         engine.step_dist = self.basic.step_dist.get_value();
-        engine.linear = Some(self.linear_op().cached(engine.state().len()));
+        engine.linear = Some(self.linear_op().cached_linear_op(engine.state().len()));
     }
 }

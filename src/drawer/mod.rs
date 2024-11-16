@@ -26,7 +26,7 @@ pub(crate) fn default_r_chart(index: usize) -> Option<LleChart> {
         name: format! {"real domain {index}"},
         kind: PlotKind::Line,
         proc: Default::default(),
-        smart_plot: Some(Default::default()),
+        smart_bound: Some(Default::default()),
         show_history: None,
         additional: None,
     })
@@ -37,7 +37,7 @@ pub(crate) fn default_f_chart(index: usize) -> Option<LleChart> {
         name: format! {"freq domain {index}"},
         kind: PlotKind::Line,
         proc: Process::new_freq_domain(),
-        smart_plot: Some(Default::default()),
+        smart_bound: Some(Default::default()),
         show_history: None,
         additional: None,
     })
@@ -63,11 +63,6 @@ impl ViewField {
             index,
         }
     }
-}
-
-#[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
-pub enum PlotKind {
-    Line,
 }
 
 impl ViewField {
@@ -133,5 +128,35 @@ impl ViewField {
             #[cfg(feature = "gpu")]
             render_state,
         );
+    }
+}
+
+#[derive(
+    Debug,
+    Clone,
+    enum_iterator::Sequence,
+    PartialEq,
+    PartialOrd,
+    serde::Deserialize,
+    serde::Serialize,
+)]
+pub enum PlotKind {
+    Line,
+    Points,
+}
+
+impl PlotKind {
+    pub fn desc(&self) -> &str {
+        match self {
+            PlotKind::Line => "Line",
+            PlotKind::Points => "Points",
+        }
+    }
+    pub fn controller(&mut self, ui: &mut egui::Ui) {
+        enum_iterator::all::<PlotKind>().for_each(|s| {
+            if ui.selectable_label(self == &s, s.desc()).clicked() {
+                *self = s;
+            }
+        })
     }
 }

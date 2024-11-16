@@ -176,7 +176,7 @@ impl<'a> Visualize<&'a [Complex64]> for ViewField {
 
     fn add_dispersion(&mut self, points: Vec<[f64; 2]>) {
         if let Some(ref mut f) = self.f_chart {
-            f.additional = Some(egui_plot::Points::new(points))
+            f.additional = Some(egui_plot::PlotPoints::new(points))
         }
     }
     fn plot(

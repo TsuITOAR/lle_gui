@@ -32,7 +32,9 @@ egui_plot = "^0.29"
 serde = { version = "^1", features = [
     "derive",
 ] } # You only need this if you want app persistence
-lle = { git = "https://github.com/TsuITOAR/Lle.git" }
+lle = { git = "https://github.com/TsuITOAR/Lle.git", default-features = false, features = [
+    "puffin",
+] }
 rand = "^0.8"
 anyhow = "^1"
 log = "^0.4"
@@ -86,4 +88,4 @@ opt-level = 3 # fast and small wasm
 opt-level = 2
 
 [patch."https://github.com/TsuITOAR/Lle.git"]
-# lle = { path = "../Lle" }
+lle = { path = "../Lle" }
