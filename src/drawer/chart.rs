@@ -143,7 +143,12 @@ pub(crate) trait DrawMat {
 
 impl LleChart {
     pub(crate) fn adjust_to_state(&mut self, data: &[Complex64]) {
-        if self.proc.fft.as_ref().map(|x| x.target_len()) == Some(Some(data.len())) {
+        if self
+            .proc
+            .fft
+            .as_ref()
+            .is_some_and(|x| x.target_len() != Some(data.len()))
+        {
             self.proc.fft = Some(crate::drawer::process::FftProcess::default());
         }
     }
