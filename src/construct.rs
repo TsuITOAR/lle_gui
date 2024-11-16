@@ -1,1 +1,1 @@
-pub type App = crate::controller::cprt2::App;
+pub type App = crate::controller::App;

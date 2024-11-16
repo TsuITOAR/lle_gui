@@ -32,9 +32,17 @@ mod native {
     }
 
     pub fn try_poll<T>(handle: &mut Option<tokio::task::JoinHandle<T>>) -> Option<T> {
-        if handle.as_ref().map(|x| x.is_finished()).unwrap_or(false) {
-            let spawn = handle.take().unwrap();
-            Some(RUNTIME.block_on(spawn).expect("join task"))
+        if handle.as_ref()?.is_finished() {
+            let handle = handle.take()?;
+            match RUNTIME.block_on(handle) {
+                Ok(x) => Some(x),
+                Err(e) => {
+                    crate::TOASTS
+                        .lock()
+                        .error(format!("Error in future: {}", e));
+                    None
+                }
+            }
         } else {
             None
         }

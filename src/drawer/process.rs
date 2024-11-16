@@ -187,7 +187,7 @@ pub struct FftProcess {
 
 impl FftProcess {
     pub(crate) fn get_fft(&mut self, len: usize) -> &mut (Fft, Vec<Complex64>) {
-        if self.target_len().map_or(false, |x| x != len) {
+        if self.target_len().is_some_and(|x| x != len) {
             crate::TOASTS
                 .lock()
                 .warning("Unmatched FftProcess length, reinitializing");

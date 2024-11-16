@@ -114,6 +114,7 @@ impl<S> CheckPoints<S> {
             {
                 if let Some(current) = self.current {
                     self.delete(current);
+                    self.current = None;
                 }
             }
         });
