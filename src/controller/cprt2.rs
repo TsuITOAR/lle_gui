@@ -102,7 +102,7 @@ impl CprtLleController {
 impl<NL: Default + lle::NonLinearOp<f64>> Controller<LleSolver<NL, Complex64>>
     for CprtLleController
 {
-    const EXTENSION: &'static str = "cprt";
+    const EXTENSION: &'static str = "cprt2";
     type Dispersion = lle::LinearOpAdd<f64, (DiffOrder, Complex64), CprtDispersion>;
     fn dispersion(&self) -> Self::Dispersion {
         (2, Complex64::i() * self.basic.linear.get_value() / 2.)
