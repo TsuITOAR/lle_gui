@@ -62,7 +62,7 @@ impl Controller<CLleSolver> for CoupleLleController {
                     .step_dist(step_dist)
                     .linear(
                         (0, -(Complex64::i() * alpha + 1.))
-                            .add_linear_op((2, -Complex64::i() * linear / 2.)),
+                            .add_linear_op((2, Complex64::i() * linear / 2.)),
                     )
                     .nonlin(SPhaMod::default())
                     .constant(Complex64::from(pump))
@@ -70,11 +70,11 @@ impl Controller<CLleSolver> for CoupleLleController {
             )
             .component2(
                 LleSolver::builder()
-                    .state(init.to_vec())
+                    .state(init)
                     .step_dist(step_dist)
                     .linear(
                         (0, -(Complex64::i() * alpha + 1.))
-                            .add_linear_op((2, -Complex64::i() * linear / 2.)),
+                            .add_linear_op((2, Complex64::i() * linear / 2.)),
                     )
                     .nonlin(SPhaMod::default())
                     .build(),
