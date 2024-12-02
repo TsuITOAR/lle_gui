@@ -23,11 +23,11 @@ where
 }
 
 impl<S> CheckPoints<S> {
-    pub fn add<T: CheckPointable<Store = S>>(&mut self, t: &mut T) {
+    pub fn add<T: Restorable<Store = S>>(&mut self, t: &mut T) {
         self.checkpoints.push(t.checkpoint());
     }
 
-    pub fn restore<T: CheckPointable<Store = S>>(&mut self, t: &mut T, index: usize) {
+    pub fn restore<T: Restorable<Store = S>>(&mut self, t: &mut T, index: usize) {
         t.restore_by_ref(&self.checkpoints[index]);
     }
 
@@ -42,13 +42,13 @@ pub struct CheckPoint<S> {
     pub state: S,
 }
 
-pub trait CheckPointable {
+pub trait Restorable {
     type Store;
     fn checkpoint(&self) -> CheckPoint<Self::Store>;
     fn restore_by_ref(&mut self, checkpoint: &CheckPoint<Self::Store>);
 }
 
-impl<P, S> CheckPointable for Core<P, S>
+impl<P, S> Restorable for Core<P, S>
 where
     P: Clone + Controller<S>,
     S: Simulator,
@@ -76,7 +76,7 @@ where
 }
 
 impl<S> CheckPoints<S> {
-    pub fn show<T: CheckPointable<Store = S>>(&mut self, ui: &mut egui::Ui, dst: &mut T) -> bool {
+    pub fn show<T: Restorable<Store = S>>(&mut self, ui: &mut egui::Ui, dst: &mut T) -> bool {
         let mut changed: bool = false;
         if ui.button("Add checkpoint").clicked() {
             self.add(dst);
@@ -97,7 +97,7 @@ impl<S> CheckPoints<S> {
                 }
             }
         });
-        self.current.map(|i| &self.checkpoints[i]);
+        //self.current.map(|i| &self.checkpoints[i]);
         ui.horizontal(|ui| {
             if ui
                 .add_enabled(self.current.is_some(), egui::Button::new("load"))

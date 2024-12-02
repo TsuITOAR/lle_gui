@@ -22,7 +22,7 @@ impl<T> Num for T where
 }
 
 #[derive(Debug, Clone, PartialEq, PartialOrd, serde::Deserialize, serde::Serialize)]
-pub(crate) struct Property<T: Num + Copy> {
+pub(crate) struct Property<T: Num> {
     pub(crate) value: ValueRange<T>,
     pub(crate) label: String,
     pub(crate) symbol: Option<String>,
