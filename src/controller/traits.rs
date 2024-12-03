@@ -1,6 +1,6 @@
 use crate::random::RandomNoise;
 
-pub trait Controller<E> {
+pub trait Controller<E>: 'static + Send + Sync {
     const EXTENSION: &'static str;
     type Dispersion: lle::LinearOp<f64>;
     fn dispersion(&self) -> Self::Dispersion;
@@ -29,13 +29,19 @@ pub trait SharedState<'a> {
 
 /// For save and recover state
 pub trait StoreState {
-    type OwnedState: 'static + std::fmt::Debug + serde::Serialize + for<'a> serde::Deserialize<'a>;
+    type OwnedState: 'static
+        + Clone
+        + Send
+        + Sync
+        + std::fmt::Debug
+        + serde::Serialize
+        + for<'a> serde::Deserialize<'a>;
     fn get_owned_state(&self) -> <Self as StoreState>::OwnedState;
     fn set_owned_state(&mut self, state: <Self as StoreState>::OwnedState);
     fn default_state(dim: usize) -> <Self as StoreState>::OwnedState;
 }
 
-pub trait Simulator: for<'a> SharedState<'a> + StoreState {
+pub trait Simulator: 'static + for<'a> SharedState<'a> + StoreState + Send + Sync {
     fn add_rand(&mut self, random: &mut RandomNoise);
     fn run(&mut self, steps: u32);
     fn cur_step(&self) -> u32;

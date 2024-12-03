@@ -1,110 +1,56 @@
 use lle::num_complex::Complex64;
 
 use crate::drawer::ViewField;
-use std::array::from_fn;
 
-#[cfg(target_arch = "wasm32")]
-use instant::Instant;
-#[cfg(not(target_arch = "wasm32"))]
-use std::time::Instant;
+use super::{PlotElement, RawPlotElement, ShowOn, Views};
 
-#[derive(Debug, Clone)]
-pub struct Views<V> {
-    pub(crate) views: V,
-    last_plot: Option<Instant>,
+pub trait State: Clone + Copy {
+    type OwnedState: Clone;
+    fn to_owned(&self) -> Self::OwnedState;
 }
 
-impl Default for Views<ViewField> {
-    fn default() -> Self {
-        Self {
-            views: ViewField::new(0),
-            last_plot: None,
-        }
+impl<T: State, const L: usize> State for [T; L] {
+    type OwnedState = [T::OwnedState; L];
+    fn to_owned(&self) -> Self::OwnedState {
+        std::array::from_fn(|i| self[i].to_owned())
     }
 }
 
-impl<const L: usize> Default for Views<[ViewField; L]> {
-    fn default() -> Self {
-        Self {
-            views: from_fn(ViewField::new),
-            last_plot: None,
-        }
+impl State for &'_ [Complex64] {
+    type OwnedState = Vec<Complex64>;
+    fn to_owned(&self) -> Self::OwnedState {
+        self.to_vec()
     }
 }
 
-impl<'de> serde::Deserialize<'de> for Views<ViewField> {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        Ok(Self {
-            views: ViewField::deserialize(deserializer)?,
-            last_plot: None,
-        })
+impl<T: ToOwned> State for &'_ T
+where
+    T::Owned: Clone,
+{
+    type OwnedState = T::Owned;
+    fn to_owned(&self) -> Self::OwnedState {
+        (*self).to_owned()
     }
 }
 
-impl serde::Serialize for Views<ViewField> {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        self.views.serialize(serializer)
-    }
-}
-
-impl<'de, const L: usize> serde::Deserialize<'de> for Views<[ViewField; L]> {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        let mut views = <Vec<ViewField>>::deserialize(deserializer)?.into_iter();
-        Ok(Self {
-            views: from_fn(move |i| views.next().unwrap_or_else(|| ViewField::new(i))),
-            last_plot: None,
-        })
-    }
-}
-
-impl<const L: usize> serde::Serialize for Views<[ViewField; L]> {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        self.views.iter().collect::<Vec<_>>().serialize(serializer)
-    }
-}
-
-impl<V> Views<V> {
-    pub(crate) fn show_fps(&mut self, ui: &mut egui::Ui) {
-        let now = Instant::now();
-        let last = self.last_plot.replace(now);
-        if let Some(last) = last {
-            let past = (now - last).as_secs_f32();
-            ui.label(format!("{:.0}Hz ({:.1}ms)", 1. / past, past * 1000.));
-        } else {
-            ui.label("Start to update fps");
-        }
-    }
-}
-
-pub trait Visualize<State> {
-    fn adjust_to_state(&mut self, data: State);
-    fn toggle_record_his(&mut self, ui: &mut egui::Ui, data: State);
+pub trait Visualize<S: State> {
+    fn adjust_to_state(&mut self, data: S);
+    fn toggle_record_his(&mut self, ui: &mut egui::Ui, data: S);
     fn clear_his(&mut self);
     fn config(&mut self, ui: &mut egui::Ui);
-    fn record(&mut self, data: State);
-    fn add_dispersion(&mut self, points: Vec<[f64; 2]>);
+    fn record(&mut self, data: S);
+    fn push_elements_raw(&mut self, points: RawPlotElement<S::OwnedState>, on: ShowOn);
+    fn push_elements(&mut self, points: PlotElement, on: ShowOn);
     fn plot(
         &mut self,
-        data: State,
+        data: S,
         ctx: &egui::Context,
         running: bool,
         #[cfg(feature = "gpu")] render_state: &eframe::egui_wgpu::RenderState,
     );
 }
 
-impl<const L: usize, S, V: Visualize<S>> Visualize<[S; L]> for Views<[V; L]> {
+impl<const L: usize, S: State, V: Visualize<S>> Visualize<[S; L]> for Views<[V; L]> {
     fn adjust_to_state(&mut self, data: [S; L]) {
         for (view, data) in self.views.iter_mut().zip(data.into_iter()) {
             view.adjust_to_state(data);
@@ -136,9 +82,19 @@ impl<const L: usize, S, V: Visualize<S>> Visualize<[S; L]> for Views<[V; L]> {
         }
     }
 
-    fn add_dispersion(&mut self, points: Vec<[f64; 2]>) {
+    fn push_elements_raw(
+        &mut self,
+        points: RawPlotElement<<[S; L] as State>::OwnedState>,
+        on: ShowOn,
+    ) {
+        for (view, p) in self.views.iter_mut().zip(points.split()) {
+            view.push_elements_raw(p, on);
+        }
+    }
+
+    fn push_elements(&mut self, points: PlotElement, on: ShowOn) {
         for view in self.views.iter_mut() {
-            view.add_dispersion(points.clone());
+            view.push_elements(points.clone(), on);
         }
     }
 
@@ -149,7 +105,11 @@ impl<const L: usize, S, V: Visualize<S>> Visualize<[S; L]> for Views<[V; L]> {
         running: bool,
         #[cfg(feature = "gpu")] render_state: &eframe::egui_wgpu::RenderState,
     ) {
-        for (view, data) in self.views.iter_mut().zip(data.into_iter()) {
+        /* let mut new_scouting: [Option<Vec<_>>; L] = [const { None }; L];
+        for ((i, s), offset) in scouting {
+            new_scouting[i].get_or_insert_default().push((s, offset));
+        } */
+        for (view, data) in self.views.iter_mut().zip(data) {
             view.plot(
                 data,
                 ctx,
@@ -173,7 +133,7 @@ impl<'a> Visualize<&'a [Complex64]> for ViewField {
         self.record(data);
     }
 
-    fn toggle_record_his(&mut self, ui: &mut egui::Ui, data: &'a [Complex64]) {
+    fn toggle_record_his(&mut self, ui: &mut egui::Ui, data: &[Complex64]) {
         self.toggle_record_his(ui, data);
     }
 
@@ -191,11 +151,52 @@ impl<'a> Visualize<&'a [Complex64]> for ViewField {
         self.log_his(data);
     }
 
-    fn add_dispersion(&mut self, points: Vec<[f64; 2]>) {
-        if let Some(ref mut f) = self.f_chart {
-            f.additional = Some(egui_plot::PlotPoints::new(points))
+    fn push_elements_raw(&mut self, points: RawPlotElement<Vec<Complex64>>, on: ShowOn) {
+        match on {
+            ShowOn::Both => {
+                if let Some(ref mut f) = self.f_chart {
+                    f.push_additional_raw(&points)
+                }
+                if let Some(ref mut r) = self.r_chart {
+                    r.push_additional_raw(&points)
+                }
+            }
+            ShowOn::Time => {
+                if let Some(ref mut r) = self.r_chart {
+                    r.push_additional_raw(&points)
+                }
+            }
+            ShowOn::Freq => {
+                if let Some(ref mut f) = self.f_chart {
+                    f.push_additional_raw(&points)
+                }
+            }
         }
     }
+
+    fn push_elements(&mut self, points: PlotElement, on: ShowOn) {
+        match on {
+            ShowOn::Both => {
+                if let Some(ref mut f) = self.f_chart {
+                    f.push_additional(points.clone())
+                }
+                if let Some(ref mut r) = self.r_chart {
+                    r.push_additional(points)
+                }
+            }
+            ShowOn::Time => {
+                if let Some(ref mut r) = self.r_chart {
+                    r.push_additional(points)
+                }
+            }
+            ShowOn::Freq => {
+                if let Some(ref mut f) = self.f_chart {
+                    f.push_additional(points)
+                }
+            }
+        }
+    }
+
     fn plot(
         &mut self,
         data: &'a [Complex64],
@@ -233,13 +234,17 @@ impl<'a> Visualize<&'a [Complex64]> for Views<ViewField> {
         self.views.log_his(data);
     }
 
-    fn add_dispersion(&mut self, points: Vec<[f64; 2]>) {
-        self.views.add_dispersion(points);
+    fn push_elements_raw(&mut self, points: RawPlotElement<Vec<Complex64>>, on: ShowOn) {
+        self.views.push_elements_raw(points, on);
+    }
+
+    fn push_elements(&mut self, points: PlotElement, on: ShowOn) {
+        self.views.push_elements(points, on);
     }
 
     fn plot(
         &mut self,
-        data: &'a [Complex64],
+        data: &[Complex64],
         ctx: &egui::Context,
         running: bool,
         #[cfg(feature = "gpu")] render_state: &eframe::egui_wgpu::RenderState,

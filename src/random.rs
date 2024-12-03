@@ -1,32 +1,32 @@
 use std::f64::consts::PI;
 
 use lle::num_complex::Complex64;
+use static_assertions::assert_impl_all;
 
 #[derive(Debug, Clone)]
 enum RandCore {
-    Seed {
-        seed: u64,
-        rng: Box<rand::rngs::StdRng>,
-    },
-    Thread(rand::rngs::ThreadRng),
+    Seed { seed: u64, rng: rand::rngs::StdRng },
+    //Thread(rand::rngs::ThreadRng),
 }
+
+assert_impl_all!(RandCore: Send, Sync);
 
 impl RandCore {
     fn new(seed: Option<u64>) -> Self {
-        use rand::SeedableRng;
-        match seed {
-            Some(seed) => Self::Seed {
-                seed,
-                rng: rand::rngs::StdRng::seed_from_u64(seed).into(),
-            },
-            None => Self::Thread(rand::thread_rng()),
+        use rand::{Rng, SeedableRng};
+        let seed = seed.unwrap_or(rand::thread_rng().gen());
+
+        Self::Seed {
+            seed,
+            rng: rand::rngs::StdRng::seed_from_u64(seed),
         }
     }
 }
 
 impl Default for RandCore {
     fn default() -> Self {
-        RandCore::Thread(rand::thread_rng())
+        Self::new(None)
+        //RandCore::Thread(rand::thread_rng())
     }
 }
 
@@ -59,7 +59,7 @@ impl From<RandCore> for RandCoreStorage {
     fn from(core: RandCore) -> Self {
         match core {
             RandCore::Seed { seed, .. } => Self { seed: Some(seed) },
-            RandCore::Thread(_) => Self { seed: None },
+            //RandCore::Thread(_) => Self { seed: None },
         }
     }
 }
@@ -122,10 +122,9 @@ impl RandomNoise {
         match &mut self.core {
             RandCore::Seed { seed: _, rng } => {
                 add_random_with_dist(state, rng, &dist);
-            }
-            RandCore::Thread(ref mut t) => {
-                add_random_with_dist(state, t, &dist);
-            }
+            } /* RandCore::Thread(ref mut t) => {
+                  add_random_with_dist(state, t, &dist);
+              } */
         }
     }
 }

@@ -14,25 +14,14 @@ mod wasm;
 use wasm::*;
 
 use crate::{
+    app::{Core, CoreStorage},
     controller::{Controller, Simulator},
-    core::{Core, CoreStorage},
+    util::{try_poll, FutureHandler, Promise},
 };
 
-pub type FutureHandler<T> = Promise<T>;
 pub type FutureFileHandle = FutureHandler<Option<FileHandle>>;
 pub type FutureFileSaveHandle = FutureHandler<anyhow::Result<()>>;
 pub type FutureFileReadHandle = FutureHandler<Arc<Vec<u8>>>;
-
-pub struct Promise<T: 'static>(poll_promise::Promise<T>);
-
-impl<T: 'static> Promise<T> {
-    pub fn try_take(self) -> Result<T, Self> {
-        match self.0.try_take() {
-            Ok(x) => Ok(x),
-            Err(e) => Err(Self(e)),
-        }
-    }
-}
 
 #[derive(Default)]
 pub struct FileFutures {

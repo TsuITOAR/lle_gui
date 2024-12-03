@@ -2,34 +2,7 @@ use std::path::PathBuf;
 
 use rfd::FileHandle;
 
-use super::Promise;
 
-pub fn try_poll<T: Send>(handle: &mut Option<super::FutureHandler<T>>) -> Option<T> {
-    let h = handle.take()?;
-    match h.try_take() {
-        Ok(x) => Some(x),
-        Err(e) => {
-            *handle = Some(e);
-            None
-        }
-    }
-}
-
-impl<T: 'static + Send> Promise<T> {
-    pub fn new(f: impl std::future::Future<Output = T> + Send + 'static) -> Self {
-        use std::sync::LazyLock;
-        use tokio::runtime::Runtime;
-        pub static RUNTIME: LazyLock<Runtime> = LazyLock::new(default_runtime);
-        fn default_runtime() -> Runtime {
-            tokio::runtime::Builder::new_multi_thread()
-                .worker_threads(2)
-                .build()
-                .expect("Can't initialize runtime")
-        }
-        let _guard = RUNTIME.enter();
-        Self(poll_promise::Promise::spawn_async(f))
-    }
-}
 
 #[derive(Debug, serde::Deserialize, serde::Serialize)]
 pub struct FileStorage {

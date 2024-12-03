@@ -4,7 +4,7 @@ use num_traits::{zero, Zero};
 use super::{Controller, Property};
 
 #[allow(unused)]
-pub type App = crate::GenApp<
+pub type App = crate::app::GenApp<
     DisperLleController2,
     LleSolver<lle::SPhaMod, Complex64>,
     crate::drawer::ViewField,
@@ -71,8 +71,8 @@ pub type LleSolver<NL, C> = lle::LleSolver<f64, Vec<Complex64>, LinearOpCached<f
 
 #[derive(Debug, Clone, Default, serde::Deserialize, serde::Serialize)]
 pub struct DisperLleController2 {
-    basic: super::LleController,
-    disper: CosDispersionProperty2,
+    pub(crate) basic: super::LleController,
+    pub(crate) disper: CosDispersionProperty2,
 }
 
 impl DisperLleController2 {

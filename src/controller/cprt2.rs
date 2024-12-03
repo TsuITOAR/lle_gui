@@ -6,8 +6,11 @@ use num_traits::{zero, Zero};
 use super::{Controller, Property};
 
 #[allow(unused)]
-pub type App =
-    crate::GenApp<CprtLleController, LleSolver<lle::SPhaMod, Complex64>, crate::drawer::ViewField>;
+pub type App = crate::app::GenApp<
+    CprtLleController2,
+    LleSolver<lle::SPhaMod, Complex64>,
+    crate::drawer::ViewField,
+>;
 
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
 pub struct Cprt2 {
@@ -83,12 +86,12 @@ impl LinearOp<f64> for CprtDispersion2 {
 pub type LleSolver<NL, C> = lle::LleSolver<f64, Vec<Complex64>, LinearOpCached<f64>, NL, C>;
 
 #[derive(Debug, Clone, Default, serde::Deserialize, serde::Serialize)]
-pub struct CprtLleController {
-    basic: super::LleController,
-    disper: Cprt2,
+pub struct CprtLleController2 {
+    pub(crate) basic: super::LleController,
+    pub(crate) disper: Cprt2,
 }
 
-impl CprtLleController {
+impl CprtLleController2 {
     pub fn linear_op(&self) -> impl LinearOp<f64> {
         let basic_linear = self.basic.linear.get_value();
         (0, -(Complex64::i() * self.basic.alpha.get_value() + 1.))
@@ -100,7 +103,7 @@ impl CprtLleController {
 }
 
 impl<NL: Default + lle::NonLinearOp<f64>> Controller<LleSolver<NL, Complex64>>
-    for CprtLleController
+    for CprtLleController2
 {
     const EXTENSION: &'static str = "cprt2";
     type Dispersion = lle::LinearOpAdd<f64, (DiffOrder, Complex64), CprtDispersion2>;

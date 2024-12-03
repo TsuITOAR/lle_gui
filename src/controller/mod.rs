@@ -10,11 +10,11 @@ pub mod disper2;
 use lle::{num_complex::Complex64, ConstOp, Evolver, SPhaMod};
 use num_traits::{zero, Zero};
 
-use crate::{property::Property, random::RandomNoise};
+use crate::{property::Property, random::RandomNoise, views::PlotElement};
 
 #[allow(unused)]
 pub type App =
-    crate::GenApp<LleController, LleSolver<lle::SPhaMod, Complex64>, crate::drawer::ViewField>;
+    crate::app::GenApp<LleController, LleSolver<lle::SPhaMod, Complex64>, crate::drawer::ViewField>;
 
 pub type LleSolver<NL, C> = lle::LleSolver<
     f64,
@@ -64,7 +64,7 @@ impl<NL: Default + lle::NonLinearOp<f64>> Controller<LleSolver<NL, Complex64>> f
         self.steps.get_value()
     }
     fn sync_paras(&mut self, engine: &mut LleSolver<NL, Complex64>) {
-        crate::synchronize_properties(self, engine);
+        crate::util::synchronize_properties(self, engine);
     }
 }
 
@@ -127,7 +127,7 @@ impl<
     }
     fn set_owned_state(&mut self, state: Self::OwnedState) {
         if self.state().len() != state.len() {
-            crate::TOASTS.lock().warning(format!(
+            crate::notify::TOASTS.lock().warning(format!(
                 "Skipping restore state for mismatched length between simulator({}) and storage({})",
                 self.state().len(),
                 state.len()
@@ -142,10 +142,10 @@ impl<
 }
 
 impl<
-        S: AsMut<[Complex64]> + AsRef<[Complex64]>,
-        L: lle::LinearOp<f64>,
-        NL: lle::NonLinearOp<f64>,
-        C: ConstOp<f64>,
+        S: AsMut<[Complex64]> + AsRef<[Complex64]> + Send + Sync + 'static,
+        L: lle::LinearOp<f64> + Send + Sync + 'static,
+        NL: lle::NonLinearOp<f64> + Send + Sync + 'static,
+        C: ConstOp<f64> + Send + Sync + 'static,
     > Simulator for lle::LleSolver<f64, S, L, NL, C>
 {
     fn run(&mut self, steps: u32) {
@@ -160,13 +160,18 @@ impl<
     }
 }
 
-pub fn dispersion_line<L: lle::LinearOp<f64>>(l: L, dim: usize, scale: f64) -> Vec<[f64; 2]> {
+pub fn dispersion_line<L: lle::LinearOp<f64>>(l: L, dim: usize, scale: f64) -> PlotElement {
     let dim = dim as i32;
     let split_pos = (dim + 1) / 2;
-    (0..dim)
+    let (x, y) = (0..dim)
         .map(|i| {
             let d = l.get_value(0, i - (dim - split_pos));
-            [i as f64, -d.im / scale]
+            (i as f64, -d.im / scale)
         })
-        .collect::<_>()
+        .unzip();
+    PlotElement {
+        x: Some(x),
+        y,
+        style: Default::default(),
+    }
 }

@@ -1,7 +1,9 @@
-use std::num::NonZeroUsize;
+use std::{borrow::Borrow, num::NonZeroUsize};
 
 use egui::{DragValue, SelectableLabel};
-use egui_plot::PlotResponse;
+use egui_plot::{PlotPoints, PlotResponse};
+
+use crate::views::{PlotElement, RawPlotElement};
 
 #[cfg(not(feature = "gpu"))]
 use super::plotters::ColorMapVisualizer;
@@ -97,7 +99,24 @@ pub struct LleChart {
     #[serde(skip)]
     pub(crate) show_history: Option<ColorMapDrawer>,
     #[serde(skip)]
-    pub(crate) additional: Option<egui_plot::PlotPoints>,
+    pub(crate) additional: Option<Vec<PlotElement>>,
+}
+
+impl LleChart {
+    pub fn push_additional_raw<S>(&mut self, plot: &RawPlotElement<S>)
+    where
+        S: Borrow<[Complex64]>,
+    {
+        let s = self.proc.proc(plot.data.borrow());
+        self.additional.get_or_insert_default().push(PlotElement {
+            y: s,
+            x: plot.x.clone(),
+            style: plot.style,
+        })
+    }
+    pub fn push_additional(&mut self, plot: PlotElement) {
+        self.additional.get_or_insert_default().push(plot)
+    }
 }
 
 impl Clone for LleChart {
@@ -245,14 +264,15 @@ impl LleChart {
                     )
                 });
                 let data = chart.proc.proc(data);
-                let mut ui = crate::allocate_remained_space(ui);
+
+                let mut ui = crate::util::allocate_remained_space(ui);
                 if chart.show_history.is_some() {
                     let h = (ui.available_height() - ui.spacing().item_spacing.y) / 2.;
-
-                    let r = chart.plot_in(data.iter().copied(), &mut ui, running, Some(h));
+                    let len = data.len();
+                    let r = chart.plot_in(data.into_iter(), &mut ui, running, Some(h));
 
                     let min = r.transform.position_from_point_x(0.);
-                    let max = r.transform.position_from_point_x((data.len() - 1) as f64);
+                    let max = r.transform.position_from_point_x((len - 1) as f64);
 
                     ui.separator();
                     let history = chart.show_history.as_mut().expect("checked brach");
@@ -266,7 +286,7 @@ impl LleChart {
                             .layout(*ui.layout()),
                     );
                     history
-                        .draw_mat_on_ui(data.len(), &mut cui)
+                        .draw_mat_on_ui(len, &mut cui)
                         .expect("can't plot colormap");
                 } else {
                     chart.plot_in(data.into_iter(), &mut ui, running, None);
@@ -295,7 +315,30 @@ impl LleChart {
             plot,
             ui,
             bound,
-            std::iter::once((line, Some(desc))).chain(additional.map(|x| (x, None))),
+            std::iter::once(PlotItem {
+                data: line,
+                desc: Some(desc.to_string()),
+                style: Style::Main,
+            })
+            .chain(
+                additional
+                    .into_iter()
+                    .flatten()
+                    .map(|element| match element.x {
+                        Some(x) => PlotItem {
+                            data: PlotPoints::from_iter(
+                                x.into_iter().zip(element.y).map(|(x, y)| [x, y]),
+                            ),
+                            desc: Some(element.style.to_string()),
+                            style: Style::Sub,
+                        },
+                        None => PlotItem {
+                            data: PlotPoints::from_ys_f64(&element.y),
+                            desc: Some(element.style.to_string()),
+                            style: Style::Sub,
+                        },
+                    }),
+            ),
         )
     }
 
@@ -348,7 +391,7 @@ impl LleChart {
 pub(crate) const Y_AXIS_MIN_WIDTH: f32 = 40.0;
 
 fn smarter_bound_controller(smart_bound: &mut Option<SmartPlot<f64>>, ui: &mut egui::Ui) {
-    crate::toggle_option(ui, smart_bound, "Smart bound");
+    crate::util::toggle_option(ui, smart_bound, "Smart bound");
     #[cfg(debug_assertions)]
     if let Some(smart) = smart_bound.as_mut() {
         ui.collapsing("Status", |ui| {

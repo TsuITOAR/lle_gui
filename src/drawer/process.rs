@@ -24,7 +24,7 @@ impl Process {
         }
     }
 
-    pub fn proc_by_ref(&self, data: &[Complex64]) -> Vec<f64> {
+    /* pub fn proc_by_ref(&self, data: &[Complex64]) -> Vec<f64> {
         let mut data = data.to_owned();
         if let Some(mut fft) = self.fft.as_ref().cloned() {
             let (f, b) = fft.get_fft(data.len());
@@ -43,7 +43,7 @@ impl Process {
         } else {
             self.component.extract(data.into_iter()).collect()
         }
-    }
+    } */
 
     pub fn proc(&mut self, data: &[Complex64]) -> Vec<f64> {
         //puffin::profile_function!();
@@ -119,7 +119,7 @@ impl Process {
     }
 
     pub(crate) fn controller(&mut self, ui: &mut egui::Ui) {
-        crate::toggle_option(ui, &mut self.fft, "FFT");
+        crate::util::toggle_option(ui, &mut self.fft, "FFT");
         ui.separator();
         self.component.show(ui);
         ui.separator();
@@ -188,7 +188,7 @@ pub struct FftProcess {
 impl FftProcess {
     pub(crate) fn get_fft(&mut self, len: usize) -> &mut (Fft, Vec<Complex64>) {
         if self.target_len().is_some_and(|x| x != len) {
-            crate::TOASTS
+            crate::notify::TOASTS
                 .lock()
                 .warning("Unmatched FftProcess length, reinitializing");
             self.s = None;

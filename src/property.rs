@@ -224,6 +224,10 @@ impl<T: Num + Copy> Property<T> {
     pub fn get_value(&self) -> T {
         self.value.value
     }
+
+    pub fn value_mut(&mut self) -> &mut T {
+        &mut self.value.value
+    }
 }
 
 impl<T: Num + FromStr> Property<T> {

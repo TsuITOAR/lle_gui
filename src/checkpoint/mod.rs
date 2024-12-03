@@ -1,6 +1,6 @@
 use crate::{
+    app::{Core, CoreStorage},
     controller::{Controller, Simulator},
-    core::{Core, CoreStorage},
     file::Extension,
 };
 use egui::Widget;

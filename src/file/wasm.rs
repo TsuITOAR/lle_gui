@@ -1,22 +1,6 @@
 use rfd::FileHandle;
 use std::fmt::Debug;
 
-pub fn try_poll<T>(handle: &mut Option<super::FutureHandler<T>>) -> Option<T> {
-    let h = handle.take()?;
-    match h.try_take() {
-        Ok(x) => Some(x),
-        Err(e) => {
-            *handle = Some(e);
-            None
-        }
-    }
-}
-
-impl<T: 'static> super::Promise<T> {
-    pub fn new(f: impl std::future::Future<Output = T> + 'static) -> Self {
-        Self(poll_promise::Promise::spawn_local(f))
-    }
-}
 
 #[derive(Debug, Default, serde::Deserialize, serde::Serialize)]
 pub struct FileStorage {

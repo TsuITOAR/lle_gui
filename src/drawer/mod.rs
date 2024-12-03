@@ -68,7 +68,7 @@ impl ViewField {
 impl ViewField {
     pub(crate) fn toggle_record_his(&mut self, ui: &mut egui::Ui, data: &[Complex64]) {
         let index = self.index;
-        if crate::toggle_option_with(
+        if crate::util::toggle_option_with(
             ui,
             &mut self.history,
             format!("Record history {index}"),
@@ -94,10 +94,10 @@ impl ViewField {
 
     pub(crate) fn show_which(&mut self, ui: &mut egui::Ui) {
         ui.vertical(|ui| {
-            crate::toggle_option_with(ui, &mut self.r_chart, "real domain", || {
+            crate::util::toggle_option_with(ui, &mut self.r_chart, "real domain", || {
                 default_r_chart(self.index)
             });
-            crate::toggle_option_with(ui, &mut self.f_chart, "freq domain", || {
+            crate::util::toggle_option_with(ui, &mut self.f_chart, "freq domain", || {
                 default_f_chart(self.index)
             });
         });
@@ -160,38 +160,72 @@ impl PlotKind {
         })
     }
 
-    pub(crate) fn plot<'a>(
+    pub(crate) fn plot(
         &self,
         plot: egui_plot::Plot<'_>,
         ui: &mut egui::Ui,
         bound: Option<egui_plot::PlotBounds>,
-        elements: impl Iterator<Item = (egui_plot::PlotPoints, Option<&'a str>)>,
+        elements: impl Iterator<Item = PlotItem>,
     ) -> egui_plot::PlotResponse<()> {
         plot.show(ui, |plot_ui| {
             if let Some(bound) = bound {
                 plot_ui.set_plot_bounds(bound);
             }
-
             match self {
                 PlotKind::Line => {
-                    elements.for_each(|(e, d)| {
-                        if let Some(d) = d {
-                            plot_ui.line(egui_plot::Line::new(e).name(d));
-                        } else {
-                            plot_ui.line(egui_plot::Line::new(e));
-                        }
-                    });
+                    elements.for_each(
+                        |PlotItem {
+                             data: e,
+                             desc: d,
+                             style,
+                         }| {
+                            if let Some(d) = d {
+                                plot_ui.line(egui_plot::Line::new(e).name(d).width(style.width()));
+                            } else {
+                                plot_ui.line(egui_plot::Line::new(e).width(style.width()));
+                            }
+                        },
+                    );
                 }
                 PlotKind::Points => {
-                    elements.for_each(|(e, d)| {
-                        if let Some(d) = d {
-                            plot_ui.points(egui_plot::Points::new(e).name(d));
-                        } else {
-                            plot_ui.points(egui_plot::Points::new(e));
-                        }
-                    });
+                    elements.for_each(
+                        |PlotItem {
+                             data: e,
+                             desc: d,
+                             style,
+                         }| {
+                            if let Some(d) = d {
+                                plot_ui.points(
+                                    egui_plot::Points::new(e).name(d).radius(style.width()),
+                                );
+                            } else {
+                                plot_ui.points(egui_plot::Points::new(e).radius(style.width()));
+                            }
+                        },
+                    );
                 }
             }
         })
+    }
+}
+
+pub(crate) struct PlotItem {
+    data: egui_plot::PlotPoints,
+    desc: Option<String>,
+    style: Style,
+}
+
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
+pub(crate) enum Style {
+    Main,
+    Sub,
+}
+
+impl Style {
+    pub(crate) fn width(&self) -> f32 {
+        match self {
+            Style::Main => 2.0,
+            Style::Sub => 1.0,
+        }
     }
 }

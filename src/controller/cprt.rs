@@ -6,8 +6,11 @@ use num_traits::{zero, Zero};
 use super::{Controller, Property};
 
 #[allow(unused)]
-pub type App =
-    crate::GenApp<CprtLleController, LleSolver<lle::SPhaMod, Complex64>, crate::drawer::ViewField>;
+pub type App = crate::app::GenApp<
+    CprtLleController,
+    LleSolver<lle::SPhaMod, Complex64>,
+    crate::drawer::ViewField,
+>;
 
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
 pub struct Cprt {
@@ -75,8 +78,8 @@ pub type LleSolver<NL, C> = lle::LleSolver<f64, Vec<Complex64>, LinearOpCached<f
 
 #[derive(Debug, Clone, Default, serde::Deserialize, serde::Serialize)]
 pub struct CprtLleController {
-    basic: super::LleController,
-    disper: Cprt,
+    pub(crate) basic: super::LleController,
+    pub(crate) disper: Cprt,
 }
 
 impl CprtLleController {

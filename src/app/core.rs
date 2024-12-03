@@ -5,6 +5,8 @@ use crate::{
     random::RandomNoise,
 };
 
+use super::storage::CoreStorage;
+
 #[derive(Debug)]
 pub struct Core<C, S> {
     pub(crate) dim: usize,
@@ -44,6 +46,12 @@ where
             random: RandomNoise::default(),
         }
     }
+    pub fn sync_paras(&mut self) {
+        self.controller.sync_paras(&mut self.simulator);
+    }
+    pub fn add_random(&mut self) {
+        self.simulator.add_rand(&mut self.random);
+    }
 }
 
 impl<C, Q> serde::Serialize for Core<C, Q>
@@ -71,84 +79,6 @@ where
         D: serde::Deserializer<'a>,
     {
         Ok(CoreStorage::<C, S>::deserialize(deserializer)?.into())
-    }
-}
-
-#[derive(serde::Deserialize, serde::Serialize, Debug)]
-#[serde(bound(
-    serialize = "S: Simulator, S::OwnedState: serde::Serialize, P: serde::Serialize",
-    deserialize = "S: Simulator, S::OwnedState: for<'a> serde::Deserialize<'a>, P: for<'a> serde::Deserialize<'a>"
-))]
-pub struct CoreStorage<P, S>
-where
-    S: Simulator,
-{
-    pub(crate) dim: usize,
-    pub(crate) controller: P,
-    pub(crate) simulator_state: S::OwnedState,
-    pub(crate) random: RandomNoise,
-}
-
-impl<P, S: Simulator> Clone for CoreStorage<P, S>
-where
-    P: Clone,
-    S::OwnedState: Clone,
-{
-    fn clone(&self) -> Self {
-        Self {
-            dim: self.dim,
-            controller: self.controller.clone(),
-            simulator_state: self.simulator_state.clone(),
-            random: self.random.clone(),
-        }
-    }
-}
-
-impl<'a, C, S> From<&'a Core<C, S>> for CoreStorage<C, S>
-where
-    C: Clone,
-    S: Simulator,
-{
-    fn from(core: &'a Core<C, S>) -> Self {
-        Self {
-            dim: core.dim,
-            controller: core.controller.clone(),
-            simulator_state: core.simulator.get_owned_state(),
-            random: core.random.clone(),
-        }
-    }
-}
-
-impl<C, S> From<CoreStorage<C, S>> for Core<C, S>
-where
-    C: Controller<S>,
-    S: Simulator,
-{
-    fn from(storage: CoreStorage<C, S>) -> Self {
-        let mut e = storage.controller.construct_engine(storage.dim);
-        e.set_owned_state(storage.simulator_state);
-        Self {
-            dim: storage.dim,
-            controller: storage.controller,
-            simulator: e,
-            random: storage.random,
-        }
-    }
-}
-
-impl<C, S> Default for CoreStorage<C, S>
-where
-    C: Default + Controller<S>,
-    S: Simulator,
-{
-    fn default() -> Self {
-        let dim: usize = 128;
-        Self {
-            dim,
-            controller: C::default(),
-            simulator_state: S::default_state(dim),
-            random: RandomNoise::default(),
-        }
     }
 }
 

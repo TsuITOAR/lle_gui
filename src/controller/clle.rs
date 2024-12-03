@@ -3,13 +3,13 @@ use lle::{CoupleOp, DiffOrder, NoneOp};
 use super::*;
 
 #[allow(unused)]
-pub type App = crate::GenApp<CoupleLleController, CLleSolver, [crate::drawer::ViewField; 2]>;
+pub type App = crate::app::GenApp<CoupleLleController, CLleSolver, [crate::drawer::ViewField; 2]>;
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct CoupleLleController {
-    basic: LleController,
-    pos: Property<i32>,
-    g: Property<f64>,
+    pub(crate) basic: LleController,
+    pub(crate) pos: Property<i32>,
+    pub(crate) g: Property<f64>,
 }
 
 impl Default for CoupleLleController {
@@ -103,8 +103,8 @@ impl Controller<CLleSolver> for CoupleLleController {
     }
 
     fn sync_paras(&mut self, engine: &mut CLleSolver) {
-        crate::synchronize_properties(&self.basic, &mut engine.component1);
-        crate::synchronize_properties_no_pump(&self.basic, &mut engine.component2);
+        crate::util::synchronize_properties(&self.basic, &mut engine.component1);
+        crate::util::synchronize_properties_no_pump(&self.basic, &mut engine.component2);
         engine.couple.couple.strength = self.g.get_value();
         engine.couple.couple.mode = self.pos.get_value();
     }
@@ -128,19 +128,20 @@ impl<'a> SharedState<'a> for CLleSolver {
 }
 
 impl StoreState for CLleSolver {
-    type OwnedState = (Vec<Complex64>, Vec<Complex64>);
+    type OwnedState = [Vec<Complex64>; 2];
     fn get_owned_state(&self) -> Self::OwnedState {
-        (
+        [
             self.component1.get_owned_state(),
             self.component2.get_owned_state(),
-        )
+        ]
     }
     fn set_owned_state(&mut self, state: Self::OwnedState) {
-        self.component1.set_owned_state(state.0);
-        self.component2.set_owned_state(state.1);
+        let [a, b] = state;
+        self.component1.set_owned_state(a);
+        self.component2.set_owned_state(b);
     }
     fn default_state(dim: usize) -> Self::OwnedState {
-        (vec![Complex64::zero(); dim], vec![Complex64::zero(); dim])
+        [vec![Complex64::zero(); dim], vec![Complex64::zero(); dim]]
     }
 }
 

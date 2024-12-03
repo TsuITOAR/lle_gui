@@ -5,7 +5,7 @@ use super::{Controller, Property};
 
 #[allow(unused)]
 pub type App =
-    crate::GenApp<DisperLleController, LleSolver<lle::SPhaMod>, crate::drawer::ViewField>;
+    crate::app::GenApp<DisperLleController, LleSolver<lle::SPhaMod>, crate::drawer::ViewField>;
 
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
 pub struct CosDispersionProperty {
@@ -76,8 +76,8 @@ pub type LleSolver<NL> = lle::LleSolver<
 
 #[derive(Debug, Clone, Default, serde::Deserialize, serde::Serialize)]
 pub struct DisperLleController {
-    basic: super::LleController,
-    disper: CosDispersionProperty,
+    pub(crate) basic: super::LleController,
+    pub(crate) disper: CosDispersionProperty,
 }
 
 impl<NL: Default + lle::NonLinearOp<f64>> Controller<LleSolver<NL>> for DisperLleController {

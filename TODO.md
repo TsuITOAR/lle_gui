@@ -12,8 +12,8 @@
     2. more models
 
 3. history recover
-    1. recorder
-    2. data save & load
+    1. ~~recorder~~
+    2. ~~data save & load~~
 
 4. custom data
     1. numeric input
