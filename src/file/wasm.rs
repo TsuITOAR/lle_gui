@@ -1,7 +1,6 @@
 use rfd::FileHandle;
 use std::fmt::Debug;
 
-
 #[derive(Debug, Default, serde::Deserialize, serde::Serialize)]
 pub struct FileStorage {
     name: String,

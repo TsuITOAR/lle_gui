@@ -2,8 +2,6 @@ use std::path::PathBuf;
 
 use rfd::FileHandle;
 
-
-
 #[derive(Debug, serde::Deserialize, serde::Serialize)]
 pub struct FileStorage {
     pub(crate) name: String,
