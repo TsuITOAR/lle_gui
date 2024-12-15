@@ -225,7 +225,7 @@ where
         }
         if *running || step {
             core.sync_paras();
-            scout.sync_paras(&core.controller);
+            scout.sync_paras(core);
             scout.tick(core);
             if *add_rand {
                 puffin::profile_scope!("add random");

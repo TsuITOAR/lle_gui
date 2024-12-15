@@ -125,7 +125,7 @@ where
         }
     }
 
-    pub fn sync_paras(&mut self, e: &C) {
+    pub fn sync_paras(&mut self, e: &Core<C, S>) {
         if let Some(dst) = self.sub_cores.as_mut() {
             self.config.sync(e, dst);
         }
@@ -329,14 +329,16 @@ where
         }
     }
 
-    pub fn sync(&mut self, src: &C, dst: &mut SubCores<Core<C, S>>) {
+    pub fn sync(&mut self, src: &Core<C, S>, dst: &mut SubCores<Core<C, S>>) {
         puffin::profile_function!();
         self.offsets
             .par_iter()
             .zip(dst.cores.par_iter())
             .for_each(|((target, value), core)| {
-                let c = &mut core.lock().controller;
-                target.sync(*value, src, c);
+                let mut core = core.lock();
+                let c = &mut core.controller;
+                target.sync(*value, &src.controller, c);
+                core.random = src.random.clone();
             });
     }
 }
