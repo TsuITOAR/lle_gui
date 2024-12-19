@@ -6,18 +6,11 @@ pub trait ControllerAsGrid {
     fn show(&mut self, ui: &mut egui::Ui);
 }
 
-impl ControllerAsGrid for crate::controller::LleController {
+impl<T: crate::property::Num + std::str::FromStr> ControllerAsGrid
+    for crate::property::Property<T>
+{
     fn show(&mut self, ui: &mut egui::Ui) {
-        self.alpha.show_as_drag_value(ui);
-        ui.end_row();
-        self.linear.show_as_drag_value(ui);
-        ui.end_row();
-        self.pump.show_as_drag_value(ui);
-        ui.end_row();
-        self.step_dist.show_as_drag_value(ui);
-        ui.end_row();
-        self.steps.show_as_drag_value(ui);
-        ui.end_row();
+        self.show_as_drag_value(ui);
     }
 }
 

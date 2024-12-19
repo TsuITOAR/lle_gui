@@ -16,6 +16,7 @@ mod random;
 mod scouting;
 mod util;
 mod views;
+mod lle_util;
 
 pub const FONT: &str = "Arial";
 

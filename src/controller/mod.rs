@@ -6,6 +6,9 @@ pub mod cprt;
 pub mod cprt2;
 pub mod disper;
 pub mod disper2;
+pub mod fp;
+pub mod pulse_pump;
+pub mod self_pump;
 
 use lle::{num_complex::Complex64, ConstOp, Evolver, SPhaMod};
 use num_traits::{zero, Zero};
@@ -23,6 +26,7 @@ pub type LleSolver<NL, C> = lle::LleSolver<
     NL,
     C,
 >;
+
 impl<NL: Default + lle::NonLinearOp<f64>> Controller<LleSolver<NL, Complex64>> for LleController {
     const EXTENSION: &'static str = "lle";
     type Dispersion = (lle::DiffOrder, Complex64);
@@ -68,7 +72,9 @@ impl<NL: Default + lle::NonLinearOp<f64>> Controller<LleSolver<NL, Complex64>> f
     }
 }
 
-#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[derive(
+    Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, lle_gui_proc::ControllerAsGrid,
+)]
 pub struct LleController {
     pub(crate) alpha: Property<f64>,
     pub(crate) pump: Property<f64>,

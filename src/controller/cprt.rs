@@ -1,6 +1,9 @@
 use std::f64::consts::{FRAC_PI_2, PI};
 
-use lle::{num_complex::Complex64, DiffOrder, Evolver, Freq, LinearOp, LinearOpCached, Step};
+use lle::{
+    num_complex::Complex64, DiffOrder, Evolver, Freq, LinearOp, LinearOpCached, StaticLinearOp,
+    Step,
+};
 use num_traits::{zero, Zero};
 
 use super::{Controller, Property};
@@ -74,6 +77,8 @@ impl LinearOp<f64> for CprtDispersion {
     }
 }
 
+impl StaticLinearOp<f64> for CprtDispersion {}
+
 pub type LleSolver<NL, C> = lle::LleSolver<f64, Vec<Complex64>, LinearOpCached<f64>, NL, C>;
 
 #[derive(Debug, Clone, Default, serde::Deserialize, serde::Serialize)]
@@ -83,7 +88,7 @@ pub struct CprtLleController {
 }
 
 impl CprtLleController {
-    pub fn linear_op(&self) -> impl LinearOp<f64> {
+    pub fn linear_op(&self) -> impl StaticLinearOp<f64> {
         let basic_linear = self.basic.linear.get_value();
         (0, -(Complex64::i() * self.basic.alpha.get_value() + 1.))
             .add_linear_op(move |_: Step, f: Freq| -> Complex64 {

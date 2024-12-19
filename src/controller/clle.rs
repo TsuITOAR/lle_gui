@@ -64,7 +64,7 @@ impl Controller<CLleSolver> for CoupleLleController {
                         (0, -(Complex64::i() * alpha + 1.))
                             .add_linear_op((2, Complex64::i() * linear / 2.)),
                     )
-                    .nonlin(SPhaMod::default())
+                    .nonlin(SPhaMod)
                     .constant(Complex64::from(pump))
                     .build(),
             )
@@ -76,7 +76,7 @@ impl Controller<CLleSolver> for CoupleLleController {
                         (0, -(Complex64::i() * alpha + 1.))
                             .add_linear_op((2, Complex64::i() * linear / 2.)),
                     )
-                    .nonlin(SPhaMod::default())
+                    .nonlin(SPhaMod)
                     .build(),
             )
             .couple(

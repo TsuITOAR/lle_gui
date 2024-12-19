@@ -4,3 +4,5 @@ Cargo.lock
 .vscode
 rust-toolchain
 rust-toolchain.toml
+
+src/construct.rs

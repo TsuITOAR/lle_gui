@@ -1,4 +1,7 @@
-use lle::{num_complex::Complex64, DiffOrder, Evolver, Freq, LinearOp, LinearOpCached, Step};
+use lle::{
+    num_complex::Complex64, DiffOrder, Evolver, Freq, LinearOp, LinearOpCached, StaticLinearOp,
+    Step,
+};
 use num_traits::{zero, Zero};
 
 use super::{Controller, Property};
@@ -43,6 +46,8 @@ impl CosDispersionProperty2 {
     }
 }
 
+impl StaticLinearOp<f64> for CosDispersion2 {}
+
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
 pub struct CosDispersion2 {
     center_pos: f64,
@@ -76,7 +81,7 @@ pub struct DisperLleController2 {
 }
 
 impl DisperLleController2 {
-    pub fn linear_op(&self) -> impl LinearOp<f64> {
+    pub fn linear_op(&self) -> impl StaticLinearOp<f64> {
         let basic_linear = self.basic.linear.get_value();
         (0, -(Complex64::i() * self.basic.alpha.get_value() + 1.))
             .add_linear_op(move |_: Step, f: Freq| -> Complex64 {

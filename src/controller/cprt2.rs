@@ -1,6 +1,9 @@
 use std::f64::consts::{FRAC_PI_2, PI};
 
-use lle::{num_complex::Complex64, DiffOrder, Evolver, Freq, LinearOp, LinearOpCached, Step};
+use lle::{
+    num_complex::Complex64, DiffOrder, Evolver, Freq, LinearOp, LinearOpCached, StaticLinearOp,
+    Step,
+};
 use num_traits::{zero, Zero};
 
 use super::{Controller, Property};
@@ -49,6 +52,8 @@ impl Cprt2 {
     }
 }
 
+impl StaticLinearOp<f64> for CprtDispersion2 {}
+
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
 pub struct CprtDispersion2 {
     center_pos: f64,
@@ -92,7 +97,7 @@ pub struct CprtLleController2 {
 }
 
 impl CprtLleController2 {
-    pub fn linear_op(&self) -> impl LinearOp<f64> {
+    pub fn linear_op(&self) -> impl StaticLinearOp<f64> {
         let basic_linear = self.basic.linear.get_value();
         (0, -(Complex64::i() * self.basic.alpha.get_value() + 1.))
             .add_linear_op(move |_: Step, f: Freq| -> Complex64 {
