@@ -10,13 +10,13 @@ mod controller;
 mod drawer;
 mod easy_mark;
 mod file;
+mod lle_util;
 mod notify;
 mod property;
 mod random;
 mod scouting;
 mod util;
 mod views;
-mod lle_util;
 
 pub const FONT: &str = "Arial";
 
