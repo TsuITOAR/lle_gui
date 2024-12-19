@@ -69,15 +69,12 @@ impl Controller<CLleSolver> for CoupleLleController {
                     .build(),
             )
             .component2(
-                LleSolver::builder()
-                    .state(init)
-                    .step_dist(step_dist)
+                lle::LleSolver::new(init, step_dist)
                     .linear(
                         (0, -(Complex64::i() * alpha + 1.))
                             .add_linear_op((2, Complex64::i() * linear / 2.)),
                     )
-                    .nonlin(SPhaMod)
-                    .build(),
+                    .nonlin(SPhaMod),
             )
             .couple(
                 lle::ModeSplit {

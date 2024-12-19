@@ -120,11 +120,10 @@ impl<NL: Default + lle::NonLinearOp<f64>> Controller<LleSolver<NL>> for DisperLl
         self.basic.steps.get_value()
     }
     fn sync_paras(&mut self, engine: &mut LleSolver<NL>) {
-        engine.constant = Complex64::from(self.basic.pump.get_value()).into();
+        engine.constant = Complex64::from(self.basic.pump.get_value());
         engine.step_dist = self.basic.step_dist.get_value();
         engine.linear = (0, -(Complex64::i() * self.basic.alpha.get_value() + 1.))
             .add_linear_op((2, Complex64::i() * self.basic.linear.get_value() / 2.))
-            .add_linear_op(self.disper.generate_op())
-            .into();
+            .add_linear_op(self.disper.generate_op());
     }
 }

@@ -8,3 +8,4 @@ pub use nonlin_ops::*;
 
 pub use pulse_pump::*;
 
+pub use self_pump::*;

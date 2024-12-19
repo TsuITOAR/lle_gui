@@ -165,6 +165,15 @@ impl<T: Copy + Num + FromPrimitive> ValueRange<T> {
         }
     }
 
+    pub(crate) fn new_no_range(v: T) -> Self {
+        Self {
+            value: v,
+            range: None,
+            clamp: false,
+            unit: None,
+        }
+    }
+
     pub(crate) fn clamp(mut self, clamp: bool) -> Self {
         self.clamp = clamp;
         self
@@ -183,7 +192,7 @@ impl<T: Num + Copy> Property<T> {
     }
     pub fn new_no_slider(v: T, label: impl ToString) -> Self {
         Self {
-            value: ValueRange::new(v).clamp(true),
+            value: ValueRange::new_no_range(v).clamp(true),
             label: label.to_string(),
             symbol: None,
             show_editor: None,

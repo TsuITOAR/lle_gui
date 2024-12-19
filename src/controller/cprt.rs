@@ -133,8 +133,8 @@ impl<NL: Default + lle::NonLinearOp<f64>> Controller<LleSolver<NL, Complex64>>
         self.basic.steps.get_value()
     }
     fn sync_paras(&mut self, engine: &mut LleSolver<NL, Complex64>) {
-        engine.constant = Complex64::from(self.basic.pump.get_value()).into();
+        engine.constant = Complex64::from(self.basic.pump.get_value());
         engine.step_dist = self.basic.step_dist.get_value();
-        engine.linear = Some(self.linear_op().cached_linear_op(engine.state().len()));
+        engine.linear = self.linear_op().cached_linear_op(engine.state().len());
     }
 }

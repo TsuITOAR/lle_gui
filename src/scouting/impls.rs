@@ -1,4 +1,5 @@
 use crate::controller::pulse_pump::PulsePumpLleController;
+use crate::controller::self_pump::SelfPumpLleController;
 use crate::controller::{self, clle::CoupleLleController, LleController};
 
 use super::*;
@@ -180,6 +181,25 @@ where
         match self {
             BasicScoutingTarget::Alpha => *controller.alpha.value_mut() += value,
             BasicScoutingTarget::Pump => *controller.pump.peak.value_mut() += value,
+            BasicScoutingTarget::Linear => *controller.linear.value_mut() += value,
+            BasicScoutingTarget::StepDist => *controller.step_dist.value_mut() += value,
+        }
+    }
+}
+
+impl<S> ScoutingTarget<SelfPumpLleController, S> for BasicScoutingTarget
+where
+    S: Simulator,
+    SelfPumpLleController: Controller<S>,
+{
+    fn sync(&self, value: f64, src: &SelfPumpLleController, dst: &mut SelfPumpLleController) {
+        *dst = src.clone();
+        self.apply(value, dst);
+    }
+    fn apply(&self, value: f64, controller: &mut SelfPumpLleController) {
+        match self {
+            BasicScoutingTarget::Alpha => *controller.alpha.value_mut() += value,
+            BasicScoutingTarget::Pump => *controller.pump.loop_loss.value_mut() += value,
             BasicScoutingTarget::Linear => *controller.linear.value_mut() += value,
             BasicScoutingTarget::StepDist => *controller.step_dist.value_mut() += value,
         }

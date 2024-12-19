@@ -8,9 +8,8 @@ pub fn synchronize_properties<NL: NonLinearOp<f64>>(
 ) {
     puffin::profile_function!();
     engine.linear = (0, -(Complex64::i() * props.alpha.get_value() + 1.))
-        .add_linear_op((2, Complex64::i() * props.linear.get_value() / 2.))
-        .into();
-    engine.constant = Complex64::from(props.pump.get_value()).into();
+        .add_linear_op((2, Complex64::i() * props.linear.get_value() / 2.));
+    engine.constant = Complex64::from(props.pump.get_value());
     engine.step_dist = props.step_dist.get_value();
 }
 
@@ -20,8 +19,7 @@ pub fn synchronize_properties_no_pump<NL: NonLinearOp<f64>>(
 ) {
     puffin::profile_function!();
     engine.linear = (0, -(Complex64::i() * props.alpha.get_value() + 1.))
-        .add_linear_op((2, -Complex64::i() * props.linear.get_value() / 2.))
-        .into();
+        .add_linear_op((2, -Complex64::i() * props.linear.get_value() / 2.));
     engine.step_dist = props.step_dist.get_value();
 }
 

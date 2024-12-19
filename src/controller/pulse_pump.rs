@@ -125,12 +125,10 @@ impl<NL: lle::NonLinearOp<f64> + Default> Controller<LleSolver<NL>> for PulsePum
         let pump = self.pump.get_pump_op();
         let d1_mismatch = self.pump.d1_mismatch.get_value();
         use lle::LinearOp;
-        engine.linear = Some(
-            (0, -(Complex64::i() * alpha + 1.))
-                .add_linear_op((1, -Complex64::i() * d1_mismatch))
-                .add_linear_op((2, Complex64::i() * linear / 2.)),
-        );
-        engine.constant = Some(pump);
+        engine.linear = (0, -(Complex64::i() * alpha + 1.))
+            .add_linear_op((1, -Complex64::i() * d1_mismatch))
+            .add_linear_op((2, Complex64::i() * linear / 2.));
+        engine.constant = pump;
         engine.step_dist = step_dist;
     }
 
