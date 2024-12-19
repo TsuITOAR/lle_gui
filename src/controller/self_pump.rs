@@ -87,7 +87,7 @@ pub type Pump = lle::ConstOpAdd<f64, crate::lle_util::SelfPumpOp, Complex64>;
 pub type LleSolver<NL> = lle::LleSolver<f64, Vec<Complex64>, LinearOp, NL, Pump>;
 
 impl<NL: lle::NonLinearOp<f64> + Default> Controller<LleSolver<NL>> for SelfPumpLleController {
-    const EXTENSION: &'static str = "plle";
+    const EXTENSION: &'static str = "slle";
 
     type Dispersion = (lle::DiffOrder, Complex64);
 
