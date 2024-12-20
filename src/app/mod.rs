@@ -199,7 +199,7 @@ where
             file_checkpoints
                 .show_save_load(ui, check_points)
                 .notify_global();
-            
+
             ui.separator();
             views.show_fps(ui);
 
