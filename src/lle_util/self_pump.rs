@@ -8,6 +8,7 @@ pub struct SelfPumpOp {
     pub(crate) delay: usize,
     pub(crate) loop_dispersion: f64,
     pub(crate) loop_loss: f64,
+    pub(crate) window: usize,
     pub(crate) cache: RwLock<Vec<Complex64>>,
     pub(crate) fft: RwLock<Option<(lle::BufferedFft<f64>, lle::BufferedFft<f64>)>>,
 }
@@ -19,6 +20,7 @@ impl Clone for SelfPumpOp {
             delay: self.delay,
             loop_dispersion: self.loop_dispersion,
             loop_loss: self.loop_loss,
+            window: self.window,
             cache: RwLock::new(self.cache.read().clone()),
             fft: RwLock::new(None),
         }
@@ -32,6 +34,7 @@ impl std::fmt::Debug for SelfPumpOp {
             .field("delay", &self.delay)
             .field("loop_dispersion", &self.loop_dispersion)
             .field("loop_loss", &self.loop_loss)
+            .field("window", &self.window)
             .finish()
     }
 }
@@ -42,6 +45,7 @@ pub struct SelfPumpOpStorage {
     pub(crate) delay: usize,
     pub(crate) loop_dispersion: f64,
     pub(crate) loop_loss: f64,
+    pub(crate) window: usize,
 }
 
 impl serde::Serialize for SelfPumpOp {
@@ -51,6 +55,7 @@ impl serde::Serialize for SelfPumpOp {
             delay: self.delay,
             loop_dispersion: self.loop_dispersion,
             loop_loss: self.loop_loss,
+            window: self.window,
         }
         .serialize(serializer)
     }
@@ -63,12 +68,14 @@ impl<'a> serde::Deserialize<'a> for SelfPumpOp {
             delay,
             loop_dispersion,
             loop_loss,
+            window,
         } = SelfPumpOpStorage::deserialize(deserializer)?;
         Ok(SelfPumpOp {
             now: RwLock::new(now),
             delay,
             loop_dispersion,
             loop_loss,
+            window,
             cache: RwLock::new(Vec::new()),
             fft: RwLock::new(None),
         })
@@ -81,6 +88,7 @@ impl Default for SelfPumpOp {
             now: RwLock::new(0),
             delay: 0,
             loop_dispersion: 0.,
+            window: 0,
             cache: RwLock::new(Vec::new()),
             loop_loss: 0.01,
             fft: RwLock::new(None),
@@ -95,6 +103,7 @@ impl SelfPumpOp {
             delay,
             loop_dispersion,
             loop_loss: _,
+            window,
             cache,
             fft,
         } = self;
@@ -110,15 +119,35 @@ impl SelfPumpOp {
         {
             let now = *now;
             let mut state = state.to_vec();
-            if !loop_dispersion.is_zero() {
-                lle::apply_linear(
-                    &mut state,
-                    &(2, -Complex64::i() * *loop_dispersion / 2.),
-                    fft.write()
-                        .get_or_insert_with(|| lle::BufferedFft::new(len)),
-                    1.,
-                    0,
-                );
+            if !loop_dispersion.is_zero() || *window != 0 {
+                let mut fft = fft.write();
+                let fft = fft.get_or_insert_with(|| lle::BufferedFft::new(len));
+
+                fft.0.fft_process(&mut state);
+
+                if !loop_dispersion.is_zero() {
+                    lle::apply_linear_freq(
+                        &mut state,
+                        &(2, -Complex64::i() * *loop_dispersion / 2.),
+                        1.,
+                        0,
+                    );
+                }
+
+                if *window != 0 {
+                    let window: i32 = *window as i32;
+                    let max_f = window / 2;
+                    let min_f = max_f + 1 - window;
+                    state.iter_mut().enumerate().for_each(|(i, x)| {
+                        let f = lle::freq_at(len, i);
+                        if f < min_f || f > max_f {
+                            *x = Complex64::zero();
+                        }
+                    });
+                }
+
+                fft.1.fft_process(&mut state);
+
                 state.iter_mut().for_each(|x| *x /= len as f64);
             }
             cache[(now * len)..(now * len + len)].copy_from_slice(&state);

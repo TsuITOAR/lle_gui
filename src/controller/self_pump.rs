@@ -44,6 +44,7 @@ pub struct SelfPump {
     pub(crate) delay: Property<usize>,
     pub(crate) loop_dispersion: Property<f64>,
     pub(crate) loop_loss: Property<f64>,
+    pub(crate) loop_window: Property<usize>,
 }
 
 impl std::default::Default for SelfPump {
@@ -51,8 +52,9 @@ impl std::default::Default for SelfPump {
         Self {
             const_pump: Property::new(1e-2, "Cw Pump").symbol('F'),
             delay: Property::new_no_slider(0, "Delay"),
-            loop_dispersion: Property::new(0., "Loop Dispersion").range((-1e-3, 1e-3)),
-            loop_loss: Property::new(1e-3, "Loop Loss").range((0., 1e-4)),
+            loop_dispersion: Property::new(0., "Loop Dispersion").range((-1., 1.)),
+            loop_loss: Property::new(1e-3, "Loop Loss").range((0., 1.)),
+            loop_window: Property::new_no_slider(100, "Loop Window"),
         }
     }
 }
@@ -64,6 +66,7 @@ impl SelfPump {
             delay: self.delay.get_value(),
             loop_dispersion: self.loop_dispersion.get_value(),
             loop_loss: self.loop_loss.get_value(),
+            window: self.loop_window.get_value(),
             cache: RwLock::new(Vec::new()),
             fft: RwLock::new(None),
         }
@@ -74,6 +77,7 @@ impl SelfPump {
         pump.op1.delay = self.delay.get_value();
         pump.op1.loop_dispersion = self.loop_dispersion.get_value();
         pump.op1.loop_loss = self.loop_loss.get_value();
+        pump.op1.window = self.loop_window.get_value();
         pump.op2 = Complex64::from(self.const_pump.get_value());
     }
 }
@@ -123,6 +127,7 @@ impl<NL: lle::NonLinearOp<f64> + Default> Controller<LleSolver<NL>> for SelfPump
         self.pump.loop_loss.show_in_control_panel(ui);
         self.pump.loop_dispersion.show_in_control_panel(ui);
         self.pump.delay.show_in_control_panel(ui);
+        self.pump.loop_window.show_in_control_panel(ui);
 
         self.step_dist.show_in_control_panel(ui);
         self.steps.show_in_control_panel(ui);
