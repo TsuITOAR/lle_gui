@@ -101,19 +101,17 @@ impl RandomNoise {
     }
 
     pub(crate) fn show(&mut self, ui: &mut egui::Ui, add: &mut bool) {
-        ui.collapsing("Noise", |ui| {
-            ui.horizontal(|ui| {
-                ui.toggle_value(add, "Noise");
-                if *add {
-                    ui.add(
-                        egui::Slider::new(&mut self.std_dev, 1E-10..=1E-4)
-                            .logarithmic(true)
-                            .clamping(egui::SliderClamping::Never)
-                            .text("Amplitude")
-                            .custom_formatter(|x, _r| format!("{:E}", x)),
-                    );
-                }
-            })
+        ui.horizontal(|ui| {
+            ui.toggle_value(add, "Noise");
+            if *add {
+                ui.add(
+                    egui::Slider::new(&mut self.std_dev, 1E-10..=1E-4)
+                        .logarithmic(true)
+                        .clamping(egui::SliderClamping::Never)
+                        .text("Amplitude")
+                        .custom_formatter(|x, _r| format!("{:E}", x)),
+                );
+            }
         });
     }
 

@@ -154,10 +154,6 @@ where
 
             core.random.show(ui, add_rand);
 
-            ui.horizontal(|ui| {
-                ui.label("Slider length");
-                ui.add(DragValue::new(slider_len));
-            });
             let button_text = if *running { "⏸" } else { "⏵" };
             ui.horizontal_wrapped(|ui| {
                 if ui.button(button_text).clicked() {
@@ -188,8 +184,6 @@ where
 
             ui.separator();
             views.config(ui);
-            ui.separator();
-            views.show_fps(ui);
 
             ui.separator();
             egui::warn_if_debug_build(ui);
@@ -205,8 +199,16 @@ where
             file_checkpoints
                 .show_save_load(ui, check_points)
                 .notify_global();
+            
+            ui.separator();
+            views.show_fps(ui);
 
             ui.separator();
+
+            ui.horizontal(|ui| {
+                ui.label("Slider length");
+                ui.add(DragValue::new(slider_len));
+            });
 
             crate::util::show_profiler(profiler, ui);
         });

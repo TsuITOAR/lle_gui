@@ -78,8 +78,8 @@ where
 
     pub fn show(&mut self, e: &Core<C, S>, ui: &mut egui::Ui) {
         ui.collapsing("Parameter scouting", |ui| {
-            self.config.show(ui);
             self.refresh.show(ui);
+            self.config.show(ui);
             crate::util::toggle_option_with(ui, &mut self.sub_cores, "Scouters", || {
                 Some(self.config.refresh(e))
             });

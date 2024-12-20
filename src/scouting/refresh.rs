@@ -28,11 +28,9 @@ impl Refresh {
     }
 
     pub fn show(&mut self, ui: &mut egui::Ui) {
-        ui.collapsing("Auto refresh", |ui| {
-            ui.horizontal(|ui| {
-                ui.add(egui::DragValue::new(&mut self.limit));
-                ui.label(format!("Refresh after {}/{}", self.count, self.limit));
-            })
+        ui.horizontal(|ui| {
+            ui.label(format!("Refresh after {} /", self.count));
+            ui.add(egui::DragValue::new(&mut self.limit));
         });
     }
 }
