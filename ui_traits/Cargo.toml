@@ -1,0 +1,8 @@
+[package]
+name = "ui_traits"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+egui = "^0.30"
+ui_traits_proc = { path = "../ui_traits_proc" }

@@ -5,7 +5,13 @@ pub type App =
     crate::app::GenApp<PulsePumpLleController, LleSolver<lle::SPhaMod>, crate::drawer::ViewField>;
 
 #[derive(
-    Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, lle_gui_proc::ControllerAsGrid,
+    Debug,
+    Clone,
+    PartialEq,
+    serde::Serialize,
+    serde::Deserialize,
+    ui_traits::ControllerStartWindow,
+    ui_traits::ControllerUI,
 )]
 pub struct PulsePumpLleController {
     pub(crate) alpha: Property<f64>,
@@ -35,7 +41,13 @@ impl std::default::Default for PulsePumpLleController {
 }
 
 #[derive(
-    Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, lle_gui_proc::ControllerAsGrid,
+    Debug,
+    Clone,
+    PartialEq,
+    serde::Serialize,
+    serde::Deserialize,
+    ui_traits::ControllerStartWindow,
+    ui_traits::ControllerUI,
 )]
 pub struct Pump {
     pub(crate) peak: Property<f64>,
@@ -101,20 +113,6 @@ impl<NL: lle::NonLinearOp<f64> + Default> Controller<LleSolver<NL>> for PulsePum
             .nonlin(NL::default())
             .constant(pump)
             .build()
-    }
-
-    fn show_in_control_panel(&mut self, ui: &mut egui::Ui) {
-        self.alpha.show_in_control_panel(ui);
-        self.linear.show_in_control_panel(ui);
-        self.pump.peak.show_in_control_panel(ui);
-        self.pump.width.show_in_control_panel(ui);
-        self.pump.d1_mismatch.show_in_control_panel(ui);
-        self.step_dist.show_in_control_panel(ui);
-        self.steps.show_in_control_panel(ui);
-    }
-
-    fn show_in_start_window(&mut self, dim: &mut usize, ui: &mut egui::Ui) {
-        crate::config::config(dim, self, ui)
     }
 
     fn sync_paras(&mut self, engine: &mut LleSolver<NL>) {

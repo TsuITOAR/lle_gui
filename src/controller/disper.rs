@@ -7,7 +7,14 @@ use super::{Controller, Property};
 pub type App =
     crate::app::GenApp<DisperLleController, LleSolver<lle::SPhaMod>, crate::drawer::ViewField>;
 
-#[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
+#[derive(
+    Debug,
+    Clone,
+    serde::Deserialize,
+    serde::Serialize,
+    ui_traits::ControllerStartWindow,
+    ui_traits::ControllerUI,
+)]
 pub struct CosDispersionProperty {
     center_pos: Property<f64>,
     period: Property<f64>,
@@ -25,12 +32,6 @@ impl Default for CosDispersionProperty {
 }
 
 impl CosDispersionProperty {
-    pub(crate) fn show_in_control_panel(&mut self, ui: &mut egui::Ui) {
-        self.center_pos.show_in_control_panel(ui);
-        self.period.show_in_control_panel(ui);
-        self.strength.show_in_control_panel(ui);
-    }
-
     pub fn generate_op(&self) -> CosDispersion {
         CosDispersion {
             center_pos: self.center_pos.get_value(),
@@ -74,7 +75,15 @@ pub type LleSolver<NL> = lle::LleSolver<
     Complex64,
 >;
 
-#[derive(Debug, Clone, Default, serde::Deserialize, serde::Serialize)]
+#[derive(
+    Debug,
+    Clone,
+    Default,
+    serde::Deserialize,
+    serde::Serialize,
+    ui_traits::ControllerStartWindow,
+    ui_traits::ControllerUI,
+)]
 pub struct DisperLleController {
     pub(crate) basic: super::LleController,
     pub(crate) disper: CosDispersionProperty,
@@ -106,14 +115,6 @@ impl<NL: Default + lle::NonLinearOp<f64>> Controller<LleSolver<NL>> for DisperLl
             .nonlin(NL::default())
             .constant(Complex64::from(pump))
             .build()
-    }
-    fn show_in_control_panel(&mut self, ui: &mut egui::Ui) {
-        Controller::<super::LleSolver<NL, Complex64>>::show_in_control_panel(&mut self.basic, ui);
-        self.disper.show_in_control_panel(ui);
-    }
-
-    fn show_in_start_window(&mut self, dim: &mut usize, ui: &mut egui::Ui) {
-        crate::config::config(dim, &mut self.basic, ui)
     }
 
     fn steps(&self) -> u32 {

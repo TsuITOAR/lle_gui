@@ -5,11 +5,19 @@ use super::*;
 #[allow(unused)]
 pub type App = crate::app::GenApp<CoupleLleController, CLleSolver, [crate::drawer::ViewField; 2]>;
 
-#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[derive(
+    Debug,
+    Clone,
+    PartialEq,
+    serde::Serialize,
+    serde::Deserialize,
+    ui_traits::ControllerStartWindow,
+    ui_traits::ControllerUI,
+)]
 pub struct CoupleLleController {
     pub(crate) basic: LleController,
+    pub(crate) couple: Property<f64>,
     pub(crate) pos: Property<i32>,
-    pub(crate) g: Property<f64>,
 }
 
 impl Default for CoupleLleController {
@@ -17,7 +25,7 @@ impl Default for CoupleLleController {
         Self {
             basic: LleController::default(),
             pos: Property::new_no_slider(0, "pos"),
-            g: Property::new(0., "g").range((0., 100.)),
+            couple: Property::new(0., "g").range((0., 100.)),
         }
     }
 }
@@ -51,7 +59,7 @@ impl Controller<CLleSolver> for CoupleLleController {
         let linear = self.basic.linear.get_value();
         let alpha = self.basic.alpha.get_value();
         let pos = self.pos.get_value();
-        let g = self.g.get_value();
+        let g = self.couple.get_value();
 
         let init = vec![zero(); dim];
         //r.add_random(init.as_mut_slice());
@@ -86,23 +94,10 @@ impl Controller<CLleSolver> for CoupleLleController {
             .build()
     }
 
-    fn show_in_control_panel(&mut self, ui: &mut egui::Ui) {
-        <crate::controller::LleController as crate::controller::Controller<
-            LleSolver<SPhaMod, Complex64>,
-        >>::show_in_control_panel(&mut self.basic, ui);
-
-        self.g.show_in_control_panel(ui);
-        self.pos.show_in_control_panel(ui);
-    }
-
-    fn show_in_start_window(&mut self, dim: &mut usize, ui: &mut egui::Ui) {
-        crate::config::config(dim, &mut self.basic, ui)
-    }
-
     fn sync_paras(&mut self, engine: &mut CLleSolver) {
         crate::util::synchronize_properties(&self.basic, &mut engine.component1);
         crate::util::synchronize_properties_no_pump(&self.basic, &mut engine.component2);
-        engine.couple.couple.strength = self.g.get_value();
+        engine.couple.couple.strength = self.couple.get_value();
         engine.couple.couple.mode = self.pos.get_value();
     }
 

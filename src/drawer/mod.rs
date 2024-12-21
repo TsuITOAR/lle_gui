@@ -68,7 +68,7 @@ impl ViewField {
 impl ViewField {
     pub(crate) fn toggle_record_his(&mut self, ui: &mut egui::Ui, data: &[Complex64]) {
         let index = self.index;
-        if crate::util::toggle_option_with(
+        if crate::util::show_option_with(
             ui,
             &mut self.history,
             format!("Record history {index}"),
@@ -94,10 +94,10 @@ impl ViewField {
 
     pub(crate) fn show_which(&mut self, ui: &mut egui::Ui) {
         ui.vertical(|ui| {
-            crate::util::toggle_option_with(ui, &mut self.r_chart, "real domain", || {
+            crate::util::show_option_with(ui, &mut self.r_chart, "real domain", || {
                 default_r_chart(self.index)
             });
-            crate::util::toggle_option_with(ui, &mut self.f_chart, "freq domain", || {
+            crate::util::show_option_with(ui, &mut self.f_chart, "freq domain", || {
                 default_f_chart(self.index)
             });
         });

@@ -119,7 +119,7 @@ impl Process {
     }
 
     pub(crate) fn controller(&mut self, ui: &mut egui::Ui) {
-        crate::util::toggle_option(ui, &mut self.fft, "FFT");
+        crate::util::show_option(ui, &mut self.fft, "FFT");
         ui.separator();
         self.component.show(ui);
         ui.separator();

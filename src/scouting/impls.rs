@@ -33,8 +33,8 @@ impl BasicScoutingTarget {
     }
 }
 
-impl Config for BasicScoutingTarget {
-    fn config(&mut self, ui: &mut egui::Ui) {
+impl ui_traits::ControllerUI for BasicScoutingTarget {
+    fn show_controller(&mut self, ui: &mut egui::Ui) {
         enum_iterator::all::<BasicScoutingTarget>().for_each(|s| {
             if ui.selectable_label(self == &s, s.desc()).clicked() {
                 *self = s;

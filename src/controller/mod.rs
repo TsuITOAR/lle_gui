@@ -52,18 +52,7 @@ impl<NL: Default + lle::NonLinearOp<f64>> Controller<LleSolver<NL, Complex64>> f
             .constant(Complex64::from(pump))
             .build()
     }
-    fn show_in_control_panel(&mut self, ui: &mut egui::Ui) {
-        self.alpha.show_in_control_panel(ui);
-        self.linear.show_in_control_panel(ui);
-        self.pump.show_in_control_panel(ui);
-        self.step_dist.show_in_control_panel(ui);
-        self.steps.show_in_control_panel(ui);
-    }
-
-    fn show_in_start_window(&mut self, dim: &mut usize, ui: &mut egui::Ui) {
-        crate::config::config(dim, self, ui)
-    }
-
+    
     fn steps(&self) -> u32 {
         self.steps.get_value()
     }
@@ -73,7 +62,13 @@ impl<NL: Default + lle::NonLinearOp<f64>> Controller<LleSolver<NL, Complex64>> f
 }
 
 #[derive(
-    Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, lle_gui_proc::ControllerAsGrid,
+    Debug,
+    Clone,
+    PartialEq,
+    serde::Serialize,
+    serde::Deserialize,
+    ui_traits::ControllerStartWindow,
+    ui_traits::ControllerUI,
 )]
 pub struct LleController {
     pub(crate) alpha: Property<f64>,

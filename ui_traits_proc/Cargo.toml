@@ -1,5 +1,5 @@
 [package]
-name = "lle_gui_proc"
+name = "ui_traits_proc"
 version = "0.1.0"
 edition = "2021"
 
@@ -7,6 +7,6 @@ edition = "2021"
 proc-macro = true
 
 [dependencies]
-syn = "2.0"
+syn = { version = "2.0", features = ["full"] }
 quote = "1.0"
 proc-macro2 = "1.0"

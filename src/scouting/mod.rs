@@ -5,6 +5,7 @@ use rayon::prelude::*;
 use refresh::Refresh;
 
 pub use impls::BasicScoutingTarget;
+use ui_traits::ControllerUI;
 
 use crate::{
     app::Core,
@@ -80,7 +81,7 @@ where
         ui.collapsing("Parameter scouting", |ui| {
             self.refresh.show(ui);
             self.config.show(ui);
-            crate::util::toggle_option_with(ui, &mut self.sub_cores, "Scouters", || {
+            crate::util::show_option_with(ui, &mut self.sub_cores, "Scouters", || {
                 Some(self.config.refresh(e))
             });
 
@@ -222,18 +223,22 @@ where
     }
 }
 
-pub trait ScoutingTarget<C: Controller<E>, E: Simulator>: Send + Sync + Config + Default {
+pub trait ScoutingTarget<C: Controller<E>, E: Simulator>:
+    Send + Sync + ControllerUI + Default
+{
     fn apply(&self, value: f64, controller: &mut C);
     fn sync(&self, value: f64, src: &C, dst: &mut C);
 }
 
-pub type Offset<T> = (T, f64);
+#[derive(
+    Clone, Copy, Debug, Default, PartialEq, PartialOrd, serde::Serialize, serde::Deserialize,
+)]
+pub struct Offset<T>(T, f64);
 
-use crate::util::Config;
-impl<T: Config> Config for Offset<T> {
-    fn config(&mut self, ui: &mut egui::Ui) {
+impl<T: ControllerUI> ControllerUI for Offset<T> {
+    fn show_controller(&mut self, ui: &mut egui::Ui) {
         ui.horizontal(|ui| {
-            self.0.config(ui);
+            self.0.show_controller(ui);
             ui.add(egui::DragValue::new(&mut self.1).prefix("Δ = "));
         });
     }
@@ -308,7 +313,7 @@ where
     pub fn refresh(&mut self, e: &Core<C, S>) -> SubCores<Core<C, S>> {
         puffin::profile_function!();
         let mut ret = Vec::new();
-        for (target, value) in &self.offsets {
+        for Offset(target, value) in &self.offsets {
             let mut c = e.controller.clone();
             let state = e.simulator.get_owned_state();
             let dim = e.dim;
@@ -331,14 +336,13 @@ where
 
     pub fn sync(&mut self, src: &Core<C, S>, dst: &mut SubCores<Core<C, S>>) {
         puffin::profile_function!();
-        self.offsets
-            .par_iter()
-            .zip(dst.cores.par_iter())
-            .for_each(|((target, value), core)| {
+        self.offsets.par_iter().zip(dst.cores.par_iter()).for_each(
+            |(Offset(target, value), core)| {
                 let mut core = core.lock();
                 let c = &mut core.controller;
                 target.sync(*value, &src.controller, c);
                 core.random = src.random.clone();
-            });
+            },
+        );
     }
 }

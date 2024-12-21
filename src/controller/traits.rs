@@ -1,6 +1,8 @@
 use crate::random::RandomNoise;
 
-pub trait Controller<E>: 'static + Send + Sync {
+pub trait Controller<E>:
+    'static + Send + Sync + ui_traits::ControllerStartWindow + ui_traits::ControllerUI
+{
     const EXTENSION: &'static str;
     type Dispersion: lle::LinearOp<f64>;
     fn dispersion(&self) -> Self::Dispersion;
@@ -13,8 +15,12 @@ pub trait Controller<E>: 'static + Send + Sync {
         e.add_rand(rand);
         e
     }
-    fn show_in_control_panel(&mut self, ui: &mut egui::Ui);
-    fn show_in_start_window(&mut self, dim: &mut usize, ui: &mut egui::Ui);
+    fn show_in_control_panel(&mut self, ui: &mut egui::Ui) {
+        self.show_controller(ui);
+    }
+    fn show_in_start_window(&mut self, dim: &mut usize, ui: &mut egui::Ui) {
+        crate::config::config(dim, self, ui)
+    }
     fn sync_paras(&mut self, engine: &mut E);
     fn steps(&self) -> u32;
 }

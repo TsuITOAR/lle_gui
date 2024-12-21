@@ -391,7 +391,7 @@ impl LleChart {
 pub(crate) const Y_AXIS_MIN_WIDTH: f32 = 40.0;
 
 fn smarter_bound_controller(smart_bound: &mut Option<SmartPlot<f64>>, ui: &mut egui::Ui) {
-    crate::util::toggle_option(ui, smart_bound, "Smart bound");
+    crate::util::show_option(ui, smart_bound, "Smart bound");
     #[cfg(debug_assertions)]
     if let Some(smart) = smart_bound.as_mut() {
         ui.collapsing("Status", |ui| {
