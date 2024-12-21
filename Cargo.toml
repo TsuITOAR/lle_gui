@@ -26,6 +26,11 @@ egui = "^0.30"
 wgpu = { version = "^23", features = ["webgpu", "webgl"], optional = true }
 puffin_egui = { version = "^0.29", git = "https://github.com/tedsteen/puffin.git", rev = "3be326c" } #remove git after crates updated
 
+puffin = { version = "^0.19", git = "https://github.com/tedsteen/puffin.git", rev = "3be326c", features = [
+    "web",
+    "packing",
+] } #remove git after crates updated
+
 egui_plot = "^0.30"
 
 lle = { git = "https://github.com/TsuITOAR/Lle.git", default-features = false, features = [
