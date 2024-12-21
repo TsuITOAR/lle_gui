@@ -93,7 +93,7 @@ impl ViewField {
     }
 
     pub(crate) fn show_which(&mut self, ui: &mut egui::Ui) {
-        ui.vertical(|ui| {
+        ui.horizontal(|ui| {
             crate::util::show_option_with(ui, &mut self.r_chart, "real domain", || {
                 default_r_chart(self.index)
             });
@@ -109,7 +109,7 @@ impl ViewField {
         running: bool,
         #[cfg(feature = "gpu")] render_state: &eframe::egui_wgpu::RenderState,
     ) {
-        puffin::profile_function!();
+        puffin_egui::puffin::profile_function!();
         LleChart::plot_on_new_window(
             &mut self.r_chart,
             data,

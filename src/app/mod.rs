@@ -94,8 +94,8 @@ where
 {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         TOASTS.lock().show(ctx);
-        puffin::GlobalProfiler::lock().new_frame(); // call once per frame!
-        puffin::profile_function!();
+        puffin_egui::puffin::GlobalProfiler::lock().new_frame(); // call once per frame!
+        puffin_egui::puffin::profile_function!();
         let Self {
             core,
             scout,
@@ -142,7 +142,7 @@ where
         let mut destruct = false;
         let mut step = false;
         egui::SidePanel::left("control_panel").show(ctx, |ui| {
-            puffin::profile_scope!("control panel");
+            puffin_egui::puffin::profile_scope!("control panel");
             ui.heading("Control Panel");
 
             let slider_len = slider_len.get_or_insert_with(|| ui.spacing().slider_width);
@@ -151,8 +151,6 @@ where
             }
 
             core.controller.show_in_control_panel(ui);
-
-            core.random.show(ui, add_rand);
 
             let button_text = if *running { "⏸" } else { "⏵" };
             ui.horizontal_wrapped(|ui| {
@@ -164,6 +162,25 @@ where
                 reset = ui.button("⏹").clicked();
                 destruct = ui.button("⏏").clicked();
             });
+
+            // end of basic control
+            ui.separator();
+
+            core.random.show(ui, add_rand);
+
+            scout.show(core, ui);
+
+            // advanced simulation control
+            ui.separator();
+
+            ui.horizontal(|ui| views.toggle_record_his(ui, core.simulator.states()));
+            if show_disper.0 {
+                let disper = core.controller.dispersion();
+                let points = dispersion_line(disper, core.dim, show_disper.1);
+                views.push_elements(points, ShowOn::Freq);
+            }
+            views.config(ui);
+
             ui.horizontal(|ui| {
                 ui.checkbox(&mut show_disper.0, "Show dispersion")
                     .on_hover_text("Show dispersion");
@@ -172,20 +189,9 @@ where
                 }
             });
 
-            scout.show(core, ui);
-
-            if show_disper.0 {
-                let disper = core.controller.dispersion();
-                let points = dispersion_line(disper, core.dim, show_disper.1);
-                views.push_elements(points, ShowOn::Freq);
-            }
-
-            views.toggle_record_his(ui, core.simulator.states());
-
+            // visualize strategy
             ui.separator();
-            views.config(ui);
 
-            ui.separator();
             egui::warn_if_debug_build(ui);
             if let Some(true) = file_state.show_save_load(ui, core).notify_global() {
                 views.adjust_to_state(core.simulator.states());
@@ -203,6 +209,7 @@ where
             ui.separator();
             views.show_fps(ui);
 
+            // information display
             ui.separator();
 
             ui.horizontal(|ui| {
@@ -230,7 +237,7 @@ where
             scout.sync_paras(core);
             scout.tick(core);
             if *add_rand {
-                puffin::profile_scope!("add random");
+                puffin_egui::puffin::profile_scope!("add random");
                 core.add_random();
             }
 
@@ -242,7 +249,7 @@ where
             } = core;
 
             {
-                puffin::profile_scope!("calculate");
+                puffin_egui::puffin::profile_scope!("calculate");
                 simulator.run(controller.steps());
                 scout.poll_scouters(controller.steps(), *add_rand);
             }

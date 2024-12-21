@@ -141,7 +141,7 @@ where
     }
 
     pub fn poll_scouters(&mut self, steps: u32, add_random: bool) -> Option<()> {
-        puffin::profile_function!();
+        puffin_egui::puffin::profile_function!();
         let sub_cores = self.sub_cores.as_mut()?;
         self.promise.get_or_insert_with(|| {
             #[cfg(not(target_arch = "wasm32"))]
@@ -311,7 +311,7 @@ where
     }
 
     pub fn refresh(&mut self, e: &Core<C, S>) -> SubCores<Core<C, S>> {
-        puffin::profile_function!();
+        puffin_egui::puffin::profile_function!();
         let mut ret = Vec::new();
         for Offset(target, value) in &self.offsets {
             let mut c = e.controller.clone();
@@ -335,7 +335,7 @@ where
     }
 
     pub fn sync(&mut self, src: &Core<C, S>, dst: &mut SubCores<Core<C, S>>) {
-        puffin::profile_function!();
+        puffin_egui::puffin::profile_function!();
         self.offsets.par_iter().zip(dst.cores.par_iter()).for_each(
             |(Offset(target, value), core)| {
                 let mut core = core.lock();

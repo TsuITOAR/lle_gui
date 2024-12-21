@@ -85,7 +85,7 @@ where
 
 pub fn show_profiler(show: &mut bool, ui: &mut egui::Ui) {
     if ui.toggle_value(show, "profile performance").clicked() {
-        puffin::set_scopes_on(*show); // Remember to call this, or puffin will be disabled!
+        puffin_egui::puffin::set_scopes_on(*show); // Remember to call this, or puffin will be disabled!
     }
     if *show {
         puffin_egui::profiler_ui(ui)

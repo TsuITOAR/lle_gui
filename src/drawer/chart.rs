@@ -241,7 +241,7 @@ impl LleChart {
             .as_ref()
             .map(|x| x.name.as_str())
             .unwrap_or("Empty name");
-        puffin::profile_scope!("plot", name);
+        puffin_egui::puffin::profile_scope!("plot", name);
         let mut open = true;
         egui::Window::new(name)
             .open(&mut open)

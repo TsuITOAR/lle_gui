@@ -7,7 +7,7 @@ use super::Drawer;
 
 impl DrawMat for Drawer {
     fn draw_mat_on_ui(&mut self, _len: usize, ui: &mut egui::Ui) -> Result<(), eframe::Error> {
-        puffin::profile_function!();
+        puffin_egui::puffin::profile_function!();
         self.show(ui);
         Ok(())
     }
@@ -15,12 +15,12 @@ impl DrawMat for Drawer {
         self.update(data, proc, chunk_size);
     }
     fn update(&mut self, data: &[Complex64], proc: &mut Process, chunk_size: usize) {
-        puffin::profile_function!();
+        puffin_egui::puffin::profile_function!();
         let mut log = self.data();
         let max_log = self.max_log().unwrap().get();
         use rayon::prelude::*;
         {
-            puffin::profile_scope!("process data");
+            puffin_egui::puffin::profile_scope!("process data");
             data.rchunks(chunk_size)
                 .take(max_log)
                 .collect::<Vec<&[Complex64]>>()
@@ -52,7 +52,7 @@ impl DrawMat for Drawer {
 }
 
 fn search_max_min(data: &[f32]) -> (f32, f32) {
-    puffin::profile_function!();
+    puffin_egui::puffin::profile_function!();
     debug_assert!(data.len() % 2 == 0);
     data.chunks(2)
         .map(|x| (x[0], x[1]))

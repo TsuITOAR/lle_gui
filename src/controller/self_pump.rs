@@ -132,7 +132,7 @@ impl<NL: lle::NonLinearOp<f64> + Default> Controller<LleSolver<NL>> for SelfPump
     }
 
     fn sync_paras(&mut self, engine: &mut LleSolver<NL>) {
-        puffin::profile_function!();
+        puffin_egui::puffin::profile_function!();
         let step_dist = self.step_dist.get_value();
         let linear = self.linear.get_value();
         let alpha = self.alpha.get_value();
