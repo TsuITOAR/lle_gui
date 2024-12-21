@@ -1,4 +1,3 @@
-
 mod show_stuff;
 
 pub use show_stuff::*;
@@ -27,7 +26,6 @@ pub(crate) fn allocate_remained_space(ui: &mut egui::Ui) -> egui::Ui {
             .layout(*ui.layout()),
     )
 }
-
 
 pub type FutureHandler<T> = Promise<T>;
 

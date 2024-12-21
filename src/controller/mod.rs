@@ -52,7 +52,7 @@ impl<NL: Default + lle::NonLinearOp<f64>> Controller<LleSolver<NL, Complex64>> f
             .constant(Complex64::from(pump))
             .build()
     }
-    
+
     fn steps(&self) -> u32 {
         self.steps.get_value()
     }
