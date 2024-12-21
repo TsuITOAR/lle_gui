@@ -278,7 +278,7 @@ impl ColorMapVisualizer<f64> {
     }
 
     fn fetch(&mut self, data: &[Complex64], proc: &mut Process, chunk_size: usize) -> &mut Self {
-        puffin::profile_function!();
+        puffin_egui::puffin::profile_function!();
         self.clear();
         // todo: use rayon to parallelize the process
         match self.max_log {
@@ -339,7 +339,7 @@ impl ColorMapVisualizer<f64> {
         impl Fn((i32, i32)) -> Option<(usize, usize)> + 'a,
         DrawingAreaErrorKind<<EguiBackend<'_> as DrawingBackend>::ErrorType>,
     > {
-        puffin::profile_function!();
+        puffin_egui::puffin::profile_function!();
         self.draw_mat(
             EguiBackend::new(ui).into_drawing_area(),
             chunk_size,
@@ -355,16 +355,16 @@ impl chart::DrawMat for ColorMapVisualizer {
         chunk_size: usize,
         ui: &mut egui::Ui,
     ) -> Result<(), eframe::Error> {
-        puffin::profile_function!();
+        puffin_egui::puffin::profile_function!();
         Self::draw_mat_on_ui(self, chunk_size, ui).unwrap();
         Ok(())
     }
     fn fetch(&mut self, data: &[Complex64], proc: &mut Process, chunk_size: usize) {
-        puffin::profile_function!();
+        puffin_egui::puffin::profile_function!();
         Self::fetch(self, data, proc, chunk_size);
     }
     fn update(&mut self, data: &[Complex64], proc: &mut Process, chunk_size: usize) {
-        puffin::profile_function!();
+        puffin_egui::puffin::profile_function!();
         Self::update(self, data, proc, chunk_size);
     }
     fn max_log(&self) -> Option<NonZeroUsize> {
@@ -416,7 +416,7 @@ fn draw_map<'a, DB: DrawingBackend>(
     data: impl Iterator<Item = &'a [f64]>,
     range: Range<f64>,
 ) {
-    puffin::profile_scope!("iterator matrix elements");
+    puffin_egui::puffin::profile_scope!("iterator matrix elements");
     ctx.draw_series(
         data.enumerate()
             .flat_map(|(y, l)| l.iter().enumerate().map(move |(x, v)| (x, y, *v)))

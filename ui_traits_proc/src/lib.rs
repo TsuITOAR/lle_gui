@@ -48,7 +48,9 @@ fn simple_derive(
             .to_compile_error()
             .into(),
         Data::Enum(data_enum) => simple_derive_enum(data_enum, trait_item, function, trait_path),
-        Data::Struct(data_struct) => simple_derive_struct(data_struct, trait_item, function, trait_path),
+        Data::Struct(data_struct) => {
+            simple_derive_struct(data_struct, trait_item, function, trait_path)
+        }
     };
     let trait_path = trait_path.map(|x| quote!(#x :: ));
     quote! {
@@ -64,8 +66,6 @@ fn simple_derive_struct<'a>(
     function: impl Iterator<Item = &'a syn::TraitItemFn>,
     trait_path: Option<&syn::Path>,
 ) -> proc_macro2::TokenStream {
-
-    
     let trait_path = trait_path.map(|x| quote!(#x :: ));
 
     function
@@ -136,7 +136,6 @@ fn simple_derive_enum<'a>(
 
     let function_sig = &function.sig;
 
-     
     let trait_path = trait_path.map(|x| quote!(#x :: ));
 
     let paras = function_sig
