@@ -59,6 +59,7 @@ pub struct InterleaveSelfPump {
     pub(crate) main_delay: Property<usize>,
     pub(crate) interleave_delay: Property<usize>,
     pub(crate) interleave_ratio: Property<f64>,
+    pub(crate) d1_mismatch: Property<f64>,
     pub(crate) loop_dispersion: Property<f64>,
     pub(crate) loop_loss: Property<f64>,
     pub(crate) loop_window: Property<usize>,
@@ -72,6 +73,7 @@ impl std::default::Default for InterleaveSelfPump {
             interleave_delay: Property::new_no_slider(5, "Interleave Delay"),
             interleave_ratio: Property::new(0.9, "Interleave Ratio").range((0., 1.)),
             loop_dispersion: Property::new(0., "Loop Dispersion").range((-1., 1.)),
+            d1_mismatch: Property::new(0., "D1 Mismatch").range((-1., 1.)),
             loop_loss: Property::new(1., "Loop Loss").range((0., 1.5)),
             loop_window: Property::new_no_slider(128, "Loop Window"),
         }
@@ -85,6 +87,7 @@ impl InterleaveSelfPump {
         let self_pump1 = crate::lle_util::SelfPumpOp {
             now: RwLock::new(0),
             delay: self.main_delay.get_value(),
+            d1_mismatch: self.d1_mismatch.get_value(),
             loop_dispersion: self.loop_dispersion.get_value(),
             loop_loss: self.loop_loss.get_value(),
             window: self.loop_window.get_value(),
@@ -93,7 +96,8 @@ impl InterleaveSelfPump {
         };
         let self_pump2 = crate::lle_util::SelfPumpOp {
             now: RwLock::new(0),
-            delay: self.interleave_delay.get_value(),
+            delay: self.main_delay.get_value() + self.interleave_delay.get_value(),
+            d1_mismatch: self.d1_mismatch.get_value(),
             loop_dispersion: self.loop_dispersion.get_value(),
             loop_loss: self.loop_loss.get_value(),
             window: self.loop_window.get_value(),
@@ -111,11 +115,13 @@ impl InterleaveSelfPump {
 
     pub fn update_pump_op(&self, pump: &mut Pump) {
         pump.op1.channel1.delay = self.main_delay.get_value();
+        pump.op1.channel1.d1_mismatch = self.d1_mismatch.get_value();
         pump.op1.channel1.loop_dispersion = self.loop_dispersion.get_value();
         pump.op1.channel1.loop_loss = self.loop_loss.get_value();
         pump.op1.channel1.window = self.loop_window.get_value();
 
-        pump.op1.channel2.delay = self.interleave_delay.get_value();
+        pump.op1.channel2.delay = self.main_delay.get_value() + self.interleave_delay.get_value();
+        pump.op1.channel2.d1_mismatch = self.d1_mismatch.get_value();
         pump.op1.channel2.loop_dispersion = self.loop_dispersion.get_value();
         pump.op1.channel2.loop_loss = self.loop_loss.get_value();
         pump.op1.channel2.window = self.loop_window.get_value();
@@ -137,7 +143,7 @@ pub type LleSolver<NL> = lle::LleSolver<f64, Vec<Complex64>, LinearOp, NL, Pump>
 impl<NL: lle::NonLinearOp<f64> + Default> Controller<LleSolver<NL>>
     for InterleaveSelfPumpLleController
 {
-    const EXTENSION: &'static str = "slle";
+    const EXTENSION: &'static str = "islle";
 
     type Dispersion = (lle::DiffOrder, Complex64);
 

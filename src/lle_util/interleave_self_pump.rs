@@ -30,13 +30,13 @@ impl InterleaveSelfPumpOp {
     }
 
     fn cur_array(&self, len: usize) -> Vec<Complex64> {
-        let mut channnel1 = self.channel1.cur_array(len);
-        let channnel2 = self.channel2.cur_array(len);
-        channnel1
-            .iter_mut()
-            .zip(channnel2.iter())
-            .for_each(|(x, y)| *x = *x * self.mix + *y * (1. - self.mix));
-        channnel1
+        let mut channel1 = self.channel1.cur_array(len);
+        let channel2 = self.channel2.cur_array(len);
+        channel1.iter_mut().zip(channel2.iter()).for_each(|(x, y)| {
+            *x = *x * self.channel1.loop_loss * self.mix
+                + *y * self.channel2.loop_loss * (1. - self.mix)
+        });
+        channel1
     }
 }
 

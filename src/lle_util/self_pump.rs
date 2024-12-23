@@ -6,6 +6,7 @@ use super::*;
 pub struct SelfPumpOp {
     pub(crate) now: RwLock<usize>,
     pub(crate) delay: usize,
+    pub(crate) d1_mismatch: f64,
     pub(crate) loop_dispersion: f64,
     pub(crate) loop_loss: f64,
     pub(crate) window: usize,
@@ -18,6 +19,7 @@ impl Clone for SelfPumpOp {
         SelfPumpOp {
             now: RwLock::new(*self.now.read()),
             delay: self.delay,
+            d1_mismatch: self.d1_mismatch,
             loop_dispersion: self.loop_dispersion,
             loop_loss: self.loop_loss,
             window: self.window,
@@ -32,6 +34,7 @@ impl std::fmt::Debug for SelfPumpOp {
         f.debug_struct("SelfPumpOp")
             .field("now", &self.now.read())
             .field("delay", &self.delay)
+            .field("d1_mismatch", &self.d1_mismatch)
             .field("loop_dispersion", &self.loop_dispersion)
             .field("loop_loss", &self.loop_loss)
             .field("window", &self.window)
@@ -43,6 +46,7 @@ impl std::fmt::Debug for SelfPumpOp {
 pub struct SelfPumpOpStorage {
     pub(crate) now: usize,
     pub(crate) delay: usize,
+    pub(crate) d1_mismatch: f64,
     pub(crate) loop_dispersion: f64,
     pub(crate) loop_loss: f64,
     pub(crate) window: usize,
@@ -53,6 +57,7 @@ impl serde::Serialize for SelfPumpOp {
         SelfPumpOpStorage {
             now: *self.now.read(),
             delay: self.delay,
+            d1_mismatch: self.d1_mismatch,
             loop_dispersion: self.loop_dispersion,
             loop_loss: self.loop_loss,
             window: self.window,
@@ -66,6 +71,7 @@ impl<'a> serde::Deserialize<'a> for SelfPumpOp {
         let SelfPumpOpStorage {
             now,
             delay,
+            d1_mismatch,
             loop_dispersion,
             loop_loss,
             window,
@@ -73,6 +79,7 @@ impl<'a> serde::Deserialize<'a> for SelfPumpOp {
         Ok(SelfPumpOp {
             now: RwLock::new(now),
             delay,
+            d1_mismatch,
             loop_dispersion,
             loop_loss,
             window,
@@ -87,6 +94,7 @@ impl Default for SelfPumpOp {
         Self {
             now: RwLock::new(0),
             delay: 0,
+            d1_mismatch: 0.,
             loop_dispersion: 0.,
             window: 0,
             cache: RwLock::new(Vec::new()),
@@ -101,6 +109,7 @@ impl SelfPumpOp {
         let Self {
             now,
             delay,
+            d1_mismatch,
             loop_dispersion,
             loop_loss: _,
             window,
@@ -119,16 +128,17 @@ impl SelfPumpOp {
         {
             let now = *now;
             let mut state = state.to_vec();
-            if !loop_dispersion.is_zero() || *window != 0 {
+            if !d1_mismatch.is_zero() || !loop_dispersion.is_zero() || *window != 0 {
                 let mut fft = fft.write();
                 let fft = fft.get_or_insert_with(|| lle::BufferedFft::new(len));
 
                 fft.0.fft_process(&mut state);
-
-                if !loop_dispersion.is_zero() {
+                use lle::LinearOp;
+                if !d1_mismatch.is_zero() || !loop_dispersion.is_zero() {
                     lle::apply_linear_freq(
                         &mut state,
-                        &(2, -Complex64::i() * *loop_dispersion / 2.),
+                        &(1, -Complex64::i() * *d1_mismatch / 2.)
+                            .add_linear_op((2, -Complex64::i() * *loop_dispersion / 2.)),
                         1.,
                         0,
                     );
