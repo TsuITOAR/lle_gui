@@ -3,8 +3,11 @@ use lle::StaticConstOp;
 use super::*;
 
 #[allow(unused)]
-pub type App =
-    crate::app::GenApp<PulsePumpLleController, LleSolver<lle::SPhaMod>, crate::drawer::ViewField>;
+pub type App = crate::app::GenApp<
+    DualPulsePumpLleController,
+    LleSolver<lle::SPhaMod>,
+    crate::drawer::ViewField,
+>;
 
 pub type LleSolver<NL> = lle::LleSolver<f64, Vec<Complex64>, LinearOp, NL, lle::ConstOpCached<f64>>;
 
@@ -17,7 +20,7 @@ pub type LleSolver<NL> = lle::LleSolver<f64, Vec<Complex64>, LinearOp, NL, lle::
     ui_traits::ControllerStartWindow,
     ui_traits::ControllerUI,
 )]
-pub struct PulsePumpLleController {
+pub struct DualPulsePumpLleController {
     pub(crate) alpha: Property<f64>,
     pub(crate) linear: Property<f64>,
     pub(crate) pump: Pump,
@@ -25,7 +28,7 @@ pub struct PulsePumpLleController {
     pub(crate) steps: Property<u32>,
 }
 
-impl std::default::Default for PulsePumpLleController {
+impl std::default::Default for DualPulsePumpLleController {
     fn default() -> Self {
         Self {
             alpha: Property::new(-5., "alpha").symbol('α'),
@@ -53,29 +56,62 @@ impl std::default::Default for PulsePumpLleController {
     ui_traits::ControllerStartWindow,
     ui_traits::ControllerUI,
 )]
-pub(crate) struct Pump {
+pub struct SinglePump {
     pub(crate) peak: Property<f64>,
     pub(crate) width: Property<f64>,
+}
+
+impl std::default::Default for SinglePump {
+    fn default() -> Self {
+        Self {
+            peak: Property::new(10., "peak").range((0.01, 1.)),
+            width: Property::new(10., "width").range((1., 100.)),
+        }
+    }
+}
+
+#[derive(
+    Debug,
+    Clone,
+    PartialEq,
+    serde::Serialize,
+    serde::Deserialize,
+    ui_traits::ControllerStartWindow,
+    ui_traits::ControllerUI,
+)]
+pub(crate) struct Pump {
+    pub(crate) pulse1: SinglePump,
+    pub(crate) pulse2: SinglePump,
+    pub(crate) distance: Property<f64>,
     pub(crate) d1_mismatch: Property<f64>,
 }
 
 impl std::default::Default for Pump {
     fn default() -> Self {
         Self {
-            peak: Property::new(10., "Peak").range((0.01, 100.)),
-            width: Property::new(1., "Width").range((0.01, 100.)),
-            d1_mismatch: Property::new(0., "D1 Mismatch").range((-0.1, 0.1)),
+            pulse1: SinglePump::default(),
+            pulse2: SinglePump::default(),
+            distance: Property::new(50., "distance").range((10., 200.)),
+            d1_mismatch: Property::new(0., "D1 mismatch").range((-0.1, 0.1)),
         }
     }
 }
 
+pub type PumpOp = lle::ConstOpAdd<f64, crate::lle_util::PulsePumpOp, crate::lle_util::PulsePumpOp>;
+
 impl Pump {
-    pub fn get_pump_op(&self) -> crate::lle_util::PulsePumpOp {
-        crate::lle_util::PulsePumpOp {
-            center: 0.,
-            peak: self.peak.get_value(),
-            width: self.width.get_value(),
+    pub fn get_pump_op(&self) -> PumpOp {
+        use crate::lle_util::PulsePumpOp;
+        PulsePumpOp {
+            center: self.distance.get_value() / -2.,
+            peak: self.pulse1.peak.get_value(),
+            width: self.pulse1.width.get_value(),
         }
+        .add_const_op(PulsePumpOp {
+            center: self.distance.get_value() / 2.,
+            peak: self.pulse2.peak.get_value(),
+            width: self.pulse2.width.get_value(),
+        })
     }
 }
 
@@ -86,8 +122,8 @@ pub type LinearOp = LinearOpAdd<
     (lle::DiffOrder, Complex64),
 >;
 
-impl<NL: lle::NonLinearOp<f64> + Default> Controller<LleSolver<NL>> for PulsePumpLleController {
-    const EXTENSION: &'static str = "plle";
+impl<NL: lle::NonLinearOp<f64> + Default> Controller<LleSolver<NL>> for DualPulsePumpLleController {
+    const EXTENSION: &'static str = "dplle";
 
     type Dispersion = (lle::DiffOrder, Complex64);
 

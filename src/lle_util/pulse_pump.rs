@@ -2,6 +2,7 @@ use super::*;
 
 #[derive(Debug, Clone, serde::Serialize, serde:: Deserialize)]
 pub struct PulsePumpOp {
+    pub(crate) center: f64,
     pub(crate) peak: f64,
     pub(crate) width: f64,
 }
@@ -9,6 +10,7 @@ pub struct PulsePumpOp {
 impl Default for PulsePumpOp {
     fn default() -> Self {
         Self {
+            center: 0.,
             peak: 10.,
             width: 64.,
         }
@@ -18,7 +20,7 @@ impl Default for PulsePumpOp {
 impl lle::ConstOp<f64> for PulsePumpOp {
     fn get_value(&self, _cur_step: Step, pos: usize, state: &[Complex64]) -> Complex64 {
         let len = state.len();
-        let t = pos as f64 - len as f64 / 2.;
+        let t = pos as f64 - len as f64 / 2. - self.center;
         let t = t / self.width;
         (t.cosh().recip() * self.peak).into()
     }

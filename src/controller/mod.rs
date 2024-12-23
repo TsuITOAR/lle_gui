@@ -6,6 +6,7 @@ pub mod cprt;
 pub mod cprt2;
 pub mod disper;
 pub mod disper2;
+pub mod dual_pulse_pump;
 pub mod fp;
 pub mod pulse_pump;
 pub mod self_pump;
