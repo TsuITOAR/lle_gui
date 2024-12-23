@@ -97,7 +97,7 @@ impl Default for SelfPumpOp {
 }
 
 impl SelfPumpOp {
-    fn update_state(&self, state: &[Complex64]) {
+    pub(crate) fn update_state(&self, state: &[Complex64]) {
         let Self {
             now,
             delay,
@@ -160,12 +160,12 @@ impl SelfPumpOp {
         }
     }
 
-    fn cur_value(&self, len: usize, pos: usize) -> Complex64 {
+    pub(crate) fn cur_value(&self, len: usize, pos: usize) -> Complex64 {
         let now = *self.now.read();
         self.cache.read()[now * len + pos]
     }
 
-    fn cur_array(&self, len: usize) -> Vec<Complex64> {
+    pub(crate) fn cur_array(&self, len: usize) -> Vec<Complex64> {
         let now = *self.now.read();
         self.cache.read()[now * len..now * len + len].to_vec()
     }

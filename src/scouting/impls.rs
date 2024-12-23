@@ -1,4 +1,5 @@
 use crate::controller::dual_pulse_pump::DualPulsePumpLleController;
+use crate::controller::interleave_self_pump::InterleaveSelfPumpLleController;
 use crate::controller::pulse_pump::PulsePumpLleController;
 use crate::controller::self_pump::SelfPumpLleController;
 use crate::controller::{self, clle::CoupleLleController, LleController};
@@ -228,6 +229,30 @@ where
                 *controller.pump.pulse1.peak.value_mut() += value;
                 *controller.pump.pulse2.peak.value_mut() += value
             }
+            BasicScoutingTarget::Linear => *controller.linear.value_mut() += value,
+            BasicScoutingTarget::StepDist => *controller.step_dist.value_mut() += value,
+        }
+    }
+}
+
+impl<S> ScoutingTarget<InterleaveSelfPumpLleController, S> for BasicScoutingTarget
+where
+    S: Simulator,
+    InterleaveSelfPumpLleController: Controller<S>,
+{
+    fn sync(
+        &self,
+        value: f64,
+        src: &InterleaveSelfPumpLleController,
+        dst: &mut InterleaveSelfPumpLleController,
+    ) {
+        *dst = src.clone();
+        self.apply(value, dst);
+    }
+    fn apply(&self, value: f64, controller: &mut InterleaveSelfPumpLleController) {
+        match self {
+            BasicScoutingTarget::Alpha => *controller.alpha.value_mut() += value,
+            BasicScoutingTarget::Pump => *controller.pump.loop_loss.value_mut() += value,
             BasicScoutingTarget::Linear => *controller.linear.value_mut() += value,
             BasicScoutingTarget::StepDist => *controller.step_dist.value_mut() += value,
         }
