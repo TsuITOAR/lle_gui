@@ -65,7 +65,7 @@ impl LinearOp<f64> for CosDispersion2 {
         if branch == 0 {
             -Complex64::i() * (f(freq) - f(0)) * self.strength
         } else {
-            Complex64::i() * (f(freq) - f(0)) * self.strength - self.strength * 2.
+            -Complex64::i() * ((-f(freq) - f(0)) * self.strength - self.strength * 2.)
         }
     }
     fn skip(&self) -> bool {
