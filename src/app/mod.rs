@@ -121,11 +121,15 @@ where
                 random,
             } = core;
             *running = false;
-            *is_init = egui::Window::new("Set simulation parameters")
+            *is_init = egui::Window::new("Welcome to LLE Simulator")
                 .show(ctx, |ui| {
                     controller.show_in_start_window(dim, ui);
-                    ui.centered_and_justified(|ui| ui.button("✅").clicked())
-                        .inner
+
+                    ui.centered_and_justified(|ui| {
+                        ui.button(egui::RichText::new("Click to start simulator").heading())
+                            .clicked()
+                    })
+                    .inner
                 })
                 .unwrap()
                 .inner
@@ -143,7 +147,8 @@ where
         let mut step = false;
         egui::SidePanel::left("control_panel").show(ctx, |ui| {
             puffin_egui::puffin::profile_scope!("control panel");
-            ui.heading("Control Panel");
+
+            ui.heading("Simulation parameters control");
 
             let slider_len = slider_len.get_or_insert_with(|| ui.spacing().slider_width);
             if slider_len.is_sign_positive() {
@@ -152,19 +157,41 @@ where
 
             core.controller.show_in_control_panel(ui);
 
+            ui.separator();
+
             let button_text = if *running { "⏸" } else { "⏵" };
             ui.horizontal_wrapped(|ui| {
-                if ui.button(button_text).clicked() {
+                if ui
+                    .add(crate::util::attractive_button(
+                        button_text,
+                        Some(ui.visuals().error_fg_color),
+                    ))
+                    .highlight()
+                    .on_hover_text("Start/Pause")
+                    .clicked()
+                {
                     *running = !*running;
                 };
-                let step_button = egui::Button::new("⏩").sense(egui::Sense::click_and_drag());
-                step = ui.add(step_button).is_pointer_button_down_on();
-                reset = ui.button("⏹").clicked();
-                destruct = ui.button("⏏").clicked();
+                let step_button =
+                    crate::util::attractive_button("⏩", None).sense(egui::Sense::click_and_drag());
+                step = ui
+                    .add(step_button)
+                    .on_hover_text("Step")
+                    .is_pointer_button_down_on();
+                reset = ui
+                    .add(crate::util::attractive_button("⏹", None))
+                    .on_hover_text("Reset model")
+                    .clicked();
+                destruct = ui
+                    .add(crate::util::attractive_button("⏏", None))
+                    .on_hover_text("Return to start window\nYou can set model dimension there")
+                    .clicked();
             });
 
             // end of basic control
             ui.separator();
+
+            ui.heading("Advanced simulation control");
 
             core.random.show(ui, add_rand);
 
@@ -192,7 +219,6 @@ where
             // visualize strategy
             ui.separator();
 
-            egui::warn_if_debug_build(ui);
             if let Some(true) = file_state.show_save_load(ui, core).notify_global() {
                 views.adjust_to_state(core.simulator.states());
             }
@@ -207,15 +233,16 @@ where
                 .notify_global();
 
             ui.separator();
-            views.show_fps(ui);
-
-            // information display
-            ui.separator();
 
             ui.horizontal(|ui| {
                 ui.label("Slider length");
                 ui.add(DragValue::new(slider_len));
             });
+
+            // information display
+            ui.separator();
+            egui::warn_if_debug_build(ui);
+            views.show_fps(ui);
 
             crate::util::show_profiler(profiler, ui);
         });

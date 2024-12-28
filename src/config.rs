@@ -1,5 +1,3 @@
-use crate::easy_mark::easy_mark;
-
 pub use ui_traits::ControllerStartWindow;
 pub use ui_traits::ControllerUI;
 
@@ -24,7 +22,6 @@ pub(crate) fn config<C: ControllerStartWindow + ?Sized>(
     properties: &mut C,
     ui: &mut egui::Ui,
 ) {
-    easy_mark(ui, LLE_EQUATION);
     egui::Grid::new("Controller grid")
         .num_columns(2)
         .striped(true)
@@ -35,4 +32,5 @@ pub(crate) fn config<C: ControllerStartWindow + ?Sized>(
         });
 }
 
-const LLE_EQUATION: &str = r#"∂ψ\/∂t = - ( 1 + i α ) ψ + i |ψ|^2^ ψ - i β\/2 ∂^2^ψ\/∂θ^2^ + F"#;
+pub(crate) const LLE_EQUATION: &str =
+    r#"∂ψ\/∂t = - ( 1 + i α ) ψ + i |ψ|^2^ ψ - i β\/2 ∂^2^ψ\/∂θ^2^ + F"#;

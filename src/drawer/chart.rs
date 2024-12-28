@@ -185,6 +185,9 @@ impl LleChart {
                 his.is_some(),
                 SelectableLabel::new(self.show_history.is_some(), "History"),
             )
+            .on_disabled_hover_text(
+                "Active the \"Record\" button (on the right side panel) to enable the history display",
+            )
             .clicked()
         {
             show_his = !show_his;

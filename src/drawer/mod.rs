@@ -68,22 +68,28 @@ impl ViewField {
 impl ViewField {
     pub(crate) fn toggle_record_his(&mut self, ui: &mut egui::Ui, data: &[Complex64]) {
         let index = self.index;
-        if crate::util::show_option_with(
-            ui,
-            &mut self.history,
-            format!("Record history {index}"),
-            || Some(History::new(data.to_vec())),
-        )
-        .clicked()
-            && self.history.is_none()
-        {
-            for c in [self.r_chart.as_mut(), self.f_chart.as_mut()]
-                .into_iter()
-                .flatten()
+        ui.horizontal(|ui| {
+            if crate::util::show_option_with(
+                ui,
+                &mut self.history,
+                format!("Record history {index}"),
+                || Some(History::new(data.to_vec())),
+            )
+            .clicked()
+                && self.history.is_none()
             {
-                c.show_history = None;
+                for c in [self.r_chart.as_mut(), self.f_chart.as_mut()]
+                    .into_iter()
+                    .flatten()
+                {
+                    c.show_history = None;
+                }
             }
-        }
+            #[cfg(target_arch = "wasm32")]
+            if self.history.is_some() {
+                crate::util::warn_single_thread(ui);
+            }
+        });
     }
 
     pub(crate) fn log_his(&mut self, data: &[Complex64]) {

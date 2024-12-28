@@ -55,6 +55,21 @@ impl<NL: Default + lle::NonLinearOp<f64>> Controller<LleSolver<NL, Complex64>> f
             .build()
     }
 
+    fn show_in_control_panel(&mut self, ui: &mut egui::Ui) {
+        use crate::{config::LLE_EQUATION, easy_mark::easy_mark};
+        use ui_traits::ControllerUI;
+        easy_mark(ui, LLE_EQUATION);
+        self.show_controller(ui);
+    }
+
+    fn show_in_start_window(&mut self, dim: &mut usize, ui: &mut egui::Ui) {
+        use crate::{config::LLE_EQUATION, easy_mark::easy_mark};
+        ui.heading("This is a simulator for LLE model.");
+        ui.label("The model is described by the following equation:");
+        easy_mark(ui, LLE_EQUATION);
+        crate::config::config(dim, self, ui)
+    }
+
     fn steps(&self) -> u32 {
         self.steps.get_value()
     }
@@ -83,18 +98,27 @@ pub struct LleController {
 impl Default for LleController {
     fn default() -> Self {
         Self {
-            alpha: Property::new(-5., "alpha").symbol('α'),
-            pump: Property::new(3.94, "pump").symbol('F'),
+            alpha: Property::new(-5., "alpha")
+                .symbol('α')
+                .on_hover_text("Detuning of the pump"),
+            pump: Property::new(3.94, "pump")
+                .symbol('F')
+                .on_hover_text("Amplitude of external pump"),
             linear: Property::new(-0.0444, "linear")
                 .symbol('β')
-                .range((-0.1, 0.1)),
+                .range((-0.1, 0.1))
+                .on_hover_text("Dispersion of the cavity\nPositive for normal dispersion"),
             step_dist: Property::new_no_slider(8e-4, "step dist")
                 .range((1E-10, 1E-3))
                 .symbol("Δt")
-                .unit(1E-4),
+                .unit(1E-4)
+                .on_hover_text("Step size for each simulation iteration"),
             steps: Property::new_no_slider(100, "steps")
                 .symbol("steps")
-                .range((1, u32::MAX)),
+                .range((1, u32::MAX))
+                .on_hover_text(
+                    "Number of steps to between each visualization and parameters update",
+                ),
         }
     }
 }

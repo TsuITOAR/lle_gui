@@ -16,7 +16,7 @@ pub fn easy_mark_it<'em>(ui: &mut Ui, items: impl Iterator<Item = easy_mark::Ite
 
     ui.allocate_ui_with_layout(initial_size, layout, |ui| {
         ui.spacing_mut().item_spacing.x = 0.0;
-        let row_height = ui.text_style_height(&TextStyle::Body);
+        let row_height = ui.text_style_height(&TextStyle::Heading);
         ui.set_row_height(row_height);
 
         for item in items {

@@ -90,13 +90,7 @@ where
             }
 
             #[cfg(target_arch = "wasm32")]
-            {
-                crate::util::warn_message(
-                    "⚠ Single thread mode ⚠",
-                    "Web doesn't support multi-threading, so the performance may be affected.",
-                    ui,
-                );
-            }
+            crate::util::warn_single_thread(ui);
         });
     }
 

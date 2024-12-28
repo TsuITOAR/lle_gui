@@ -28,6 +28,7 @@ pub(crate) struct Property<T: Num> {
     pub(crate) symbol: Option<String>,
     pub(crate) show_editor: Option<bool>,
     pub(crate) value_suffix: Option<String>,
+    pub(crate) on_hover_text: Option<String>,
 }
 
 fn custom_drag<T: egui::emath::Numeric + std::str::FromStr>(
@@ -62,8 +63,17 @@ impl<T: egui::emath::Numeric + std::str::FromStr> ValueRange<T> {
     fn unit(&mut self, unit: T) {
         self.unit = unit.into();
     }
-    pub(crate) fn show(&mut self, ui: &mut egui::Ui, label: &str, suffix: Option<&str>) {
-        ui.label(label);
+    pub(crate) fn show(
+        &mut self,
+        ui: &mut egui::Ui,
+        label: &str,
+        suffix: Option<&str>,
+        on_hover_text: Option<&str>,
+    ) {
+        let r = ui.label(label);
+        if let Some(text) = on_hover_text {
+            r.on_hover_text(text);
+        }
         let mut drag_value = DragValue::new(&mut self.value)
             .update_while_editing(false)
             .clamp_existing_to_range(self.clamp);
@@ -76,7 +86,11 @@ impl<T: egui::emath::Numeric + std::str::FromStr> ValueRange<T> {
         if let Some(s) = suffix {
             drag_value = drag_value.suffix(s);
         }
-        ui.add(drag_value);
+
+        let r = ui.add(drag_value);
+        if let Some(text) = on_hover_text {
+            r.on_hover_text(text);
+        }
     }
 
     pub(crate) fn show_with_slider(
@@ -85,6 +99,7 @@ impl<T: egui::emath::Numeric + std::str::FromStr> ValueRange<T> {
         label: &str,
         show_editor: &mut bool,
         suffix: Option<&str>,
+        on_hover_text: Option<&str>,
     ) {
         let Self {
             value,
@@ -94,7 +109,7 @@ impl<T: egui::emath::Numeric + std::str::FromStr> ValueRange<T> {
         } = self;
         debug_assert!(range.is_some());
         if range.is_none() {
-            self.show(ui, label, suffix);
+            self.show(ui, label, suffix, on_hover_text);
             return;
         }
         let range = range.as_mut().unwrap();
@@ -102,7 +117,7 @@ impl<T: egui::emath::Numeric + std::str::FromStr> ValueRange<T> {
             if ui.button("🔧").clicked() {
                 *show_editor = !*show_editor;
             }
-            ui.add({
+            let r = ui.add({
                 let mut slider = Slider::new(value, range.0..=range.1)
                     .text(label)
                     .smart_aim(false)
@@ -121,6 +136,9 @@ impl<T: egui::emath::Numeric + std::str::FromStr> ValueRange<T> {
                 }
                 slider
             });
+            if let Some(text) = on_hover_text {
+                r.on_hover_text(text);
+            }
         });
         let ctx = ui.ctx();
         egui::Window::new(format!("{} range", label))
@@ -188,6 +206,7 @@ impl<T: Num + Copy> Property<T> {
             symbol: None,
             show_editor: Some(false),
             value_suffix: None,
+            on_hover_text: None,
         }
     }
     pub fn new_no_slider(v: T, label: impl ToString) -> Self {
@@ -197,12 +216,14 @@ impl<T: Num + Copy> Property<T> {
             symbol: None,
             show_editor: None,
             value_suffix: None,
+            on_hover_text: None,
         }
     }
     pub fn symbol(mut self, symbol: impl ToString) -> Self {
         self.symbol = symbol.to_string().into();
         self
     }
+
     pub fn unit(mut self, unit: T) -> Self
     where
         T: FromStr,
@@ -257,7 +278,12 @@ impl<T: Num + FromStr> Property<T> {
         //ui.horizontal_wrapped(|ui| {
         let label = self.symbol.as_deref().unwrap_or(self.label.as_str());
         // let suffix = self.value_suffix.clone();
-        self.value.show(ui, label, self.value_suffix.as_deref());
+        self.value.show(
+            ui,
+            label,
+            self.value_suffix.as_deref(),
+            self.on_hover_text.as_deref(),
+        );
         //});
     }
     pub(crate) fn show_in_builder(&mut self, ui: &mut egui::Ui) {
@@ -284,8 +310,21 @@ impl<T: Num + FromStr> Property<T> {
                 .map(String::as_str)
                 .unwrap_or_else(|| label.as_str());
             ui.horizontal_wrapped(|ui| {
-                value.show_with_slider(ui, label, show_editor, suffix);
+                value.show_with_slider(
+                    ui,
+                    label,
+                    show_editor,
+                    suffix,
+                    self.on_hover_text.as_deref(),
+                );
             });
         }
+    }
+}
+
+impl<T: Num> Property<T> {
+    pub fn on_hover_text(mut self, text: impl ToString) -> Self {
+        self.on_hover_text = text.to_string().into();
+        self
     }
 }

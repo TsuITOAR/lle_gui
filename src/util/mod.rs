@@ -106,7 +106,7 @@ impl<T: 'static> Promise<T> {
     }
 }
 
-#[cfg(target_arch = "wasm32")]
+#[allow(unused)]
 pub fn warn_message(t: impl ToString, hover_text: impl ToString, ui: &mut egui::Ui) {
     ui.label(
         egui::RichText::new(t.to_string())
@@ -114,4 +114,20 @@ pub fn warn_message(t: impl ToString, hover_text: impl ToString, ui: &mut egui::
             .color(ui.visuals().warn_fg_color),
     )
     .on_hover_text(hover_text.to_string());
+}
+
+#[cfg(target_arch = "wasm32")]
+pub fn warn_single_thread(ui: &mut egui::Ui) {
+    crate::util::warn_message(
+                    "⚠ Single thread mode ⚠",
+                    "Web doesn't support multi-threading, so the performance is bad.\n Try to run it natively to get better performance.",
+                    ui,
+                );
+}
+
+pub fn attractive_button(text: &str, color: Option<egui::Color32>) -> egui::Button<'_> {
+    match color {
+        Some(c) => egui::Button::new(egui::RichText::new(text).heading()).fill(c),
+        None => egui::Button::new(egui::RichText::new(text).heading()),
+    }
 }
