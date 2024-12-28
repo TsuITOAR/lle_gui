@@ -34,9 +34,9 @@ impl Default for Cprt2 {
     fn default() -> Self {
         Self {
             center_pos: Property::new(0., "Center Position").range((-20., 20.)),
-            period: Property::new(10., "Period").range((10., 100.)),
+            period: Property::new(10., "Period").range((50., 100.)),
             couple_strength: Property::new(FRAC_PI_2, "Couple strength").range((0., PI)),
-            frac_d1_2pi: Property::new(1E3, "d1/2pi").range((1., 1E9)),
+            frac_d1_2pi: Property::new(100., "d1/2pi").range((50., 200.)),
         }
     }
 }
@@ -72,15 +72,13 @@ impl LinearOp<f64> for CprtDispersion2 {
 
             let cos2 = self.couple_strength.cos();
 
-            self.frac_d1_2pi * (((cos1 * cos2).acos()).rem_euclid(PI))
+            ((cos1 * cos2).acos()).rem_euclid(PI) * self.frac_d1_2pi - self.frac_d1_2pi * FRAC_PI_2
         };
-        let gap = f(self.center_pos) * 2. * self.frac_d1_2pi;
 
         if branch == 0 {
-            Complex64::i() * (-f(freq as _) - (-f(0.))) * self.frac_d1_2pi
+            -Complex64::i() * (f(freq as _) - f(0.))
         } else {
-            Complex64::i() * (f(freq as _) - (-f(0.))) * self.frac_d1_2pi + self.frac_d1_2pi
-                - gap * 2.
+            -Complex64::i() * (-f(freq as _) - f(0.))
         }
     }
     fn skip(&self) -> bool {
