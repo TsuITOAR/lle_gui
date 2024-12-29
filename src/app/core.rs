@@ -38,12 +38,13 @@ where
     S: Simulator,
 {
     pub fn new(controller: C, dim: usize) -> Self {
-        let simulator = controller.construct_engine(dim);
+        let mut random = RandomNoise::default();
+        let simulator = controller.construct_engine_random_init(dim, &mut random);
         Self {
             controller,
             dim,
             simulator,
-            random: RandomNoise::default(),
+            random,
         }
     }
     pub fn sync_paras(&mut self) {

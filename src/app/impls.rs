@@ -83,7 +83,8 @@ where
         egui::SidePanel::left("control_panel").show(ctx, |ui| {
             puffin_egui::puffin::profile_scope!("control panel");
 
-            ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Extend);
+            // cause display error of super and subscript in easy_mark
+            //ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Extend);
 
             attractive_head(
                 "Simulation parameters control",
@@ -182,7 +183,15 @@ where
 
             // information display
             ui.separator();
+
             egui::warn_if_debug_build(ui);
+
+            ui.hyperlink_to(
+                "GitHub project address",
+                "https://github.com/TsuITOAR/lle_gui",
+            );
+            ui.separator();
+
             views.show_fps(ui);
 
             crate::util::show_profiler(profiler, ui);
