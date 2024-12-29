@@ -187,7 +187,7 @@ impl FileFutures {
     }
     #[cfg(target_arch = "wasm32")]
     pub(crate) fn spawn_write<T: serde::Serialize>(&mut self, t: &T) -> anyhow::Result<()> {
-        let serialized_data = bincode::serialize(t)?;
+        let serialized_data = ron::ser::to_string_pretty(t, ron::ser::PrettyConfig::default())?;
         self.save_io_spawn = Some(Promise::new(async move {
             if let Some(file) = rfd::AsyncFileDialog::new().save_file().await {
                 let serialized_data = serialized_data;
