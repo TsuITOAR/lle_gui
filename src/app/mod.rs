@@ -1,18 +1,22 @@
 mod core;
+mod impls;
+mod show_dispersion;
 mod storage;
 
 pub use core::Core;
+use show_dispersion::ShowDispersion;
 pub use storage::CoreStorage;
 
-use egui::DragValue;
+use egui::{DragValue, Widget};
 use storage::GenAppStorage;
 
 use crate::{
     checkpoint,
-    controller::{dispersion_line, Controller, SharedState, Simulator},
+    controller::{Controller, SharedState, Simulator},
     file::{self, FileManager},
     notify::{ResultExt, TOASTS},
     scouting::{BasicScoutingTarget, Scouter, ScoutingTarget},
+    util::{attractive_button, attractive_head},
     views::{ShowOn, State, Views, Visualize},
 };
 pub struct GenApp<P, S, V, T = BasicScoutingTarget>
@@ -29,7 +33,7 @@ where
     running: bool,
     profiler: bool,
     add_rand: bool,
-    show_disper: (bool, f64), //show, scale
+    show_dispersion: ShowDispersion, //show, scale
     check_points: checkpoint::CheckPoints<CoreStorage<P, S>>,
     file_state: file::FileManager,
     file_checkpoints: file::FileManager,
@@ -72,7 +76,7 @@ where
             add_rand: c.add_rand,
             file_state: c.file_state,
             file_checkpoints: c.file_checkpoints,
-            show_disper: c.show_disper,
+            show_dispersion: c.show_dispersion,
             check_points: c.check_points.clone(),
             #[cfg(feature = "gpu")]
             render_state: cc.wgpu_render_state.clone().unwrap(),
@@ -93,205 +97,21 @@ where
         + Clone,
 {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        TOASTS.lock().show(ctx);
-        puffin_egui::puffin::GlobalProfiler::lock().new_frame(); // call once per frame!
-        puffin_egui::puffin::profile_function!();
-        let Self {
-            core,
-            scout,
-            is_init,
-            slider_len,
-            views,
-            running,
-            profiler,
-            add_rand,
-            file_state,
-            file_checkpoints,
-            show_disper,
-            check_points,
-            #[cfg(feature = "gpu")]
-            render_state,
-        } = self;
-
-        if !*is_init {
-            let Core {
-                dim,
-                controller,
-                simulator,
-                random,
-            } = core;
-            *running = false;
-            *is_init = egui::Window::new("Welcome to LLE Simulator")
-                .show(ctx, |ui| {
-                    controller.show_in_start_window(dim, ui);
-
-                    ui.centered_and_justified(|ui| {
-                        ui.button(egui::RichText::new("Click to start simulator").heading())
-                            .clicked()
-                    })
-                    .inner
-                })
-                .unwrap()
-                .inner
-                .unwrap_or(false);
-            if !*is_init {
-                return;
-            } else {
-                *simulator = controller.construct_engine(*dim);
-                simulator.add_rand(random);
-            }
-        }
-
-        let mut reset = false;
-        let mut destruct = false;
-        let mut step = false;
-        egui::SidePanel::left("control_panel").show(ctx, |ui| {
-            puffin_egui::puffin::profile_scope!("control panel");
-
-            ui.heading("Simulation parameters control");
-
-            let slider_len = slider_len.get_or_insert_with(|| ui.spacing().slider_width);
-            if slider_len.is_sign_positive() {
-                ui.spacing_mut().slider_width = *slider_len;
-            }
-
-            core.controller.show_in_control_panel(ui);
-
-            ui.separator();
-
-            let button_text = if *running { "⏸" } else { "⏵" };
-            ui.horizontal_wrapped(|ui| {
-                if ui
-                    .add(crate::util::attractive_button(
-                        button_text,
-                        Some(ui.visuals().error_fg_color),
-                    ))
-                    .highlight()
-                    .on_hover_text("Start/Pause")
-                    .clicked()
-                {
-                    *running = !*running;
-                };
-                let step_button =
-                    crate::util::attractive_button("⏩", None).sense(egui::Sense::click_and_drag());
-                step = ui
-                    .add(step_button)
-                    .on_hover_text("Step")
-                    .is_pointer_button_down_on();
-                reset = ui
-                    .add(crate::util::attractive_button("⏹", None))
-                    .on_hover_text("Reset model")
-                    .clicked();
-                destruct = ui
-                    .add(crate::util::attractive_button("⏏", None))
-                    .on_hover_text("Return to start window\nYou can set model dimension there")
-                    .clicked();
-            });
-
-            // end of basic control
-            ui.separator();
-
-            ui.heading("Advanced simulation control");
-
-            core.random.show(ui, add_rand);
-
-            scout.show(core, ui);
-
-            // advanced simulation control
-            ui.separator();
-
-            ui.horizontal(|ui| views.toggle_record_his(ui, core.simulator.states()));
-            if show_disper.0 {
-                let disper = core.controller.dispersion();
-                let points = dispersion_line(disper, core.dim, show_disper.1);
-                views.push_elements(points, ShowOn::Freq);
-            }
-            views.config(ui);
-
-            ui.horizontal(|ui| {
-                ui.checkbox(&mut show_disper.0, "Show dispersion")
-                    .on_hover_text("Show dispersion");
-                if show_disper.0 {
-                    ui.add(DragValue::new(&mut show_disper.1));
-                }
-            });
-
-            // visualize strategy
-            ui.separator();
-
-            if let Some(true) = file_state.show_save_load(ui, core).notify_global() {
-                views.adjust_to_state(core.simulator.states());
-            }
-
-            ui.separator();
-
-            if check_points.show(ui, core) {
-                views.adjust_to_state(core.simulator.states());
-            }
-            file_checkpoints
-                .show_save_load(ui, check_points)
-                .notify_global();
-
-            ui.separator();
-
-            ui.horizontal(|ui| {
-                ui.label("Slider length");
-                ui.add(DragValue::new(slider_len));
-            });
-
-            // information display
-            ui.separator();
-            egui::warn_if_debug_build(ui);
-            views.show_fps(ui);
-
-            crate::util::show_profiler(profiler, ui);
-        });
-
-        if reset {
-            core.reset();
-            *views = Default::default();
-            *file_state = FileManager::default_state();
-            *file_checkpoints = FileManager::default_check_points();
+        self.show_toasts(ctx);
+        self.start_profiler();
+        self.check_initialization(ctx);
+        if !self.is_init {
             return;
         }
-        if destruct {
-            *is_init = false;
-            *views = Default::default();
-            return;
+        let play_control = self.control_panel(ctx);
+
+        let refresh = self.run_simulation(play_control);
+
+        if refresh {
+            ctx.request_repaint();
         }
-        if *running || step {
-            core.sync_paras();
-            scout.sync_paras(core);
-            scout.tick(core);
-            if *add_rand {
-                puffin_egui::puffin::profile_scope!("add random");
-                core.add_random();
-            }
 
-            let Core {
-                dim: _,
-                controller,
-                simulator,
-                ..
-            } = core;
-
-            {
-                puffin_egui::puffin::profile_scope!("calculate");
-                simulator.run(controller.steps());
-                scout.poll_scouters(controller.steps(), *add_rand);
-            }
-
-            views.record(simulator.states());
-            ctx.request_repaint()
-        }
-        scout.push_to_views(views, ShowOn::Both);
-        views.plot(
-            core.simulator.states(),
-            ctx,
-            *running || step,
-            #[cfg(feature = "gpu")]
-            render_state,
-        );
+        self.update_views(ctx, refresh);
     }
 
     /// Called by the frame work to save state before shutdown.
@@ -306,7 +126,7 @@ where
             profiler: self.profiler,
             add_rand: self.add_rand,
             check_points: self.check_points.clone(),
-            show_disper: self.show_disper,
+            show_dispersion: self.show_dispersion.clone(),
             file_state: self.file_state.clone_for_save(),
             file_checkpoints: self.file_checkpoints.clone_for_save(),
         };

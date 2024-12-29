@@ -64,7 +64,6 @@ impl<NL: Default + lle::NonLinearOp<f64>> Controller<LleSolver<NL, Complex64>> f
 
     fn show_in_start_window(&mut self, dim: &mut usize, ui: &mut egui::Ui) {
         use crate::{config::LLE_EQUATION, easy_mark::easy_mark};
-        ui.heading("This is a simulator for LLE model.");
         ui.label("The model is described by the following equation:");
         easy_mark(ui, LLE_EQUATION);
         crate::config::config(dim, self, ui)
@@ -100,7 +99,7 @@ impl Default for LleController {
         Self {
             alpha: Property::new(-5., "alpha")
                 .symbol('α')
-                .on_hover_text("Detuning of the pump"),
+                .on_hover_text("Detunning of the pump"),
             pump: Property::new(3.94, "pump")
                 .symbol('F')
                 .on_hover_text("Amplitude of external pump"),

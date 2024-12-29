@@ -125,9 +125,16 @@ pub fn warn_single_thread(ui: &mut egui::Ui) {
                 );
 }
 
-pub fn attractive_button(text: &str, color: Option<egui::Color32>) -> egui::Button<'_> {
-    match color {
+pub fn attractive_button(text: &str, color: impl Into<Option<egui::Color32>>) -> egui::Button<'_> {
+    match color.into() {
         Some(c) => egui::Button::new(egui::RichText::new(text).heading()).fill(c),
         None => egui::Button::new(egui::RichText::new(text).heading()),
+    }
+}
+
+pub fn attractive_head(text: &str, color: impl Into<Option<egui::Color32>>) -> egui::Label {
+    match color.into() {
+        Some(c) => egui::Label::new(egui::RichText::new(text).heading().color(c)),
+        None => egui::Label::new(egui::RichText::new(text).heading()),
     }
 }

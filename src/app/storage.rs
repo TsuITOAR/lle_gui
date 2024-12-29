@@ -7,7 +7,7 @@ use crate::{
     views::Views,
 };
 
-use super::Core;
+use super::{Core, ShowDispersion};
 
 #[derive(serde::Deserialize, serde::Serialize, Debug)]
 #[serde(bound(
@@ -110,7 +110,8 @@ where
     #[serde(skip)]
     pub(crate) profiler: bool,
     pub(crate) add_rand: bool,
-    pub(crate) show_disper: (bool, f64),
+    #[serde(default)]
+    pub(crate) show_dispersion: ShowDispersion,
     pub(crate) check_points: checkpoint::CheckPoints<CoreStorage<P, S>>,
     pub(crate) file_state: file::FileManager,
     pub(crate) file_checkpoints: file::FileManager,
@@ -133,7 +134,7 @@ where
             running: false,
             profiler: false,
             add_rand: false,
-            show_disper: (false, 1.),
+            show_dispersion: ShowDispersion::default(),
             check_points: Default::default(),
             file_state: FileManager::default_state(),
             file_checkpoints: FileManager::default_check_points(),

@@ -86,7 +86,7 @@ impl FileFutures {
     ) -> anyhow::Result<bool> {
         let mut changed = false;
         if let Some(data) = try_poll(&mut self.read_io_spawn) {
-            let state = bincode::deserialize(&data)?;
+            let state = ron::de::from_bytes(&data)?;
             self.cache = Some(data);
             *p = state;
             changed = true;
@@ -113,7 +113,7 @@ impl FileFutures {
                 #[cfg(not(target_arch = "wasm32"))]
                 {
                     rfd::AsyncFileDialog::new()
-                        .add_filter("model", &[S::extension()])
+                        .add_filter("model", &[format!("{}.ron", S::extension())])
                         .add_filter("all", &["*"])
                         .pick_file()
                         .await
@@ -121,7 +121,7 @@ impl FileFutures {
                 #[cfg(target_arch = "wasm32")]
                 {
                     rfd::AsyncFileDialog::new()
-                        .add_filter("model", &[S::extension()])
+                        .add_filter("model", &[format!("{}.ron", S::extension())])
                         .pick_file()
                         .await
                 }
@@ -137,7 +137,7 @@ impl FileFutures {
                 #[cfg(not(target_arch = "wasm32"))]
                 {
                     rfd::AsyncFileDialog::new()
-                        .add_filter("model", &[S::extension()])
+                        .add_filter("model", &[format!("{}.ron", S::extension())])
                         .add_filter("all", &["*"])
                         .save_file()
                         .await
@@ -145,7 +145,7 @@ impl FileFutures {
                 #[cfg(target_arch = "wasm32")]
                 {
                     rfd::AsyncFileDialog::new()
-                        .add_filter("model", &[S::extension()])
+                        .add_filter("model", &[format!("{}.ron", S::extension())])
                         .save_file()
                         .await
                 }
@@ -177,10 +177,10 @@ impl FileFutures {
     ) -> anyhow::Result<()> {
         #[allow(unused)]
         let file = file.clone();
-        let serialized_data = bincode::serialize(t)?;
+        let serialized_data = ron::ser::to_string_pretty(t, ron::ser::PrettyConfig::default())?;
         self.save_io_spawn = Some(Promise::new(async move {
             let serialized_data = serialized_data;
-            file.write(&serialized_data).await?;
+            file.write(serialized_data.as_bytes()).await?;
             Ok(())
         }));
         Ok(())
@@ -191,7 +191,7 @@ impl FileFutures {
         self.save_io_spawn = Some(Promise::new(async move {
             if let Some(file) = rfd::AsyncFileDialog::new().save_file().await {
                 let serialized_data = serialized_data;
-                file.write(&serialized_data).await?;
+                file.write(serialized_data.as_bytes()).await?;
             } else {
                 bail!("Can't save file");
             };

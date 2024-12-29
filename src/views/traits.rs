@@ -37,7 +37,7 @@ pub trait Visualize<S: State> {
     fn adjust_to_state(&mut self, data: S);
     fn toggle_record_his(&mut self, ui: &mut egui::Ui, data: S);
     fn clear_his(&mut self);
-    fn config(&mut self, ui: &mut egui::Ui);
+    fn controller(&mut self, ui: &mut egui::Ui);
     fn record(&mut self, data: S);
     fn push_elements_raw(&mut self, points: RawPlotElement<S::OwnedState>, on: ShowOn);
     fn push_elements(&mut self, points: PlotElement, on: ShowOn);
@@ -68,10 +68,10 @@ impl<const L: usize, S: State, V: Visualize<S>> Visualize<[S; L]> for Views<[V; 
         }
     }
 
-    fn config(&mut self, ui: &mut egui::Ui) {
+    fn controller(&mut self, ui: &mut egui::Ui) {
         for (i, view) in self.views.iter_mut().enumerate() {
             ui.collapsing(format!("View {}", i), |ui| {
-                view.config(ui);
+                view.controller(ui);
             });
         }
     }
@@ -143,7 +143,7 @@ impl<'a> Visualize<&'a [Complex64]> for ViewField {
         }
     }
 
-    fn config(&mut self, ui: &mut egui::Ui) {
+    fn controller(&mut self, ui: &mut egui::Ui) {
         self.show_which(ui);
     }
 
@@ -226,7 +226,7 @@ impl<'a> Visualize<&'a [Complex64]> for Views<ViewField> {
         self.views.clear_his();
     }
 
-    fn config(&mut self, ui: &mut egui::Ui) {
+    fn controller(&mut self, ui: &mut egui::Ui) {
         self.views.show_which(ui);
     }
 
