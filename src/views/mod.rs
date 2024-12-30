@@ -4,6 +4,8 @@ use std::array::from_fn;
 mod traits;
 pub use traits::*;
 
+mod impls;
+
 #[cfg(target_arch = "wasm32")]
 use instant::Instant;
 #[cfg(not(target_arch = "wasm32"))]

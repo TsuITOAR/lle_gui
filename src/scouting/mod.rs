@@ -11,7 +11,7 @@ use crate::{
     app::Core,
     controller::{Controller, SharedState, Simulator, StoreState},
     util::{try_poll, Promise},
-    views::{RawPlotElement, ShowOn, State, Visualize},
+    views::{RawPlotElement, ShowOn, State, Visualizer},
 };
 
 mod impls;
@@ -110,7 +110,7 @@ where
 
     pub fn push_to_views<'a, V>(&'a mut self, views: &mut V, on: ShowOn)
     where
-        V: Visualize<<S as SharedState<'a>>::SharedState>,
+        V: Visualizer<<S as SharedState<'a>>::SharedState>,
         <S as SharedState<'a>>::SharedState: State<OwnedState = <S as StoreState>::OwnedState>,
     {
         if let Some(elements) = self.plot_elements() {

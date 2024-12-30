@@ -34,9 +34,9 @@ impl Default for Cprt {
     fn default() -> Self {
         Self {
             center_pos: Property::new(0., "Center Position").range((-20., 20.)),
-            period: Property::new(10., "Period").range((10., 100.)),
+            period: Property::new(100., "Period").range((50., 100.)),
             couple_strength: Property::new(FRAC_PI_2, "Couple strength").range((0., PI)),
-            frac_d1_2pi: Property::new(1E3, "d1/2pi").range((1., 1E9)),
+            frac_d1_2pi: Property::new(100., "d1/2pi").range((50., 200.)),
         }
     }
 }

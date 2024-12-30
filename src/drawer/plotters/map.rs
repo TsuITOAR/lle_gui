@@ -298,7 +298,7 @@ impl ColorMapVisualizer<f64> {
         self
     }
 
-    fn update(&mut self, data: &[Complex64], proc: &mut Process, chunk_size: usize) -> &mut Self {
+    /* fn update(&mut self, data: &[Complex64], proc: &mut Process, chunk_size: usize) -> &mut Self {
         match self.max_log {
             Some(_) => {
                 self.fetch(data, proc, chunk_size);
@@ -310,7 +310,7 @@ impl ColorMapVisualizer<f64> {
             }
         }
         self
-    }
+    } */
 
     fn push(&mut self, mut row: Vec<f64>) -> &mut Self {
         self.raw.update_range(&row);
@@ -363,10 +363,10 @@ impl chart::DrawMat for ColorMapVisualizer {
         puffin_egui::puffin::profile_function!();
         Self::fetch(self, data, proc, chunk_size);
     }
-    fn update(&mut self, data: &[Complex64], proc: &mut Process, chunk_size: usize) {
+    /* fn update(&mut self, data: &[Complex64], proc: &mut Process, chunk_size: usize) {
         puffin_egui::puffin::profile_function!();
         Self::update(self, data, proc, chunk_size);
-    }
+    } */
     fn max_log(&self) -> Option<NonZeroUsize> {
         self.max_log
     }

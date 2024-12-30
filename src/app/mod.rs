@@ -17,7 +17,7 @@ use crate::{
     notify::{ResultExt, TOASTS},
     scouting::{BasicScoutingTarget, Scouter, ScoutingTarget},
     util::{attractive_button, attractive_head},
-    views::{ShowOn, State, Views, Visualize},
+    views::{ShowOn, State, Views, Visualizer},
 };
 pub struct GenApp<P, S, V, T = BasicScoutingTarget>
 where
@@ -51,7 +51,7 @@ where
     for<'a> <S as SharedState<'a>>::SharedState: State<OwnedState = S::OwnedState>,
     Views<V>: Default
         + for<'a> serde::Deserialize<'a>
-        + for<'a> Visualize<<S as SharedState<'a>>::SharedState>,
+        + for<'a> Visualizer<<S as SharedState<'a>>::SharedState>,
     T: ScoutingTarget<P, S> + for<'a> serde::Deserialize<'a> + Default,
 {
     /// Called once before the first frame.
@@ -91,7 +91,7 @@ where
     for<'a> <S as SharedState<'a>>::SharedState: State<OwnedState = S::OwnedState>,
     T: ScoutingTarget<P, S> + serde::Serialize + for<'a> serde::Deserialize<'a> + Default + Clone,
     Views<V>: Default
-        + for<'a> Visualize<<S as SharedState<'a>>::SharedState>
+        + for<'a> Visualizer<<S as SharedState<'a>>::SharedState>
         + serde::Serialize
         + for<'a> serde::Deserialize<'a>
         + Clone,

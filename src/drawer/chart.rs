@@ -1,7 +1,8 @@
 use std::{borrow::Borrow, num::NonZeroUsize};
 
-use egui::{DragValue, SelectableLabel};
+use egui::DragValue;
 use egui_plot::{PlotPoints, PlotResponse};
+use ui_traits::ControllerUI;
 
 use crate::views::{PlotElement, RawPlotElement};
 
@@ -97,7 +98,9 @@ pub struct LleChart {
     #[serde(default)]
     pub(crate) smart_bound: Option<SmartPlot<f64>>,
     #[serde(skip)]
-    pub(crate) show_history: Option<ColorMapDrawer>,
+    pub(crate) show_history: bool,
+    #[serde(skip)]
+    pub(crate) drawer: Option<ColorMapDrawer>,
     #[serde(skip)]
     pub(crate) additional: Option<Vec<PlotElement>>,
 }
@@ -117,6 +120,10 @@ impl LleChart {
     pub fn push_additional(&mut self, plot: PlotElement) {
         self.additional.get_or_insert_default().push(plot)
     }
+    pub fn unset_display_history(&mut self) {
+        self.show_history = false;
+        self.drawer = None;
+    }
 }
 
 impl Clone for LleChart {
@@ -126,7 +133,8 @@ impl Clone for LleChart {
             kind: self.kind.clone(),
             proc: self.proc.clone(),
             smart_bound: self.smart_bound.clone(),
-            show_history: None,
+            show_history: self.show_history,
+            drawer: None,
             additional: None,
         }
     }
@@ -139,7 +147,7 @@ impl Debug for LleChart {
             .field("kind", &self.kind)
             .field("proc", &self.proc)
             .field("smart_plot", &self.smart_bound)
-            .field("show_history", &self.show_history)
+            .field("show_history", &self.drawer)
             .field("additional", &self.additional.is_some())
             .finish()
     }
@@ -154,7 +162,7 @@ type ColorMapDrawer = super::gpu::Drawer;
 pub(crate) trait DrawMat {
     fn draw_mat_on_ui(&mut self, len: usize, ui: &mut egui::Ui) -> Result<(), eframe::Error>;
     fn fetch(&mut self, data: &[Complex64], proc: &mut Process, len: usize);
-    fn update(&mut self, data: &[Complex64], proc: &mut Process, len: usize);
+    //fn update(&mut self, data: &[Complex64], proc: &mut Process, len: usize);
     fn max_log(&self) -> Option<NonZeroUsize>;
     fn set_max_log(&mut self, len: NonZeroUsize);
     fn set_align_x_axis(&mut self, _align: impl Into<Option<(f32, f32)>>) {}
@@ -172,34 +180,51 @@ impl LleChart {
         }
     }
 
-    pub(crate) fn control_panel_history(
-        &mut self,
-        ui: &mut egui::Ui,
-        his: &Option<History>,
-        running: bool,
-        #[cfg(feature = "gpu")] render_state: &eframe::egui_wgpu::RenderState,
-    ) {
-        let mut show_his = self.show_history.is_some();
-        if ui
-            .add_enabled(
-                his.is_some(),
-                SelectableLabel::new(self.show_history.is_some(), "History"),
-            )
-            .on_disabled_hover_text(
+    pub(crate) fn control_ui_history(&mut self, ui: &mut egui::Ui, history: &History) {
+        let r=ui.add_enabled_ui(history.is_active(), |ui| {
+            ui.toggle_value(&mut self.show_history, "History").on_disabled_hover_text(
                 "Active the \"Record\" button (on the right side panel) to enable the history display",
             )
-            .clicked()
-        {
-            show_his = !show_his;
+        });
+        if r.inner.changed() && !self.show_history {
+            self.drawer = None;
         }
-        match self.show_history.as_mut() {
-            Some(_) if !show_his => self.show_history = None,
-            Some(ss) if show_his => {
-                let his = his.as_ref().unwrap();
+        if let Some(ref mut drawer) = self.drawer {
+            let mut v = drawer.max_log().map(|x| x.get()).unwrap_or_default();
+            if ui
+                .horizontal(|ui| {
+                    ui.label("Record length: ");
+                    ui.add(
+                        DragValue::new(&mut v)
+                            .range(2..=usize::MAX)
+                            .update_while_editing(false),
+                    )
+                })
+                .inner
+                .changed()
+            {
+                let new = NonZeroUsize::new(v);
+                drawer.set_max_log(new.unwrap());
+            }
+        }
+
+        /* if let Some((data, chunk_size)) = history.get_data_size() {
+                self.drawer = Some({
+                    #[cfg(not(feature = "gpu"))]
+                    let mut t = ColorMapDrawer::default();
+                    #[cfg(feature = "gpu")]
+                    let mut t = ColorMapDrawer::new(&self.name, chunk_size as _, 100, render_state);
+                    t.fetch(data, &mut self.proc, chunk_size);
+                    t
+                })
+            }
+
+        match self.drawer.as_mut() {
+            Some(drawer) => {
                 if running {
-                    ss.update(&his.data, &mut self.proc, his.dim);
+                    drawer.update(data, &mut self.proc, chunk_size);
                 }
-                let mut v = ss.max_log().map(|x| x.get()).unwrap_or_default();
+                let mut v = drawer.max_log().map(|x| x.get()).unwrap_or_default();
                 ui.horizontal(|ui| {
                     ui.label("Record length: ");
                     ui.add(
@@ -209,24 +234,13 @@ impl LleChart {
                     )
                 });
                 let new = NonZeroUsize::new(v);
-                if new != ss.max_log() {
-                    ss.set_max_log(new.unwrap());
-                    ss.fetch(&his.data, &mut self.proc, his.dim);
+                if new != drawer.max_log() {
+                    drawer.set_max_log(new.unwrap());
+                    drawer.fetch(data, &mut self.proc, chunk_size);
                 }
             }
-            None if show_his => {
-                let his = his.as_ref().unwrap();
-                self.show_history = Some({
-                    #[cfg(not(feature = "gpu"))]
-                    let mut t = ColorMapDrawer::default();
-                    #[cfg(feature = "gpu")]
-                    let mut t = ColorMapDrawer::new(&self.name, his.dim as _, 100, render_state);
-                    t.fetch(&his.data, &mut self.proc, his.dim);
-                    t
-                })
-            }
-            _ => (),
-        }
+            None => (),
+        } */
     }
 
     pub(crate) fn plot_on_new_window(
@@ -234,53 +248,66 @@ impl LleChart {
         data: &[Complex64],
         ctx: &Context,
         running: bool,
-        his: &Option<History>,
+        history: &History,
         #[cfg(feature = "gpu")] render_state: &eframe::egui_wgpu::RenderState,
-    ) {
-        if chart.is_none() {
-            return;
-        }
-        let name = chart
-            .as_ref()
-            .map(|x| x.name.as_str())
-            .unwrap_or("Empty name");
+    ) -> Option<()> {
+        let chart0 = chart.as_mut()?;
+        let name = chart0.name.as_str();
         puffin_egui::puffin::profile_scope!("plot", name);
         let mut open = true;
         egui::Window::new(name)
             .open(&mut open)
             .show(ctx, |ui| -> Option<()> {
-                let chart = chart.as_mut().expect("checked branch");
                 ui.horizontal(|ui| {
-                    chart.proc.controller(ui);
+                    chart0.proc.show_controller(ui);
                     ui.separator();
-                    chart.kind.controller(ui);
+                    chart0.kind.show_controller(ui);
                     ui.separator();
-                    smarter_bound_controller(&mut chart.smart_bound, ui);
+                    smarter_bound_controller(&mut chart0.smart_bound, ui);
                 });
-                ui.horizontal(|ui| {
-                    chart.control_panel_history(
-                        ui,
-                        his,
-                        running,
-                        #[cfg(feature = "gpu")]
-                        render_state,
-                    )
-                });
-                let data = chart.proc.proc(data);
+                ui.horizontal(|ui| chart0.control_ui_history(ui, history));
 
+                match (chart0.show_history, history.get_data_size()) {
+                    (true, Some((history_data, chunk_size))) => {
+                        let fetch = running || chart0.drawer.is_none();
+                        let r = {
+                            #[cfg(not(feature = "gpu"))]
+                            {
+                                chart0.drawer.get_or_insert_with(ColorMapDrawer::default)
+                            }
+                            #[cfg(feature = "gpu")]
+                            {
+                                chart0.drawer.get_or_insert_with(|| {
+                                    ColorMapDrawer::new(
+                                        &chart0.name,
+                                        chunk_size as _,
+                                        100,
+                                        render_state,
+                                    )
+                                })
+                            }
+                        };
+                        if fetch {
+                            r.fetch(history_data, &mut chart0.proc, chunk_size);
+                        }
+                    }
+                    (true, None) => unreachable!("history is active but no data"),
+                    _ => (),
+                };
+
+                let data = chart0.proc.proc(data);
                 let mut ui = crate::util::allocate_remained_space(ui);
-                if chart.show_history.is_some() {
+                if chart0.drawer.is_some() {
                     let h = (ui.available_height() - ui.spacing().item_spacing.y) / 2.;
                     let len = data.len();
-                    let r = chart.plot_in(data.into_iter(), &mut ui, running, Some(h));
+                    let r = chart0.plot_in(data.into_iter(), &mut ui, running, Some(h));
 
                     let min = r.transform.position_from_point_x(0.);
                     let max = r.transform.position_from_point_x((len - 1) as f64);
 
                     ui.separator();
-                    let history = chart.show_history.as_mut().expect("checked brach");
-
-                    history.set_align_x_axis((min, max));
+                    let drawer = chart0.drawer.as_mut().unwrap();
+                    drawer.set_align_x_axis((min, max));
                     ui.add_space(ui.spacing().item_spacing.y);
                     let (_id, rect) = ui.allocate_space(ui.available_size());
                     let mut cui = ui.new_child(
@@ -288,11 +315,11 @@ impl LleChart {
                             .max_rect(rect)
                             .layout(*ui.layout()),
                     );
-                    history
+                    drawer
                         .draw_mat_on_ui(len, &mut cui)
                         .expect("can't plot colormap");
                 } else {
-                    chart.plot_in(data.into_iter(), &mut ui, running, None);
+                    chart0.plot_in(data.into_iter(), &mut ui, running, None);
                 }
 
                 Some(())
@@ -300,6 +327,7 @@ impl LleChart {
         if !open {
             *chart = None;
         }
+        Some(())
     }
 
     pub(crate) fn plot_in(
@@ -311,6 +339,7 @@ impl LleChart {
     ) -> PlotResponse<()> {
         let (bound, line) = self.convert_data(data, running);
         let plot_kind = &self.kind;
+        use ui_traits::DisplayStr;
         let desc = self.proc.component.desc();
         let additional = self.additional.take();
         let plot = self.plot(ui, height);

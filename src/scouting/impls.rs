@@ -12,6 +12,9 @@ use super::*;
     Clone,
     Copy,
     PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
     serde::Deserialize,
     serde::Serialize,
     enum_iterator::Sequence,
@@ -24,24 +27,14 @@ pub enum BasicScoutingTarget {
     StepDist,
 }
 
-impl BasicScoutingTarget {
-    pub fn desc(&self) -> &str {
+impl crate::util::DisplayStr for BasicScoutingTarget {
+    fn desc(&self) -> &str {
         match self {
             BasicScoutingTarget::Alpha => "α",
             BasicScoutingTarget::Pump => "F",
             BasicScoutingTarget::Linear => "β",
             BasicScoutingTarget::StepDist => "Δt",
         }
-    }
-}
-
-impl ui_traits::ControllerUI for BasicScoutingTarget {
-    fn show_controller(&mut self, ui: &mut egui::Ui) {
-        enum_iterator::all::<BasicScoutingTarget>().for_each(|s| {
-            if ui.selectable_label(self == &s, s.desc()).clicked() {
-                *self = s;
-            }
-        })
     }
 }
 

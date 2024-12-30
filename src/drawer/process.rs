@@ -117,11 +117,13 @@ impl Process {
             component.extract_f32(data.into_iter()).collect()
         }
     }
+}
 
-    pub(crate) fn controller(&mut self, ui: &mut egui::Ui) {
+impl ui_traits::ControllerUI for Process {
+    fn show_controller(&mut self, ui: &mut egui::Ui) {
         crate::util::show_option(ui, &mut self.fft, "FFT");
         ui.separator();
-        self.component.show(ui);
+        self.component.show_controller(ui);
         ui.separator();
         ui.toggle_value(&mut self.db_scale, "dB scale");
     }
@@ -133,6 +135,9 @@ impl Process {
     Clone,
     Copy,
     PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
     serde::Deserialize,
     serde::Serialize,
     enum_iterator::Sequence,
@@ -145,8 +150,8 @@ pub enum Component {
     Arg,
 }
 
-impl Component {
-    pub fn desc(&self) -> &str {
+impl crate::util::DisplayStr for Component {
+    fn desc(&self) -> &str {
         match self {
             Component::Real => "Real",
             Component::Imag => "Imag",
@@ -154,6 +159,9 @@ impl Component {
             Component::Arg => "Arg",
         }
     }
+}
+
+impl Component {
     pub fn extract<B: Iterator<Item = Complex64>>(&self, i: B) -> Map<B, fn(Complex64) -> f64> {
         match self {
             Component::Real => i.map({ |x| x.re } as fn(Complex64) -> f64),
@@ -169,13 +177,6 @@ impl Component {
             Component::Abs => i.map({ |x| x.abs() as _ } as fn(Complex64) -> f32),
             Component::Arg => i.map({ |x| x.arg() as _ } as fn(Complex64) -> f32),
         }
-    }
-    pub fn show(&mut self, ui: &mut egui::Ui) {
-        enum_iterator::all::<Component>().for_each(|s| {
-            if ui.selectable_label(self == &s, s.desc()).clicked() {
-                *self = s;
-            }
-        })
     }
 }
 

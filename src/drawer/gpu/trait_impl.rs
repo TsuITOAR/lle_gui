@@ -11,10 +11,8 @@ impl DrawMat for Drawer {
         self.show(ui);
         Ok(())
     }
+
     fn fetch(&mut self, data: &[Complex64], proc: &mut Process, chunk_size: usize) {
-        self.update(data, proc, chunk_size);
-    }
-    fn update(&mut self, data: &[Complex64], proc: &mut Process, chunk_size: usize) {
         puffin_egui::puffin::profile_function!();
         let mut log = self.data();
         let max_log = self.max_log().unwrap().get();
@@ -35,7 +33,7 @@ impl DrawMat for Drawer {
         let (max, min) = search_max_min(&log);
 
         drop(log);
-        self.set_z_ragne([min, max]);
+        self.set_z_range([min, max]);
     }
 
     fn max_log(&self) -> Option<std::num::NonZero<usize>> {

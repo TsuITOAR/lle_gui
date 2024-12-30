@@ -1,3 +1,5 @@
+use ui_traits::ControllerUI;
+
 use super::*;
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -13,7 +15,7 @@ where
     S: Simulator,
     for<'a> <S as SharedState<'a>>::SharedState: State<OwnedState = S::OwnedState>,
     T: ScoutingTarget<P, S> + Default + Clone,
-    Views<V>: Default + for<'a> Visualize<<S as SharedState<'a>>::SharedState> + Clone,
+    Views<V>: Default + for<'a> Visualizer<<S as SharedState<'a>>::SharedState> + Clone,
 {
     pub(crate) fn show_toasts(&self, ctx: &egui::Context) {
         TOASTS.lock().show(ctx);
@@ -148,11 +150,9 @@ where
 
             attractive_head("Visualization control", ui.visuals().strong_text_color()).ui(ui);
 
-            ui.horizontal(|ui| views.toggle_record_his(ui, core.simulator.states()));
+            views.show_controller(ui);
 
-            views.controller(ui);
-
-            show_dispersion.controller(ui);
+            show_dispersion.show_controller(ui);
 
             // visualize strategy
             ui.separator();
@@ -186,10 +186,7 @@ where
 
             egui::warn_if_debug_build(ui);
 
-            ui.hyperlink_to(
-                "GitHub project address",
-                "https://github.com/TsuITOAR/lle_gui",
-            );
+            ui.hyperlink_to("GitHub repository", "https://github.com/TsuITOAR/lle_gui");
             ui.separator();
 
             views.show_fps(ui);
@@ -246,7 +243,6 @@ where
             }
 
             let Core {
-                dim: _,
                 controller,
                 simulator,
                 ..
@@ -272,9 +268,6 @@ where
             render_state,
             ..
         } = self;
-        if visual_refresh {
-            views.record(core.simulator.states());
-        }
 
         scout.push_to_views(views, ShowOn::Both);
 

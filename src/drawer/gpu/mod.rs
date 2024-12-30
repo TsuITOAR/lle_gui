@@ -319,7 +319,7 @@ impl Drawer {
             .resize((self.uniforms().height * self.uniforms().width) as _, 0.0);
     }
 
-    pub(crate) fn set_z_ragne(&mut self, range: [f32; 2]) {
+    pub(crate) fn set_z_range(&mut self, range: [f32; 2]) {
         self.uniforms.z_range = range;
     }
 }

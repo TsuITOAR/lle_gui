@@ -138,3 +138,5 @@ pub fn attractive_head(text: &str, color: impl Into<Option<egui::Color32>>) -> e
         None => egui::Label::new(egui::RichText::new(text).heading()),
     }
 }
+
+pub use ui_traits::DisplayStr;

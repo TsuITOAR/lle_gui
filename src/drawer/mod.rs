@@ -27,7 +27,8 @@ pub(crate) fn default_r_chart(index: usize) -> Option<LleChart> {
         kind: PlotKind::Line,
         proc: Default::default(),
         smart_bound: Some(Default::default()),
-        show_history: None,
+        show_history: false,
+        drawer: None,
         additional: None,
     })
 }
@@ -38,7 +39,8 @@ pub(crate) fn default_f_chart(index: usize) -> Option<LleChart> {
         kind: PlotKind::Line,
         proc: Process::new_freq_domain(),
         smart_bound: Some(Default::default()),
-        show_history: None,
+        show_history: false,
+        drawer: None,
         additional: None,
     })
 }
@@ -50,7 +52,7 @@ pub struct ViewField {
     #[serde(default)]
     pub(crate) f_chart: Option<LleChart>,
     #[serde(skip)]
-    pub(crate) history: Option<History>,
+    pub(crate) history: History,
     index: usize,
 }
 
@@ -59,43 +61,30 @@ impl ViewField {
         Self {
             r_chart: default_r_chart(index),
             f_chart: None,
-            history: None,
+            history: History::Inactive,
             index,
         }
     }
 }
 
 impl ViewField {
-    pub(crate) fn toggle_record_his(&mut self, ui: &mut egui::Ui, data: &[Complex64]) {
+    pub(crate) fn toggle_record_his(&mut self, ui: &mut egui::Ui) {
         let index = self.index;
         ui.horizontal(|ui| {
-            if crate::util::show_option_with(
-                ui,
-                &mut self.history,
-                format!("Record history {index}"),
-                || Some(History::new(data.to_vec())),
-            )
-            .clicked()
-                && self.history.is_none()
-            {
+            if self.history.show_controller(index, ui).changed() && !self.history.is_active() {
                 for c in [self.r_chart.as_mut(), self.f_chart.as_mut()]
                     .into_iter()
                     .flatten()
                 {
-                    c.show_history = None;
+                    c.unset_display_history();
                 }
             }
+
             #[cfg(target_arch = "wasm32")]
-            if self.history.is_some() {
+            if self.history.is_active() {
                 crate::util::warn_single_thread(ui);
             }
         });
-    }
-
-    pub(crate) fn log_his(&mut self, data: &[Complex64]) {
-        if let Some(ref mut s) = self.history {
-            s.push(data)
-        }
     }
 
     pub(crate) fn show_which(&mut self, ui: &mut egui::Ui) {
@@ -116,6 +105,10 @@ impl ViewField {
         #[cfg(feature = "gpu")] render_state: &eframe::egui_wgpu::RenderState,
     ) {
         puffin_egui::puffin::profile_function!();
+        if running || matches!(self.history, History::ReadyToRecord) {
+            self.history.push(data); // judge whether to record history internally
+        }
+
         LleChart::plot_on_new_window(
             &mut self.r_chart,
             data,
@@ -142,7 +135,9 @@ impl ViewField {
     Clone,
     enum_iterator::Sequence,
     PartialEq,
+    Eq,
     PartialOrd,
+    Ord,
     serde::Deserialize,
     serde::Serialize,
 )]
@@ -151,21 +146,16 @@ pub enum PlotKind {
     Points,
 }
 
-impl PlotKind {
-    pub fn desc(&self) -> &str {
+impl crate::util::DisplayStr for PlotKind {
+    fn desc(&self) -> &str {
         match self {
             PlotKind::Line => "Line",
             PlotKind::Points => "Points",
         }
     }
-    pub fn controller(&mut self, ui: &mut egui::Ui) {
-        enum_iterator::all::<PlotKind>().for_each(|s| {
-            if ui.selectable_label(self == &s, s.desc()).clicked() {
-                *self = s;
-            }
-        })
-    }
+}
 
+impl PlotKind {
     pub(crate) fn plot(
         &self,
         plot: egui_plot::Plot<'_>,
