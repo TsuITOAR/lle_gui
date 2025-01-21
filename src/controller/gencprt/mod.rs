@@ -174,7 +174,7 @@ impl<NL: Default + lle::NonLinearOp<f64>> Controller<LleSolver<NL, NoneOp<f64>, 
     }
     fn sync_paras(&mut self, engine: &mut LleSolver<NL, NoneOp<f64>, PumpFreq>) {
         use lle::Evolver;
-        engine.get_state_mut().cp = self.disper.get_coup_info();
+        engine.get_raw_state_mut().cp = self.disper.get_coup_info();
         engine.constant_freq = self.pump.get_pump();
         engine.step_dist = self.step_dist.get_value();
         engine.linear = self
