@@ -1,6 +1,5 @@
 use lle::{
-    num_complex::Complex64, DiffOrder, Evolver, Freq, LinearOp, LinearOpCached, StaticLinearOp,
-    Step,
+    num_complex::Complex64, DiffOrder, Evolver, Freq, LinearOp, LinearOpCached, NoneOp, StaticLinearOp, Step
 };
 use num_traits::{zero, Zero};
 
@@ -120,6 +119,7 @@ impl<NL: Default + lle::NonLinearOp<f64>> Controller<LleSolver<NL, Complex64>>
             .linear(self.linear_op().cached_linear_op(dim))
             .nonlin(NL::default())
             .constant(Complex64::from(pump))
+            .constant_freq(NoneOp::default())
             .build()
     }
 

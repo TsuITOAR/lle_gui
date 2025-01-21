@@ -168,6 +168,7 @@ impl<NL: lle::NonLinearOp<f64> + Default> Controller<LleSolver<NL>>
             )
             .nonlin(NL::default())
             .constant(pump)
+            .constant_freq(NoneOp::default())
             .build()
     }
 

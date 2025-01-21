@@ -1,4 +1,4 @@
-use lle::{num_complex::Complex64, DiffOrder, Freq, LinearOp, Step};
+use lle::{num_complex::Complex64, DiffOrder, Freq, LinearOp, NoneOp, Step};
 use num_traits::{zero, Zero};
 
 use super::{Controller, Property};
@@ -114,6 +114,7 @@ impl<NL: Default + lle::NonLinearOp<f64>> Controller<LleSolver<NL>> for DisperLl
             )
             .nonlin(NL::default())
             .constant(Complex64::from(pump))
+            .constant_freq(NoneOp::default())
             .build()
     }
 

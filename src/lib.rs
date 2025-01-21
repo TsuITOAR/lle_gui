@@ -3,7 +3,7 @@
 #![feature(fn_traits)]
 #![feature(hasher_prefixfree_extras)]
 #![feature(type_alias_impl_trait)]
-#![feature(try_blocks)]
+#![feature(array_chunks)]
 mod checkpoint;
 mod config;
 mod controller;

@@ -42,6 +42,8 @@ pub type CLleSolver = lle::CoupledLleSolver<
     SPhaMod,
     Complex64,
     NoneOp<f64>,
+    NoneOp<f64>,
+    NoneOp<f64>,
     Couple,
 >;
 
@@ -74,6 +76,7 @@ impl Controller<CLleSolver> for CoupleLleController {
                     )
                     .nonlin(SPhaMod)
                     .constant(Complex64::from(pump))
+                    .constant_freq(NoneOp::default())
                     .build(),
             )
             .component2(

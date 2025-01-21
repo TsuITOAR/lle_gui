@@ -114,6 +114,7 @@ impl<NL: lle::NonLinearOp<f64> + Default> Controller<LleSolver<NL>> for PulsePum
             )
             .nonlin(NL::default())
             .constant(pump.cached_const_op(dim))
+            .constant_freq(NoneOp::default())
             .build()
     }
 

@@ -132,6 +132,7 @@ impl<NL: lle::NonLinearOp<f64> + Default> Controller<LleSolver<NL>> for SelfPump
             )
             .nonlin(NL::default())
             .constant(pump)
+            .constant_freq(NoneOp::default())
             .build()
     }
 
