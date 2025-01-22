@@ -1,4 +1,4 @@
-use std::{f64::consts::PI, ops::Rem};
+use std::f64::consts::PI;
 
 use lle::num_complex::Complex;
 use num_traits::Zero;
@@ -16,7 +16,8 @@ pub struct CoupleInfo {
 
 impl CoupleInfo {
     pub fn fraction_at(&self, mode: i32) -> (f64, f64) {
-        let branch = mode.rem(2);
+        let branch = mode.rem_euclid(2);
+        debug_assert!(branch == 0 || branch == 1);
         let m = mode.div_euclid(2) as f64;
         let phi_m = 2. * PI * (m - self.center) / self.period;
         let alpha = (self.g.cos() * phi_m.cos()).acos();

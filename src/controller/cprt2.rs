@@ -64,7 +64,8 @@ pub struct CprtDispersion2 {
 
 impl LinearOp<f64> for CprtDispersion2 {
     fn get_value(&self, _step: Step, freq: Freq) -> Complex64 {
-        let branch = freq % 2;
+        let branch = freq.rem_euclid(2);
+        debug_assert!(branch == 0 || branch == 1);
         let f = |f: f64| {
             let cos1 =
                 ((f.div_euclid(2.) - self.center_pos) / self.period * std::f64::consts::PI * 2.)
