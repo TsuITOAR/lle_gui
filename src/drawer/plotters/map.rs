@@ -2,7 +2,7 @@ use super::backend::EguiBackend;
 
 use crate::drawer::{chart, Process};
 
-use lle::{num_complex::Complex64, num_traits::Pow};
+use lle::num_traits::Pow;
 use plotters::{
     coord::Shift,
     prelude::*,
@@ -277,19 +277,24 @@ impl ColorMapVisualizer<f64> {
         self.raw.color_range = Default::default();
     }
 
-    fn fetch(&mut self, data: &[Complex64], proc: &mut Process, chunk_size: usize) -> &mut Self {
+    fn fetch<S: crate::FftSource>(
+        &mut self,
+        data: &[S],
+        proc: &mut Process<S>,
+        chunk_size: usize,
+    ) -> &mut Self {
         puffin_egui::puffin::profile_function!();
         self.clear();
         // todo: use rayon to parallelize the process
         match self.max_log {
             Some(max) => {
                 self.matrix.reserve(chunk_size * max.get());
-                for d in data.rchunks(chunk_size).take(max.get()).rev() {
+                for d in data.iter().rev().take(max.get()).rev() {
                     self.push(proc.proc(d));
                 }
             }
             None => {
-                for d in data.chunks(chunk_size) {
+                for d in data.iter() {
                     self.push(proc.proc(d));
                 }
             }
@@ -359,7 +364,7 @@ impl chart::DrawMat for ColorMapVisualizer {
         Self::draw_mat_on_ui(self, chunk_size, ui).unwrap();
         Ok(())
     }
-    fn fetch(&mut self, data: &[Complex64], proc: &mut Process, chunk_size: usize) {
+    fn fetch<S: crate::FftSource>(&mut self, data: &[S], proc: &mut Process<S>, chunk_size: usize) {
         puffin_egui::puffin::profile_function!();
         Self::fetch(self, data, proc, chunk_size);
     }
