@@ -37,6 +37,36 @@ impl CoupleInfo {
     }
 }
 
+#[cfg(test)]
+mod test {
+    use super::*;
+    #[test]
+    fn test_fraction_at() {
+        let c = CoupleInfo {
+            g: 0.5,
+            mu: 0.5,
+            center: 0.5,
+            period: 1.0,
+        };
+        use assert_approx_eq::assert_approx_eq;
+        for i in 0..100 {
+            let (a1, b1) = c.fraction_at(i * 2);
+            let (a2, b2) = c.fraction_at(i * 2 + 1);
+            assert_approx_eq!(a1, b2);
+            assert_approx_eq!(a2, -b1);
+            let (a3, b3) = c.fraction_at(-i * 2);
+            let (a4, b4) = c.fraction_at(-i * 2 + 1);
+            assert_approx_eq!(a3, b4);
+            assert_approx_eq!(a4, -b3);
+
+            assert_approx_eq!(a1, -b3);
+            assert_approx_eq!(b1, -a3);
+            assert_approx_eq!(a2, b4);
+            assert_approx_eq!(b2, a4);
+        }
+    }
+}
+
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct State {
     pub data: Vec<Complex<f64>>,

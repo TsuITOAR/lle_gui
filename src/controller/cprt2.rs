@@ -66,10 +66,11 @@ impl LinearOp<f64> for CprtDispersion2 {
     fn get_value(&self, _step: Step, freq: Freq) -> Complex64 {
         let branch = freq.rem_euclid(2);
         debug_assert!(branch == 0 || branch == 1);
-        let f = |f: f64| {
-            let cos1 =
-                ((f.div_euclid(2.) - self.center_pos) / self.period * std::f64::consts::PI * 2.)
-                    .cos();
+        let f = |f: Freq| {
+            let cos1 = (((f.div_euclid(2)) as f64 - self.center_pos) / self.period
+                * std::f64::consts::PI
+                * 2.)
+                .cos();
 
             let cos2 = self.couple_strength.cos();
 
@@ -77,13 +78,28 @@ impl LinearOp<f64> for CprtDispersion2 {
         };
 
         if branch == 0 {
-            -Complex64::i() * (f(freq as _) - f(0.))
+            -Complex64::i() * (f(freq) - f(0))
         } else {
-            -Complex64::i() * (-f(freq as _) - f(0.))
+            -Complex64::i() * (-f(freq) - f(0))
         }
     }
     fn skip(&self) -> bool {
         self.couple_strength.is_zero()
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use lle::LinearOp;
+
+    use super::*;
+    #[test]
+    fn test_cprt2_dispersion_symmetric() {
+        let c = Cprt2::default().generate_op();
+        for i in 0..100 {
+            assert_eq!(c.get_value(0, i * 2), c.get_value(0, -i * 2));
+            assert_eq!(c.get_value(0, i * 2 + 1), c.get_value(0, -i * 2 + 1));
+        }
     }
 }
 

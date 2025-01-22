@@ -1,4 +1,4 @@
-use lle::{num_complex::Complex64, DiffOrder, Freq, LinearOpCached, NoneOp, StaticLinearOp, Step};
+use lle::{num_complex::Complex64, DiffOrder, LinearOpCached, NoneOp, StaticLinearOp};
 use ops::PumpFreq;
 use state::CoupleInfo;
 
@@ -39,10 +39,25 @@ impl GenCprtController {
         let beta = self.disper.linear.get_value();
         let alpha = self.alpha.get_value();
         (0, -(Complex64::i() * alpha + 1.))
-            .add_linear_op(move |_: Step, f: Freq| -> Complex64 {
-                Complex64::i() * beta / 2. * (f as f64 / 2.).powi(2)
+            .add_linear_op(move |_: lle::Step, f: lle::Freq| -> Complex64 {
+                Complex64::i() * beta / 2. * ((f as f64).div_euclid(2.)).powi(2)
             })
             .add_linear_op(self.disper.get_cprt_dispersion())
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use lle::LinearOp;
+
+    use super::*;
+    #[test]
+    fn test_gencprt_dispersion_symmetric() {
+        let c = GenCprtController::default().disper.get_cprt_dispersion();
+        for i in 0..100 {
+            assert_eq!(c.get_value(0, i * 2), c.get_value(0, -i * 2));
+            assert_eq!(c.get_value(0, i * 2 + 1), c.get_value(0, -i * 2 + 1));
+        }
     }
 }
 

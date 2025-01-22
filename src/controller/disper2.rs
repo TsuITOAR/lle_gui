@@ -58,9 +58,13 @@ pub struct CosDispersion2 {
 
 impl LinearOp<f64> for CosDispersion2 {
     fn get_value(&self, _step: Step, freq: Freq) -> Complex64 {
-        let branch = freq % 2;
+        let branch = freq.rem_euclid(2);
+        debug_assert!(branch == 0 || branch == 1);
         let f = |f: Freq| {
-            -(((f / 2) as f64 - self.center_pos) / self.period * std::f64::consts::PI * 2.).cos()
+            -(((f.div_euclid(2)) as f64 - self.center_pos) / self.period
+                * std::f64::consts::PI
+                * 2.)
+                .cos()
         };
         if branch == 0 {
             -Complex64::i() * (f(freq) - f(0)) * self.strength
@@ -87,6 +91,20 @@ pub type LleSolver<NL, C> = lle::LleSolver<f64, Vec<Complex64>, LinearOpCached<f
 pub struct DisperLleController2 {
     pub(crate) basic: super::LleController,
     pub(crate) disper: CosDispersionProperty2,
+}
+
+#[cfg(test)]
+mod test {
+    use lle::LinearOp;
+
+    use super::*;
+    #[test]
+    fn test_disper2_dispersion_symmetric() {
+        let c = CosDispersionProperty2::default().generate_op();
+        for i in 0..100 {
+            assert_eq!(c.get_value(0, i), c.get_value(0, -i));
+        }
+    }
 }
 
 impl DisperLleController2 {
