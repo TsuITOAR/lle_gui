@@ -7,6 +7,7 @@ pub(crate) struct PlayControl {
     pub(crate) reset: bool,
     pub(crate) destruct: bool,
     pub(crate) step: bool,
+    pub(crate) refresh: bool,
 }
 
 impl<P, S, V, T> GenApp<P, S, V, T>
@@ -80,6 +81,7 @@ where
             mut reset,
             mut destruct,
             mut step,
+            mut refresh,
         } = PlayControl::default();
 
         egui::SidePanel::left("control_panel").show(ctx, |ui| {
@@ -122,6 +124,10 @@ where
                     .ui(ui)
                     .on_hover_text("Step")
                     .is_pointer_button_down_on();
+                refresh = attractive_button("🔄", None)
+                    .ui(ui)
+                    .on_hover_text("Refresh the state to 0")
+                    .clicked();
                 reset = attractive_button("⏹", None)
                     .ui(ui)
                     .on_hover_text("Reset model")
@@ -197,6 +203,7 @@ where
             reset,
             destruct,
             step,
+            refresh,
         }
     }
 
@@ -206,6 +213,7 @@ where
             reset,
             destruct,
             step,
+            refresh,
         } = play_control;
 
         let Self {
@@ -232,6 +240,12 @@ where
             *is_init = false;
             *views = Default::default();
             return false;
+        }
+        if refresh {
+            core.simulator = core
+                .controller
+                .construct_engine_random_init(core.dim, &mut core.random);
+            return true;
         }
         if *running || step {
             core.sync_paras();
