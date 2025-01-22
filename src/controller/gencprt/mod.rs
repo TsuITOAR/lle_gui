@@ -12,7 +12,7 @@ pub mod visualizer;
 pub type App = crate::app::GenApp<
     GenCprtController,
     LleSolver<lle::SPhaMod, NoneOp<f64>, PumpFreq>,
-    crate::drawer::ViewField,
+    crate::drawer::ViewField<state::State>,
 >;
 
 pub type LleSolver<NL, C, CF> = lle::LleSolver<f64, state::State, LinearOpCached<f64>, NL, C, CF>;
@@ -40,7 +40,7 @@ impl GenCprtController {
         let alpha = self.alpha.get_value();
         (0, -(Complex64::i() * alpha + 1.))
             .add_linear_op(move |_: Step, f: Freq| -> Complex64 {
-                Complex64::i() * beta / 2. * ((f / 2) as f64).powi(2)
+                Complex64::i() * beta / 2. * (f as f64 / 2.).powi(2)
             })
             .add_linear_op(self.disper.get_cprt_dispersion())
     }
@@ -101,12 +101,10 @@ impl GenCprtDisperSubController {
 impl Default for GenCprtDisperSubController {
     fn default() -> Self {
         Self {
-            linear: Property::new(-0.0444, "linear")
-                .symbol('β')
-                .range((-0.1, 0.1)),
+            linear: Property::new(0.05, "linear").symbol('β').range((-0.1, 0.1)),
             center_pos: Property::new(0., "Center Position").range((-20., 20.)),
-            period: Property::new(100., "Period").range((50., 100.)),
-            couple_strength: Property::new(std::f64::consts::FRAC_PI_2, "Couple strength")
+            period: Property::new(200., "Period").range((50., 400.)),
+            couple_strength: Property::new(std::f64::consts::FRAC_PI_2 * 0.8, "Couple strength")
                 .range((0., std::f64::consts::PI)),
             frac_d1_2pi: Property::new(100., "d1/2pi").range((50., 200.)),
         }
@@ -151,7 +149,7 @@ impl<NL: Default + lle::NonLinearOp<f64>> Controller<LleSolver<NL, NoneOp<f64>, 
     type Dispersion = lle::LinearOpAdd<f64, (DiffOrder, Complex64), super::cprt2::CprtDispersion2>;
     fn dispersion(&self) -> Self::Dispersion {
         use lle::LinearOp;
-        (2, Complex64::i() * self.disper.linear.get_value() / 2.)
+        (2, Complex64::i() * self.disper.linear.get_value() / 2. / 4.)
             .add_linear_op(self.disper.get_cprt_dispersion())
     }
     fn construct_engine(&self, dim: usize) -> LleSolver<NL, NoneOp<f64>, PumpFreq> {

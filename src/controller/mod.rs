@@ -1,4 +1,6 @@
 mod traits;
+use std::fmt::Debug;
+
 pub use traits::*;
 
 pub mod clle;
@@ -13,10 +15,10 @@ pub mod interleave_self_pump;
 pub mod pulse_pump;
 pub mod self_pump;
 
-use lle::{num_complex::Complex64, ConstOp, Evolver, FftSource, NoneOp, SPhaMod};
+use lle::{num_complex::Complex64, ConstOp, Evolver, NoneOp, SPhaMod};
 use num_traits::{zero, Zero};
 
-use crate::{property::Property, random::RandomNoise, views::PlotElement};
+use crate::{property::Property, random::RandomNoise, views::PlotElement, FftSource};
 
 #[allow(unused)]
 pub type App = crate::app::GenApp<
@@ -132,53 +134,52 @@ impl Default for LleController {
 
 impl<
         'a,
-        S: AsMut<[Complex64]> + AsRef<[Complex64]> + FftSource<f64>,
+        S: FftSource,
         L: lle::LinearOp<f64>,
         NL: lle::NonLinearOp<f64>,
         C: ConstOp<f64>,
         CF: ConstOp<f64>,
     > SharedState<'a> for lle::LleSolver<f64, S, L, NL, C, CF>
 {
-    type SharedState = &'a [Complex64];
+    type SharedState = &'a S;
     fn states(&'a self) -> Self::SharedState {
-        use lle::Evolver;
-        self.state()
+        self.get_raw_state()
     }
-    fn set_state(&mut self, state: &[Complex64]) {
-        self.state_mut().copy_from_slice(state);
+    fn set_state(&mut self, state: &S) {
+        *self.get_raw_state_mut() = state.clone();
     }
 }
 
 impl<
-        S: AsMut<[Complex64]> + AsRef<[Complex64]> + FftSource<f64>,
+        S: FftSource + for<'a> serde::Deserialize<'a> + serde::Serialize,
         L: lle::LinearOp<f64>,
         NL: lle::NonLinearOp<f64>,
         C: ConstOp<f64>,
         CF: ConstOp<f64>,
     > StoreState for lle::LleSolver<f64, S, L, NL, C, CF>
 {
-    type OwnedState = Vec<Complex64>;
+    type OwnedState = S;
     fn get_owned_state(&self) -> Self::OwnedState {
-        self.state().to_vec()
+        self.get_raw_state().clone()
     }
     fn set_owned_state(&mut self, state: Self::OwnedState) {
-        if self.state().len() != state.len() {
+        if self.state().len() != state.as_ref().len() {
             crate::notify::TOASTS.lock().warning(format!(
                 "Skipping restore state for mismatched length between simulator({}) and storage({})",
                 self.state().len(),
-                state.len()
+                state.as_ref().len()
             ));
             return;
         }
-        self.state_mut().copy_from_slice(&state);
+        *self.get_raw_state_mut() = state;
     }
     fn default_state(dim: usize) -> Self::OwnedState {
-        vec![Complex64::zero(); dim]
+        S::default_with_len(dim)
     }
 }
 
 impl<
-        S: AsMut<[Complex64]> + AsRef<[Complex64]> + FftSource<f64> + Send + Sync + 'static,
+        S: FftSource + for<'a> serde::Deserialize<'a> + serde::Serialize,
         L: lle::LinearOp<f64> + Send + Sync + 'static,
         NL: lle::NonLinearOp<f64> + Send + Sync + 'static,
         C: ConstOp<f64> + Send + Sync + 'static,

@@ -1,14 +1,14 @@
-use lle::num_complex::Complex64;
+use super::process::FftSource;
 
 #[derive(Debug, Clone, Default)]
-pub enum History {
+pub enum History<S: FftSource> {
     #[default]
     Inactive,
     ReadyToRecord,
-    Recording(StoredHistory),
+    Recording(StoredHistory<S>),
 }
 
-impl History {
+impl<S: FftSource> History<S> {
     pub fn show_controller(&mut self, index: usize, ui: &mut egui::Ui) -> egui::Response {
         let mut active = self.is_active();
         let r = ui.toggle_value(&mut active, format!("Record history {index}"));
@@ -21,7 +21,7 @@ impl History {
     }
 }
 
-impl History {
+impl<S: FftSource> History<S> {
     pub fn is_active(&self) -> bool {
         !matches!(self, History::Inactive)
     }
@@ -32,11 +32,11 @@ impl History {
         }
     }
 
-    pub fn push(&mut self, data: &[Complex64]) {
+    pub fn push(&mut self, data: &S) {
         match self {
             History::Inactive => (),
             History::ReadyToRecord => {
-                *self = History::Recording(StoredHistory::new(data.to_vec()));
+                *self = History::Recording(StoredHistory::new(vec![data.to_owned()]));
             }
             History::Recording(history) => {
                 history.push(data);
@@ -44,7 +44,7 @@ impl History {
         }
     }
 
-    pub fn get_data_size(&self) -> Option<(&[Complex64], usize)> {
+    pub fn get_data_size(&self) -> Option<(&[S], usize)> {
         match self {
             History::Inactive => None,
             History::ReadyToRecord => None,
@@ -57,12 +57,12 @@ impl History {
     }
 }
 
-pub struct StoredHistory {
-    pub(crate) data: Vec<Complex64>,
+pub struct StoredHistory<S: FftSource> {
+    pub(crate) data: Vec<S>,
     pub(crate) dim: usize,
 }
 
-impl Clone for StoredHistory {
+impl<S: FftSource> Clone for StoredHistory<S> {
     fn clone(&self) -> Self {
         Self {
             data: self.data.clone(),
@@ -71,7 +71,7 @@ impl Clone for StoredHistory {
     }
 }
 
-impl std::fmt::Debug for StoredHistory {
+impl<S: FftSource> std::fmt::Debug for StoredHistory<S> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("History")
             .field("dim", &self.dim)
@@ -80,15 +80,15 @@ impl std::fmt::Debug for StoredHistory {
     }
 }
 
-impl StoredHistory {
-    fn new(data: Vec<Complex64>) -> Self {
+impl<S: FftSource> StoredHistory<S> {
+    fn new(data: Vec<S>) -> Self {
         Self {
-            dim: data.len(),
+            dim: data[0].as_ref().len(),
             data,
         }
     }
 
-    fn push(&mut self, data: &[Complex64]) {
-        self.data.extend_from_slice(data);
+    fn push(&mut self, data: &S) {
+        self.data.push(data.to_owned());
     }
 }

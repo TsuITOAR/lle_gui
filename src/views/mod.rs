@@ -1,4 +1,4 @@
-use crate::drawer::ViewField;
+use crate::{drawer::ViewField, FftSource};
 use std::array::from_fn;
 
 mod traits;
@@ -17,37 +17,39 @@ pub struct Views<V> {
     last_plot: Option<Instant>,
 }
 
-impl Default for Views<ViewField> {
+impl<S: FftSource> Default for Views<ViewField<S>> {
     fn default() -> Self {
         Self {
-            views: ViewField::new(0),
+            views: ViewField::<S>::new(0),
             last_plot: None,
         }
     }
 }
 
-impl<const L: usize> Default for Views<[ViewField; L]> {
+impl<const L: usize, S: FftSource> Default for Views<[ViewField<S>; L]> {
     fn default() -> Self {
         Self {
-            views: from_fn(ViewField::new),
+            views: from_fn(ViewField::<S>::new),
             last_plot: None,
         }
     }
 }
 
-impl<'de> serde::Deserialize<'de> for Views<ViewField> {
+impl<'de, S: FftSource + for<'a> serde::Deserialize<'a>> serde::Deserialize<'de>
+    for Views<ViewField<S>>
+{
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: serde::Deserializer<'de>,
     {
         Ok(Self {
-            views: ViewField::deserialize(deserializer)?,
+            views: ViewField::<S>::deserialize(deserializer)?,
             last_plot: None,
         })
     }
 }
 
-impl serde::Serialize for Views<ViewField> {
+impl<F: FftSource + serde::Serialize> serde::Serialize for Views<ViewField<F>> {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,

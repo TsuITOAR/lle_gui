@@ -1,7 +1,6 @@
 use iterator_ilp::IteratorILP;
-use lle::num_complex::Complex64;
 
-use crate::drawer::{chart::DrawMat, Process};
+use crate::drawer::{chart::DrawMat, process::FftSource, Process};
 
 use super::Drawer;
 
@@ -12,16 +11,20 @@ impl DrawMat for Drawer {
         Ok(())
     }
 
-    fn fetch(&mut self, data: &[Complex64], proc: &mut Process, chunk_size: usize) {
+    fn fetch<S: FftSource>(&mut self, data: &[S], proc: &mut Process<S>, chunk_size: usize)
+    where
+        S::FftProcessor: Sync,
+    {
         puffin_egui::puffin::profile_function!();
         let mut log = self.data();
         let max_log = self.max_log().unwrap().get();
         use rayon::prelude::*;
         {
             puffin_egui::puffin::profile_scope!("process data");
-            data.rchunks(chunk_size)
+            data.iter()
+                .rev()
                 .take(max_log)
-                .collect::<Vec<&[Complex64]>>()
+                .collect::<Vec<&S>>()
                 .into_par_iter()
                 .map(|d| proc.clone().proc_f32(d))
                 .zip(log.par_rchunks_exact_mut(chunk_size).into_par_iter())

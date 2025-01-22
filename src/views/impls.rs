@@ -1,9 +1,11 @@
 use lle::num_complex::Complex64;
 use ui_traits::ControllerUI;
 
+use crate::FftSource;
+
 use super::*;
 
-impl<const L: usize> ControllerUI for Views<[ViewField; L]> {
+impl<const L: usize, S: FftSource> ControllerUI for Views<[ViewField<S>; L]> {
     fn show_controller(&mut self, ui: &mut egui::Ui) {
         ui.horizontal(|ui| self.views.iter_mut().for_each(|v| v.toggle_record_his(ui)));
         for (i, view) in self.views.iter_mut().enumerate() {
@@ -14,22 +16,22 @@ impl<const L: usize> ControllerUI for Views<[ViewField; L]> {
     }
 }
 
-impl ControllerUI for Views<ViewField> {
+impl<S: FftSource> ControllerUI for Views<ViewField<S>> {
     fn show_controller(&mut self, ui: &mut egui::Ui) {
         self.views.show_controller(ui);
     }
 }
 
-impl ControllerUI for ViewField {
+impl<S: FftSource> ControllerUI for ViewField<S> {
     fn show_controller(&mut self, ui: &mut egui::Ui) {
         self.toggle_record_his(ui);
         self.show_which(ui);
     }
 }
 
-impl<const L: usize, S: State> Visualizer<[S; L]> for Views<[ViewField; L]>
+impl<const L: usize, S: State, FS: FftSource> Visualizer<[S; L]> for Views<[ViewField<FS>; L]>
 where
-    ViewField: Visualizer<S>,
+    ViewField<FS>: Visualizer<S>,
 {
     fn adjust_to_state(&mut self, data: [S; L]) {
         for (view, data) in self.views.iter_mut().zip(data.into_iter()) {
@@ -78,8 +80,8 @@ where
     }
 }
 
-impl<'a> Visualizer<&'a [Complex64]> for ViewField {
-    fn adjust_to_state(&mut self, data: &'a [Complex64]) {
+impl<'a> Visualizer<&'a Vec<Complex64>> for ViewField<Vec<Complex64>> {
+    fn adjust_to_state(&mut self, data: &'a Vec<Complex64>) {
         if let Some(ref mut f) = self.f_chart {
             f.adjust_to_state(data);
         }
@@ -93,7 +95,7 @@ impl<'a> Visualizer<&'a [Complex64]> for ViewField {
         }
     }
 
-    fn record(&mut self, data: &'a [Complex64]) {
+    fn record(&mut self, data: &'a Vec<Complex64>) {
         self.history.push(data);
     }
 
@@ -145,7 +147,7 @@ impl<'a> Visualizer<&'a [Complex64]> for ViewField {
 
     fn plot(
         &mut self,
-        data: &'a [Complex64],
+        data: &'a Vec<Complex64>,
         ctx: &egui::Context,
         running: bool,
         #[cfg(feature = "gpu")] render_state: &eframe::egui_wgpu::RenderState,
@@ -160,16 +162,19 @@ impl<'a> Visualizer<&'a [Complex64]> for ViewField {
     }
 }
 
-impl<'a> Visualizer<&'a [Complex64]> for Views<ViewField> {
-    fn adjust_to_state(&mut self, data: &'a [Complex64]) {
+impl<P: State, T: Visualizer<P>> Visualizer<P> for Views<T>
+where
+    Views<T>: ControllerUI,
+{
+    fn adjust_to_state(&mut self, data: P) {
         self.views.adjust_to_state(data);
     }
 
-    fn record(&mut self, data: &'a [Complex64]) {
-        self.views.history.push(data);
+    fn record(&mut self, data: P) {
+        self.views.record(data);
     }
 
-    fn push_elements_raw(&mut self, points: RawPlotElement<Vec<Complex64>>, on: ShowOn) {
+    fn push_elements_raw(&mut self, points: RawPlotElement<P::OwnedState>, on: ShowOn) {
         self.views.push_elements_raw(points, on);
     }
 
@@ -179,12 +184,12 @@ impl<'a> Visualizer<&'a [Complex64]> for Views<ViewField> {
 
     fn plot(
         &mut self,
-        data: &[Complex64],
+        data: P,
         ctx: &egui::Context,
         running: bool,
         #[cfg(feature = "gpu")] render_state: &eframe::egui_wgpu::RenderState,
     ) {
-        self.views.visualize_state(
+        self.views.plot(
             data,
             ctx,
             running,

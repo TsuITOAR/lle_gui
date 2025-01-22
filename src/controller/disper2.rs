@@ -1,5 +1,6 @@
 use lle::{
-    num_complex::Complex64, DiffOrder, Evolver, Freq, LinearOp, LinearOpCached, NoneOp, StaticLinearOp, Step
+    num_complex::Complex64, DiffOrder, Evolver, Freq, LinearOp, LinearOpCached, NoneOp,
+    StaticLinearOp, Step,
 };
 use num_traits::{zero, Zero};
 

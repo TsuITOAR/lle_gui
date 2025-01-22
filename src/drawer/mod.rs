@@ -3,13 +3,14 @@ use lle::{
     num_complex::Complex64,
     num_traits::{Float, FromPrimitive},
 };
+use static_assertions::assert_impl_all;
 use std::{fmt::Debug, ops::RangeInclusive};
 
 mod history;
 pub use history::History;
 
 mod process;
-pub use process::Process;
+pub use process::{FftSource, Process};
 
 pub mod chart;
 
@@ -21,7 +22,7 @@ pub mod plotters;
 
 use self::chart::LleChart;
 
-pub(crate) fn default_r_chart(index: usize) -> Option<LleChart> {
+pub(crate) fn default_r_chart<S: FftSource>(index: usize) -> Option<LleChart<S>> {
     Some(LleChart {
         name: format! {"real domain {index}"},
         kind: PlotKind::Line,
@@ -33,7 +34,7 @@ pub(crate) fn default_r_chart(index: usize) -> Option<LleChart> {
     })
 }
 
-pub(crate) fn default_f_chart(index: usize) -> Option<LleChart> {
+pub(crate) fn default_f_chart<S: FftSource>(index: usize) -> Option<LleChart<S>> {
     Some(LleChart {
         name: format! {"freq domain {index}"},
         kind: PlotKind::Line,
@@ -46,17 +47,24 @@ pub(crate) fn default_f_chart(index: usize) -> Option<LleChart> {
 }
 
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
-pub struct ViewField {
+#[serde(bound(
+    serialize = "S:FftSource+serde::Serialize",
+    deserialize = "S:FftSource+for<'a> serde::Deserialize<'a>"
+))]
+pub struct ViewField<S: FftSource = Vec<Complex64>> {
     #[serde(default)]
-    pub(crate) r_chart: Option<LleChart>,
+    pub(crate) r_chart: Option<LleChart<S>>,
     #[serde(default)]
-    pub(crate) f_chart: Option<LleChart>,
+    pub(crate) f_chart: Option<LleChart<S>>,
     #[serde(skip)]
-    pub(crate) history: History,
+    pub(crate) history: History<S>,
     index: usize,
 }
 
-impl ViewField {
+assert_impl_all!(ViewField: crate::views::Visualizer<&'static Vec<Complex64>>);
+assert_impl_all!(ViewField<crate::controller::gencprt::state::State>: crate::views::Visualizer<&'static crate::controller::gencprt::state::State>);
+
+impl<S: FftSource> ViewField<S> {
     pub(crate) fn new(index: usize) -> Self {
         Self {
             r_chart: default_r_chart(index),
@@ -67,7 +75,7 @@ impl ViewField {
     }
 }
 
-impl ViewField {
+impl<S: FftSource> ViewField<S> {
     pub(crate) fn toggle_record_his(&mut self, ui: &mut egui::Ui) {
         let index = self.index;
         ui.horizontal(|ui| {
@@ -99,11 +107,13 @@ impl ViewField {
     }
     pub(crate) fn visualize_state(
         &mut self,
-        data: &[Complex64],
+        data: &S,
         ctx: &Context,
         running: bool,
         #[cfg(feature = "gpu")] render_state: &eframe::egui_wgpu::RenderState,
-    ) {
+    ) where
+        S::FftProcessor: Sync,
+    {
         puffin_egui::puffin::profile_function!();
         if running || matches!(self.history, History::ReadyToRecord) {
             self.history.push(data); // judge whether to record history internally

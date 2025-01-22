@@ -1,7 +1,8 @@
-use std::{borrow::Borrow, num::NonZeroUsize};
+use std::num::NonZeroUsize;
 
 use egui::DragValue;
 use egui_plot::{PlotPoints, PlotResponse};
+use process::FftSource;
 use ui_traits::ControllerUI;
 
 use crate::views::{PlotElement, RawPlotElement};
@@ -90,11 +91,15 @@ impl<T: Debug + Float + PartialOrd + FromPrimitive + Copy> SmartPlot<T> {
 }
 
 #[derive(serde::Deserialize, serde::Serialize)]
-pub struct LleChart {
+#[serde(bound(
+    serialize = "S:FftSource+serde::Serialize",
+    deserialize = "S:FftSource+for<'a> serde::Deserialize<'a>"
+))]
+pub struct LleChart<S: FftSource = Vec<Complex64>> {
     pub(crate) name: String,
     pub(crate) kind: PlotKind,
     #[serde(default)]
-    pub(crate) proc: Process,
+    pub(crate) proc: Process<S>,
     #[serde(default)]
     pub(crate) smart_bound: Option<SmartPlot<f64>>,
     #[serde(skip)]
@@ -105,12 +110,9 @@ pub struct LleChart {
     pub(crate) additional: Option<Vec<PlotElement>>,
 }
 
-impl LleChart {
-    pub fn push_additional_raw<S>(&mut self, plot: &RawPlotElement<S>)
-    where
-        S: Borrow<[Complex64]>,
-    {
-        let s = self.proc.proc(plot.data.borrow());
+impl<S: FftSource> LleChart<S> {
+    pub fn push_additional_raw(&mut self, plot: &RawPlotElement<S>) {
+        let s = self.proc.proc(&plot.data);
         self.additional.get_or_insert_default().push(PlotElement {
             y: s,
             x: plot.x.clone(),
@@ -126,7 +128,7 @@ impl LleChart {
     }
 }
 
-impl Clone for LleChart {
+impl<S: FftSource> Clone for LleChart<S> {
     fn clone(&self) -> Self {
         Self {
             name: self.name.clone(),
@@ -140,7 +142,7 @@ impl Clone for LleChart {
     }
 }
 
-impl Debug for LleChart {
+impl<S: FftSource + Debug> Debug for LleChart<S> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("LleChart")
             .field("name", &self.name)
@@ -161,26 +163,28 @@ type ColorMapDrawer = super::gpu::Drawer;
 
 pub(crate) trait DrawMat {
     fn draw_mat_on_ui(&mut self, len: usize, ui: &mut egui::Ui) -> Result<(), eframe::Error>;
-    fn fetch(&mut self, data: &[Complex64], proc: &mut Process, len: usize);
+    fn fetch<S: FftSource>(&mut self, data: &[S], proc: &mut Process<S>, len: usize)
+    where
+        S::FftProcessor: Sync;
     //fn update(&mut self, data: &[Complex64], proc: &mut Process, len: usize);
     fn max_log(&self) -> Option<NonZeroUsize>;
     fn set_max_log(&mut self, len: NonZeroUsize);
     fn set_align_x_axis(&mut self, _align: impl Into<Option<(f32, f32)>>) {}
 }
 
-impl LleChart {
-    pub(crate) fn adjust_to_state(&mut self, data: &[Complex64]) {
+impl<S: FftSource> LleChart<S> {
+    pub(crate) fn adjust_to_state(&mut self, data: &S) {
         if self
             .proc
             .fft
             .as_ref()
-            .is_some_and(|x| x.target_len() != Some(data.len()))
+            .is_some_and(|x| x.target_len() != Some(data.fft_len()))
         {
             self.proc.fft = Some(crate::drawer::process::FftProcess::default());
         }
     }
 
-    pub(crate) fn control_ui_history(&mut self, ui: &mut egui::Ui, history: &History) {
+    pub(crate) fn control_ui_history(&mut self, ui: &mut egui::Ui, history: &History<S>) {
         let r=ui.add_enabled_ui(history.is_active(), |ui| {
             ui.toggle_value(&mut self.show_history, "History").on_disabled_hover_text(
                 "Active the \"Record\" button (on the right side panel) to enable the history display",
@@ -245,12 +249,15 @@ impl LleChart {
 
     pub(crate) fn plot_on_new_window(
         chart: &mut Option<Self>,
-        data: &[Complex64],
+        data: &S,
         ctx: &Context,
         running: bool,
-        history: &History,
+        history: &History<S>,
         #[cfg(feature = "gpu")] render_state: &eframe::egui_wgpu::RenderState,
-    ) -> Option<()> {
+    ) -> Option<()>
+    where
+        S::FftProcessor: Sync,
+    {
         let chart0 = chart.as_mut()?;
         let name = chart0.name.as_str();
         puffin_egui::puffin::profile_scope!("plot", name);

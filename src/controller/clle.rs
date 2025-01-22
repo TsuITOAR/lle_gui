@@ -110,11 +110,13 @@ impl Controller<CLleSolver> for CoupleLleController {
 }
 
 impl<'a> SharedState<'a> for CLleSolver {
-    type SharedState = [&'a [Complex64]; 2];
+    type SharedState = [&'a Vec<Complex64>; 2];
 
     fn states(&'a self) -> Self::SharedState {
-        use lle::Evolver;
-        [self.component1.state(), self.component2.state()]
+        [
+            self.component1.get_raw_state(),
+            self.component2.get_raw_state(),
+        ]
     }
     fn set_state(&mut self, state: Self::SharedState) {
         self.component1.set_state(state[0]);

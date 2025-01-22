@@ -2,6 +2,9 @@ use std::{f64::consts::PI, ops::Rem};
 
 use lle::{freq_at, num_complex::Complex};
 use num_traits::Zero;
+use static_assertions::assert_impl_all;
+
+use crate::FftSource;
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct CoupleInfo {
@@ -39,6 +42,17 @@ pub struct State {
     pub(crate) cp: CoupleInfo,
 }
 
+assert_impl_all!(State:FftSource);
+
+impl From<Vec<Complex<f64>>> for State {
+    fn from(c: Vec<Complex<f64>>) -> Self {
+        Self {
+            data: c,
+            cp: super::GenCprtDisperSubController::default().get_coup_info(),
+        }
+    }
+}
+
 impl State {
     pub fn new(len: usize, cp: CoupleInfo) -> Self {
         Self {
@@ -66,10 +80,12 @@ pub struct CprtFft {
 
 impl lle::FftSource<f64> for State {
     type FftProcessor = CprtFft;
-    fn default_fft(&self) -> Self::FftProcessor {
-        let len = self.data.len();
-        debug_assert!(len % 2 == 0);
-        let fft = lle::BufferedFft::new(len / 2);
+    fn fft_len(&self) -> usize {
+        debug_assert!(self.data.len() % 2 == 0);
+        self.data.len() / 2
+    }
+    fn default_fft(len: usize) -> Self::FftProcessor {
+        let fft = lle::BufferedFft::new(len);
         CprtFft { fft }
     }
     fn scale_factor(&self) -> f64 {
@@ -139,7 +155,7 @@ mod test {
             data: data.clone(),
             cp,
         };
-        let mut fft = state.default_fft();
+        let mut fft = State::default_fft(state.fft_len());
         state.fft_process_forward(&mut fft);
         state.fft_process_inverse(&mut fft);
         let scale = state.scale_factor();
