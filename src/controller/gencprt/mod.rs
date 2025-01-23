@@ -2,7 +2,7 @@ use lle::{num_complex::Complex64, DiffOrder, LinearOpCached, NoneOp, StaticLinea
 use ops::PumpFreq;
 use state::CoupleInfo;
 
-use super::{Controller, Property};
+use super::{cprt2::CoupleStrength, Controller, Property};
 
 pub mod ops;
 pub mod state;
@@ -91,6 +91,8 @@ pub struct GenCprtDisperSubController {
     pub(crate) center_pos: Property<f64>,
     pub(crate) period: Property<f64>,
     pub(crate) couple_strength: Property<f64>,
+    #[serde(default = "super::cprt2::default_decay")]
+    pub(crate) couple_decay: Property<f64>,
     pub(crate) frac_d1_2pi: Property<f64>,
 }
 
@@ -99,7 +101,11 @@ impl GenCprtDisperSubController {
         super::cprt2::CprtDispersion2 {
             center_pos: self.center_pos.get_value(),
             period: self.period.get_value(),
-            couple_strength: self.couple_strength.get_value(),
+            couple_strength: CoupleStrength {
+                couple_strength: self.couple_strength.get_value(),
+                decay: self.couple_decay.get_value(),
+            },
+
             frac_d1_2pi: self.frac_d1_2pi.get_value(),
         }
     }
@@ -121,6 +127,7 @@ impl Default for GenCprtDisperSubController {
             period: Property::new(200., "Period").range((50., 400.)),
             couple_strength: Property::new(std::f64::consts::FRAC_PI_2 * 0.8, "Couple strength")
                 .range((0., std::f64::consts::PI)),
+            couple_decay: super::cprt2::default_decay(),
             frac_d1_2pi: Property::new(100., "d1/2pi").range((50., 200.)),
         }
     }

@@ -27,7 +27,15 @@ pub struct Cprt2 {
     center_pos: Property<f64>,
     period: Property<f64>,
     couple_strength: Property<f64>,
+    #[serde(default = "default_decay")]
+    couple_decay: Property<f64>,
     frac_d1_2pi: Property<f64>,
+}
+
+pub(crate) fn default_decay() -> Property<f64> {
+    Property::new(100., "Couple decay")
+        .range((10., 1000.))
+        .on_hover_text("Wavelength dependent coupling strength")
 }
 
 impl Default for Cprt2 {
@@ -35,6 +43,7 @@ impl Default for Cprt2 {
         Self {
             center_pos: Property::new(0., "Center Position").range((-20., 20.)),
             period: Property::new(100., "Period").range((50., 100.)),
+            couple_decay: default_decay(),
             couple_strength: Property::new(FRAC_PI_2, "Couple strength").range((0., PI)),
             frac_d1_2pi: Property::new(100., "d1/2pi").range((50., 200.)),
         }
@@ -46,7 +55,11 @@ impl Cprt2 {
         CprtDispersion2 {
             center_pos: self.center_pos.get_value(),
             period: self.period.get_value(),
-            couple_strength: self.couple_strength.get_value(),
+            couple_strength: CoupleStrength {
+                couple_strength: self.couple_strength.get_value(),
+                decay: self.couple_decay.get_value(),
+            },
+
             frac_d1_2pi: self.frac_d1_2pi.get_value(),
         }
     }
@@ -58,8 +71,30 @@ impl StaticLinearOp<f64> for CprtDispersion2 {}
 pub struct CprtDispersion2 {
     pub(crate) center_pos: f64,
     pub(crate) period: f64,
-    pub(crate) couple_strength: f64,
+    #[serde(default)]
+    pub(crate) couple_strength: CoupleStrength,
     pub(crate) frac_d1_2pi: f64,
+}
+
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
+pub(crate) struct CoupleStrength {
+    pub(crate) couple_strength: f64,
+    pub(crate) decay: f64,
+}
+
+impl CoupleStrength {
+    fn get_coupling(&self, f: f64) -> f64 {
+        self.couple_strength * (-f / self.decay).exp()
+    }
+}
+
+impl Default for CoupleStrength {
+    fn default() -> Self {
+        Self {
+            couple_strength: 1.,
+            decay: default_decay().get_value(),
+        }
+    }
 }
 
 impl LinearOp<f64> for CprtDispersion2 {
@@ -67,12 +102,10 @@ impl LinearOp<f64> for CprtDispersion2 {
         let branch = freq.rem_euclid(2);
         debug_assert!(branch == 0 || branch == 1);
         let f = |f: Freq| {
-            let cos1 = (((f.div_euclid(2)) as f64 - self.center_pos) / self.period
-                * std::f64::consts::PI
-                * 2.)
-                .cos();
-
-            let cos2 = self.couple_strength.cos();
+            let f = f.div_euclid(2) as f64;
+            let cos1 = ((f - self.center_pos) / self.period * std::f64::consts::PI * 2.).cos();
+            let couple_strength = self.couple_strength.get_coupling(f);
+            let cos2 = couple_strength.cos();
 
             ((cos1 * cos2).acos()).rem_euclid(PI) * self.frac_d1_2pi - self.frac_d1_2pi * FRAC_PI_2
         };
@@ -84,7 +117,7 @@ impl LinearOp<f64> for CprtDispersion2 {
         }
     }
     fn skip(&self) -> bool {
-        self.couple_strength.is_zero()
+        self.couple_strength.couple_strength.is_zero()
     }
 }
 
