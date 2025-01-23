@@ -33,8 +33,8 @@ pub struct Cprt2 {
 }
 
 pub(crate) fn default_decay() -> Property<f64> {
-    Property::new(100., "Couple decay")
-        .range((10., 1000.))
+    Property::new(250., "Couple decay")
+        .range((100., 1000.))
         .on_hover_text("Wavelength dependent coupling strength")
 }
 
