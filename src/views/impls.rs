@@ -49,9 +49,10 @@ where
         &mut self,
         points: RawPlotElement<<[S; L] as State>::OwnedState>,
         on: ShowOn,
+        running: bool,
     ) {
         for (view, p) in self.views.iter_mut().zip(points.split()) {
-            view.push_elements_raw(p, on);
+            view.push_elements_raw(p, on, running);
         }
     }
 
@@ -99,24 +100,29 @@ impl<'a> Visualizer<&'a Vec<Complex64>> for ViewField<Vec<Complex64>> {
         self.history.push(data);
     }
 
-    fn push_elements_raw(&mut self, points: RawPlotElement<Vec<Complex64>>, on: ShowOn) {
+    fn push_elements_raw(
+        &mut self,
+        points: RawPlotElement<Vec<Complex64>>,
+        on: ShowOn,
+        running: bool,
+    ) {
         match on {
             ShowOn::Both => {
                 if let Some(ref mut f) = self.f_chart {
-                    f.push_additional_raw(&points)
+                    f.push_additional_raw(&points, running)
                 }
                 if let Some(ref mut r) = self.r_chart {
-                    r.push_additional_raw(&points)
+                    r.push_additional_raw(&points, running)
                 }
             }
             ShowOn::Time => {
                 if let Some(ref mut r) = self.r_chart {
-                    r.push_additional_raw(&points)
+                    r.push_additional_raw(&points, running)
                 }
             }
             ShowOn::Freq => {
                 if let Some(ref mut f) = self.f_chart {
-                    f.push_additional_raw(&points)
+                    f.push_additional_raw(&points, running)
                 }
             }
         }
@@ -174,8 +180,13 @@ where
         self.views.record(data);
     }
 
-    fn push_elements_raw(&mut self, points: RawPlotElement<P::OwnedState>, on: ShowOn) {
-        self.views.push_elements_raw(points, on);
+    fn push_elements_raw(
+        &mut self,
+        points: RawPlotElement<P::OwnedState>,
+        on: ShowOn,
+        running: bool,
+    ) {
+        self.views.push_elements_raw(points, on, running);
     }
 
     fn push_elements(&mut self, points: PlotElement, on: ShowOn) {

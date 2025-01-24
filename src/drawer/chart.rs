@@ -111,8 +111,8 @@ pub struct LleChart<S: FftSource = Vec<Complex64>> {
 }
 
 impl<S: FftSource> LleChart<S> {
-    pub fn push_additional_raw(&mut self, plot: &RawPlotElement<S>) {
-        let s = self.proc.proc(&plot.data);
+    pub fn push_additional_raw(&mut self, plot: &RawPlotElement<S>, running: bool) {
+        let s = self.proc.proc(&plot.data, running);
         self.additional.get_or_insert_default().push(PlotElement {
             y: s,
             x: plot.x.clone(),
@@ -302,7 +302,7 @@ impl<S: FftSource> LleChart<S> {
                     _ => (),
                 };
 
-                let data = chart0.proc.proc(data);
+                let data = chart0.proc.proc(data, running);
                 let mut ui = crate::util::allocate_remained_space(ui);
                 if chart0.drawer.is_some() {
                     let h = (ui.available_height() - ui.spacing().item_spacing.y) / 2.;

@@ -111,7 +111,7 @@ where
             ctx.request_repaint();
         }
 
-        self.update_views(ctx, refresh);
+        self.update_views(ctx, refresh, self.running);
     }
 
     /// Called by the frame work to save state before shutdown.

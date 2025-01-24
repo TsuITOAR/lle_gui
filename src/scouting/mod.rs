@@ -82,7 +82,7 @@ where
             self.refresh.show(ui);
             self.config.show(ui);
             crate::util::show_option_with(ui, &mut self.sub_cores, "Scouters", || {
-                Some(self.config.refresh(e))
+                self.config.refresh(e)
             });
 
             if self.sub_cores.is_none() {
@@ -108,14 +108,14 @@ where
         )
     }
 
-    pub fn push_to_views<'a, V>(&'a mut self, views: &mut V, on: ShowOn)
+    pub fn push_to_views<'a, V>(&'a mut self, views: &mut V, on: ShowOn, running: bool)
     where
         V: Visualizer<<S as SharedState<'a>>::SharedState>,
         <S as SharedState<'a>>::SharedState: State<OwnedState = <S as StoreState>::OwnedState>,
     {
         if let Some(elements) = self.plot_elements() {
             for e in elements {
-                views.push_elements_raw(e, on);
+                views.push_elements_raw(e, on, running);
             }
         }
     }

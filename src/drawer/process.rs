@@ -1,6 +1,9 @@
 use std::iter::Map;
 
 use lle::num_complex::ComplexFloat;
+use num_traits::Zero;
+
+use crate::util::show_option_with;
 
 use super::*;
 
@@ -38,10 +41,17 @@ impl<
 }
 
 #[derive(Clone, Debug, serde::Deserialize, serde::Serialize)]
+#[serde(bound(
+    serialize = "S:FftSource+serde::Serialize",
+    deserialize = "S:FftSource+for<'a> serde::Deserialize<'a>"
+))]
 pub struct Process<S: FftSource> {
     pub(crate) fft: Option<FftProcess<S>>,
     pub(crate) component: Component,
     pub(crate) db_scale: bool,
+    #[serde(default)]
+    // value changed after last frame
+    pub(crate) delta: Option<S>,
 }
 
 impl<S: FftSource> Default for Process<S> {
@@ -50,6 +60,7 @@ impl<S: FftSource> Default for Process<S> {
             fft: None,
             component: Default::default(),
             db_scale: false,
+            delta: None,
         }
     }
 }
@@ -85,12 +96,12 @@ impl<S: FftSource> Process<S> {
         }
     } */
 
-    pub fn proc(&mut self, data: &S) -> Vec<f64> {
-        //puffin::profile_function!();
+    fn proc_raw<T: FromPrimitive + Zero>(&mut self, data: &S) -> Vec<T> {
         let Process {
             fft,
             component,
             db_scale,
+            ..
         } = self;
         let mut data = data.to_owned();
         let data = if let Some((f, _)) = fft.as_mut().map(|x| x.get_fft(data.fft_len())) {
@@ -106,14 +117,50 @@ impl<S: FftSource> Process<S> {
         if *db_scale {
             component
                 .extract(data.into_iter())
-                .map({ |x: f64| x.log10() * 20. } as fn(_) -> _)
+                .map(
+                    { |x: f64| T::from_f64(x.log10() * 20.).unwrap_or_else(T::zero) } as fn(_) -> _,
+                )
                 .collect()
         } else {
-            component.extract(data.into_iter()).collect()
+            component
+                .extract(data.into_iter())
+                .map(|x| T::from_f64(x).unwrap_or_else(T::zero))
+                .collect()
         }
     }
 
-    pub fn proc_f32_by_ref(&self, data: &S) -> Vec<f32> {
+    pub fn proc(&mut self, data: &S, running: bool) -> Vec<f64> {
+        //puffin::profile_function!();
+        let mut ret: Vec<f64> = self.proc_raw(data);
+        if let Some(mut s) = self.delta.take() {
+            if s.as_mut().len() != ret.len() {
+                self.delta = Some(data.clone());
+                return vec![0.; ret.len()];
+            }
+
+            let last: Vec<f64> = self.proc_raw(&s);
+            ret = ret
+                .into_iter()
+                .zip(last)
+                .map(|(now, last)| {
+                    if matches!(self.component, Component::Arg) {
+                        (Complex64::i() * now).exp().arg() - (Complex64::i() * last).exp().arg()
+                    } else {
+                        now - last
+                    }
+                })
+                .collect();
+
+            if running {
+                self.delta = Some(data.clone());
+            } else {
+                self.delta = Some(s);
+            }
+        }
+        ret
+    }
+
+    /* fn proc_f32_by_ref(&self, data: &S) -> Vec<f32> {
         let mut data = data.to_owned();
         let data =
             if let Some((f, _)) = self.fft.clone().as_mut().map(|x| x.get_fft(data.fft_len())) {
@@ -134,33 +181,20 @@ impl<S: FftSource> Process<S> {
         } else {
             self.component.extract_f32(data.into_iter()).collect()
         }
-    }
+    } */
 
     pub fn proc_f32(&mut self, data: &S) -> Vec<f32> {
         //puffin::profile_function!();
-        let Process {
-            fft,
-            component,
-            db_scale,
-        } = self;
-        let mut data = data.to_owned();
-        let data = if let Some((f, _)) = fft.as_mut().map(|x| x.get_fft(data.fft_len())) {
-            data.fft_process_forward(f);
-            let data_slice = data.as_mut();
-            let split_pos = (data_slice.len() + 1) / 2; //for odd situations, need to shift (len+1)/2..len, for evens, len/2..len
-            let (pos_freq, neg_freq) = data_slice.split_at_mut(split_pos);
-            neg_freq.iter().chain(pos_freq.iter()).copied().collect()
-        } else {
-            data.as_ref().to_owned()
-        };
-
-        if *db_scale {
-            component
-                .extract(data.into_iter())
-                .map({ |x: f64| ((x as f32).log10() * 20.) as _ } as fn(_) -> _)
+        let ret: Vec<f32> = self.proc_raw(data);
+        if let Some(s) = self.delta.take() {
+            self.delta = Some(data.clone());
+            let last: Vec<f32> = self.proc_raw(&s);
+            ret.into_iter()
+                .zip(last)
+                .map(|(now, last)| now - last)
                 .collect()
         } else {
-            component.extract_f32(data.into_iter()).collect()
+            ret
         }
     }
 }
@@ -172,6 +206,7 @@ impl<S: FftSource> ui_traits::ControllerUI for Process<S> {
         self.component.show_controller(ui);
         ui.separator();
         ui.toggle_value(&mut self.db_scale, "dB scale");
+        show_option_with(ui, &mut self.delta, "Delta", || S::from(Vec::default()));
     }
 }
 
@@ -216,14 +251,14 @@ impl Component {
             Component::Arg => i.map({ |x| x.arg() } as fn(Complex64) -> f64),
         }
     }
-    pub fn extract_f32<B: Iterator<Item = Complex64>>(&self, i: B) -> Map<B, fn(Complex64) -> f32> {
+    /* pub fn extract_f32<B: Iterator<Item = Complex64>>(&self, i: B) -> Map<B, fn(Complex64) -> f32> {
         match self {
             Component::Real => i.map({ |x| x.re as _ } as fn(Complex64) -> f32),
             Component::Imag => i.map({ |x| x.im as _ } as fn(Complex64) -> f32),
             Component::Abs => i.map({ |x| x.abs() as _ } as fn(Complex64) -> f32),
             Component::Arg => i.map({ |x| x.arg() as _ } as fn(Complex64) -> f32),
         }
-    }
+    } */
 }
 
 #[derive(serde::Deserialize, serde::Serialize)]

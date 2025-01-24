@@ -272,7 +272,12 @@ where
         false
     }
 
-    pub(crate) fn update_views(&mut self, ctx: &egui::Context, visual_refresh: bool) {
+    pub(crate) fn update_views(
+        &mut self,
+        ctx: &egui::Context,
+        visual_refresh: bool,
+        running: bool,
+    ) {
         let Self {
             core,
             views,
@@ -283,7 +288,7 @@ where
             ..
         } = self;
 
-        scout.push_to_views(views, ShowOn::Both);
+        scout.push_to_views(views, ShowOn::Both, running);
 
         show_dispersion::add_dispersion_curve(show_dispersion, core, views);
 

@@ -69,13 +69,13 @@ pub(crate) fn show_option_with<T, F>(
     f: F,
 ) -> egui::Response
 where
-    F: FnOnce() -> Option<T>,
+    F: FnOnce() -> T,
 {
     let mut ch = v.is_some();
     //let r = ui.checkbox(&mut ch, text);
     let r = ui.toggle_value(&mut ch, text);
     if v.is_none() && ch {
-        *v = f();
+        *v = Some(f());
     } else if !ch {
         *v = None;
     }

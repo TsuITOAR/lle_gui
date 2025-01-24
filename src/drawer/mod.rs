@@ -22,8 +22,8 @@ pub mod plotters;
 
 use self::chart::LleChart;
 
-pub(crate) fn default_r_chart<S: FftSource>(index: usize) -> Option<LleChart<S>> {
-    Some(LleChart {
+pub(crate) fn default_r_chart<S: FftSource>(index: usize) -> LleChart<S> {
+    LleChart {
         name: format! {"real domain {index}"},
         kind: PlotKind::Line,
         proc: Default::default(),
@@ -31,11 +31,11 @@ pub(crate) fn default_r_chart<S: FftSource>(index: usize) -> Option<LleChart<S>>
         show_history: false,
         drawer: None,
         additional: None,
-    })
+    }
 }
 
-pub(crate) fn default_f_chart<S: FftSource>(index: usize) -> Option<LleChart<S>> {
-    Some(LleChart {
+pub(crate) fn default_f_chart<S: FftSource>(index: usize) -> LleChart<S> {
+    LleChart {
         name: format! {"freq domain {index}"},
         kind: PlotKind::Line,
         proc: Process::new_freq_domain(),
@@ -43,7 +43,7 @@ pub(crate) fn default_f_chart<S: FftSource>(index: usize) -> Option<LleChart<S>>
         show_history: false,
         drawer: None,
         additional: None,
-    })
+    }
 }
 
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
@@ -67,7 +67,7 @@ assert_impl_all!(ViewField<crate::controller::gencprt::state::State>: crate::vie
 impl<S: FftSource> ViewField<S> {
     pub(crate) fn new(index: usize) -> Self {
         Self {
-            r_chart: default_r_chart(index),
+            r_chart: Some(default_r_chart(index)),
             f_chart: None,
             history: History::Inactive,
             index,
@@ -201,8 +201,20 @@ impl PlotKind {
                              style,
                          }| {
                             if let Some(d) = d {
+                                let (a, b): (Vec<_>, Vec<_>) = e
+                                    .points()
+                                    .chunks_exact(2)
+                                    .map(|x| ([x[0].x, x[0].y], [x[1].x, x[1].y]))
+                                    .unzip();
                                 plot_ui.points(
-                                    egui_plot::Points::new(e).name(d).radius(style.width()),
+                                    egui_plot::Points::new(a)
+                                        .name(format!("{d}1"))
+                                        .radius(style.width()),
+                                );
+                                plot_ui.points(
+                                    egui_plot::Points::new(b)
+                                        .name(format!("{d}2"))
+                                        .radius(style.width()),
                                 );
                             } else {
                                 plot_ui.points(egui_plot::Points::new(e).radius(style.width()));

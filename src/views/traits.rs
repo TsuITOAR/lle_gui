@@ -34,7 +34,12 @@ where
 pub trait Visualizer<S: State>: ui_traits::ControllerUI {
     fn adjust_to_state(&mut self, data: S);
     fn record(&mut self, data: S);
-    fn push_elements_raw(&mut self, points: RawPlotElement<S::OwnedState>, on: ShowOn);
+    fn push_elements_raw(
+        &mut self,
+        points: RawPlotElement<S::OwnedState>,
+        on: ShowOn,
+        running: bool,
+    );
     fn push_elements(&mut self, points: PlotElement, on: ShowOn);
     fn plot(
         &mut self,
