@@ -21,12 +21,13 @@ impl DrawMat for Drawer {
         use rayon::prelude::*;
         {
             puffin_egui::puffin::profile_scope!("process data");
+            proc.delta.deactivate();
             data.iter()
                 .rev()
                 .take(max_log)
                 .collect::<Vec<&S>>()
                 .into_par_iter()
-                .map(|d| proc.clone().proc_f32(d))
+                .map(|d| proc.clone().proc_f32(d, true))
                 .zip(log.par_rchunks_exact_mut(chunk_size).into_par_iter())
                 .for_each(|(src, dst)| {
                     dst.clone_from_slice(&src);

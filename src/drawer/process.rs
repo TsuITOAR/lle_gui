@@ -1,9 +1,7 @@
 use std::iter::Map;
 
-use lle::num_complex::ComplexFloat;
+use lle::num_complex::{Complex, ComplexFloat};
 use num_traits::Zero;
-
-use crate::util::show_option_with;
 
 use super::*;
 
@@ -45,36 +43,100 @@ impl<
     serialize = "S:FftSource+serde::Serialize",
     deserialize = "S:FftSource+for<'a> serde::Deserialize<'a>"
 ))]
-pub struct Process<S: FftSource> {
-    pub(crate) fft: Option<FftProcess<S>>,
-    pub(crate) component: Component,
-    pub(crate) db_scale: bool,
+pub struct ProcessCore<S: FftSource> {
     #[serde(default)]
-    // value changed after last frame
-    pub(crate) delta: Option<S>,
+    pub(crate) fft: Option<FftProcess<S>>,
+    #[serde(default)]
+    pub(crate) component: Component,
+    #[serde(default)]
+    pub(crate) db_scale: bool,
 }
 
-impl<S: FftSource> Default for Process<S> {
+impl<S: FftSource> Default for ProcessCore<S> {
     fn default() -> Self {
         Self {
             fft: None,
             component: Default::default(),
             db_scale: false,
-            delta: None,
+        }
+    }
+}
+
+#[derive(Clone, Debug, serde::Deserialize, serde::Serialize)]
+#[serde(bound(
+    serialize = "S:FftSource+serde::Serialize",
+    deserialize = "S:FftSource+for<'a> serde::Deserialize<'a>"
+))]
+pub struct Process<S: FftSource> {
+    #[serde(default)]
+    pub(crate) core: ProcessCore<S>,
+    // value changed after last frame
+    #[serde(default)]
+    pub(crate) delta: Delta<S>,
+}
+
+impl<S: FftSource> Default for Process<S> {
+    fn default() -> Self {
+        Self {
+            core: Default::default(),
+            delta: Default::default(),
         }
     }
 }
 
 #[allow(dead_code)]
 impl<S: FftSource> Process<S> {
+    pub(crate) fn new_real_domain() -> Self {
+        Self::default()
+    }
     pub(crate) fn new_freq_domain() -> Self {
         Self {
-            fft: Some(Default::default()),
-            db_scale: true,
+            core: ProcessCore {
+                fft: Some(Default::default()),
+                db_scale: true,
+                ..Default::default()
+            },
             ..Default::default()
         }
     }
-
+    pub fn proc(&mut self, data: &S, running: bool) -> Vec<f64> {
+        //puffin::profile_function!();
+        let mut ret: Vec<f64> = self.core.proc_raw(data);
+        if let Some(last) = self.delta.get_and_update(data, running) {
+            let last: Vec<f64> = self.core.proc_raw(last);
+            ret = ret
+                .into_iter()
+                .zip(last)
+                .map(|(now, last)| {
+                    if matches!(self.core.component, Component::Arg) {
+                        ((Complex::i() * now).exp() / (Complex::i() * last).exp()).arg()
+                    } else {
+                        now - last
+                    }
+                })
+                .collect();
+        }
+        ret
+    }
+    pub fn proc_f32(&mut self, data: &S, running: bool) -> Vec<f32> {
+        //puffin::profile_function!();
+        let mut ret: Vec<f32> = self.core.proc_raw(data);
+        if let Some(last) = self.delta.get_and_update(data, running) {
+            let last: Vec<f32> = self.core.proc_raw(last);
+            ret = ret
+                .into_iter()
+                .zip(last)
+                .map(|(now, last)| {
+                    if matches!(self.core.component, Component::Arg) {
+                        ((Complex::i() * now).exp() / (Complex::i() * last).exp()).arg()
+                    } else {
+                        now - last
+                    }
+                })
+                .collect();
+        }
+        ret
+    }
     /* pub fn proc_by_ref(&self, data: &[Complex64]) -> Vec<f64> {
         let mut data = data.to_owned();
         if let Some(mut fft) = self.fft.as_ref().cloned() {
@@ -95,9 +157,10 @@ impl<S: FftSource> Process<S> {
             self.component.extract(data.into_iter()).collect()
         }
     } */
-
+}
+impl<S: FftSource> ProcessCore<S> {
     fn proc_raw<T: FromPrimitive + Zero>(&mut self, data: &S) -> Vec<T> {
-        let Process {
+        let ProcessCore {
             fft,
             component,
             db_scale,
@@ -129,37 +192,6 @@ impl<S: FftSource> Process<S> {
         }
     }
 
-    pub fn proc(&mut self, data: &S, running: bool) -> Vec<f64> {
-        //puffin::profile_function!();
-        let mut ret: Vec<f64> = self.proc_raw(data);
-        if let Some(mut s) = self.delta.take() {
-            if s.as_mut().len() != ret.len() {
-                self.delta = Some(data.clone());
-                return vec![0.; ret.len()];
-            }
-
-            let last: Vec<f64> = self.proc_raw(&s);
-            ret = ret
-                .into_iter()
-                .zip(last)
-                .map(|(now, last)| {
-                    if matches!(self.component, Component::Arg) {
-                        (Complex64::i() * now).exp().arg() - (Complex64::i() * last).exp().arg()
-                    } else {
-                        now - last
-                    }
-                })
-                .collect();
-
-            if running {
-                self.delta = Some(data.clone());
-            } else {
-                self.delta = Some(s);
-            }
-        }
-        ret
-    }
-
     /* fn proc_f32_by_ref(&self, data: &S) -> Vec<f32> {
         let mut data = data.to_owned();
         let data =
@@ -182,31 +214,19 @@ impl<S: FftSource> Process<S> {
             self.component.extract_f32(data.into_iter()).collect()
         }
     } */
-
-    pub fn proc_f32(&mut self, data: &S) -> Vec<f32> {
-        //puffin::profile_function!();
-        let ret: Vec<f32> = self.proc_raw(data);
-        if let Some(s) = self.delta.take() {
-            self.delta = Some(data.clone());
-            let last: Vec<f32> = self.proc_raw(&s);
-            ret.into_iter()
-                .zip(last)
-                .map(|(now, last)| now - last)
-                .collect()
-        } else {
-            ret
-        }
-    }
 }
 
 impl<S: FftSource> ui_traits::ControllerUI for Process<S> {
     fn show_controller(&mut self, ui: &mut egui::Ui) {
-        crate::util::show_option(ui, &mut self.fft, "FFT");
+        crate::util::show_option(ui, &mut self.core.fft, "FFT");
         ui.separator();
-        self.component.show_controller(ui);
+        self.core.component.show_controller(ui);
         ui.separator();
-        ui.toggle_value(&mut self.db_scale, "dB scale");
-        show_option_with(ui, &mut self.delta, "Delta", || S::from(Vec::default()));
+        ui.toggle_value(&mut self.core.db_scale, "dB scale");
+        if ui.toggle_value(&mut self.delta.active, "Delta").changed() && !self.delta.active {
+            self.delta.backup = None;
+            self.delta.last = None;
+        }
     }
 }
 
@@ -303,5 +323,47 @@ impl<S: lle::FftSource<f64>> Debug for FftProcess<S> {
         f.debug_struct("FftProcess")
             .field("s", &"dyn type")
             .finish()
+    }
+}
+
+#[derive(Clone, Debug, serde::Deserialize, serde::Serialize)]
+pub struct Delta<S> {
+    active: bool,
+    last: Option<S>,
+    backup: Option<S>,
+}
+
+impl<S> Default for Delta<S> {
+    fn default() -> Self {
+        Self {
+            active: false,
+            last: None,
+            backup: None,
+        }
+    }
+}
+
+impl<S: Clone> Delta<S> {
+    pub fn get_and_update(&'_ mut self, new: &S, running: bool) -> Option<&'_ S> {
+        if self.active {
+            if running {
+                self.backup = self.last.take();
+                self.last = Some(new.clone());
+            }
+            self.backup.as_ref()
+        } else {
+            None
+        }
+    }
+
+    pub fn deactivate(&mut self) {
+        self.active = false;
+        self.last = None;
+        self.backup = None;
+    }
+
+    pub fn init(&mut self) {
+        self.last = None;
+        self.backup = None;
     }
 }

@@ -286,16 +286,18 @@ impl ColorMapVisualizer<f64> {
         puffin_egui::puffin::profile_function!();
         self.clear();
         // todo: use rayon to parallelize the process
+        let mut proc = proc.clone();
+        proc.delta.init();
         match self.max_log {
             Some(max) => {
                 self.matrix.reserve(chunk_size * max.get());
                 for d in data.iter().rev().take(max.get()).rev() {
-                    self.push(proc.proc(d));
+                    self.push(proc.proc(d, true));
                 }
             }
             None => {
                 for d in data.iter() {
-                    self.push(proc.proc(d));
+                    self.push(proc.proc(d, true));
                 }
             }
         }

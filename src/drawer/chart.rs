@@ -176,11 +176,12 @@ impl<S: FftSource> LleChart<S> {
     pub(crate) fn adjust_to_state(&mut self, data: &S) {
         if self
             .proc
+            .core
             .fft
             .as_ref()
             .is_some_and(|x| x.target_len() != Some(data.fft_len()))
         {
-            self.proc.fft = Some(crate::drawer::process::FftProcess::default());
+            self.proc.core.fft = Some(crate::drawer::process::FftProcess::default());
         }
     }
 
@@ -347,7 +348,7 @@ impl<S: FftSource> LleChart<S> {
         let (bound, line) = self.convert_data(data, running);
         let plot_kind = &self.kind;
         use ui_traits::DisplayStr;
-        let desc = self.proc.component.desc();
+        let desc = self.proc.core.component.desc();
         let additional = self.additional.take();
         let plot = self.plot(ui, height);
         plot_kind.plot(
