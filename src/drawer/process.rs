@@ -362,6 +362,7 @@ impl<S: Clone> Delta<S> {
         self.backup = None;
     }
 
+    #[allow(unused)]
     pub fn init(&mut self) {
         self.last = None;
         self.backup = None;
