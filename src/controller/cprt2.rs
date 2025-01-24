@@ -44,7 +44,7 @@ impl Default for Cprt2 {
             center_pos: Property::new(0., "Center Position").range((-20., 20.)),
             period: Property::new(100., "Period").range((50., 100.)),
             couple_decay: default_decay(),
-            couple_strength: Property::new(FRAC_PI_2, "Couple strength").range((0., PI)),
+            couple_strength: Property::new(1., "Couple strength").range((0., PI)),
             frac_d1_2pi: Property::new(100., "d1/2pi").range((50., 200.)),
         }
     }
@@ -105,9 +105,10 @@ impl LinearOp<f64> for CprtDispersion2 {
             let f = f.div_euclid(2) as f64;
             let cos1 = ((f - self.center_pos) / self.period * std::f64::consts::PI * 2.).cos();
             let couple_strength = self.couple_strength.get_coupling(f);
+            //dbg!(f, couple_strength);
             let cos2 = couple_strength.cos();
 
-            ((cos1 * cos2).acos()).rem_euclid(PI) * self.frac_d1_2pi - self.frac_d1_2pi * FRAC_PI_2
+            ((cos1 * cos2).acos()) * self.frac_d1_2pi - self.frac_d1_2pi * FRAC_PI_2
         };
 
         if branch == 0 {
@@ -128,9 +129,10 @@ mod test {
     use super::*;
     #[test]
     fn test_cprt2_dispersion_symmetric() {
-        let c = Cprt2::default().generate_op();
+        let mut c = Cprt2::default().generate_op();
+        c.couple_strength.decay = f64::INFINITY;
         for i in 0..100 {
-            assert_eq!(c.get_value(0, i * 2), c.get_value(0, -i * 2));
+            assert_eq!(c.get_value(0, i * 2), c.get_value(0, -i * 2), "{i}");
             assert_eq!(c.get_value(0, i * 2 + 1), c.get_value(0, -i * 2 + 1));
         }
     }

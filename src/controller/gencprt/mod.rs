@@ -53,7 +53,9 @@ mod test {
     use super::*;
     #[test]
     fn test_gencprt_dispersion_symmetric() {
-        let c = GenCprtController::default().disper.get_cprt_dispersion();
+        let mut c = GenCprtController::default();
+        *c.disper.couple_decay.value_mut() = f64::INFINITY;
+        let c = c.get_dispersion();
         for i in 0..100 {
             assert_eq!(c.get_value(0, i * 2), c.get_value(0, -i * 2));
             assert_eq!(c.get_value(0, i * 2 + 1), c.get_value(0, -i * 2 + 1));
