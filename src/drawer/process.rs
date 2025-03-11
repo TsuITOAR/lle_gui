@@ -3,6 +3,8 @@ use std::iter::Map;
 use lle::num_complex::{Complex, ComplexFloat};
 use num_traits::Zero;
 
+use crate::notify::ResultExt;
+
 use super::*;
 
 pub trait FftSource:
@@ -73,6 +75,8 @@ pub struct Process<S: FftSource> {
     // value changed after last frame
     #[serde(default)]
     pub(crate) delta: Delta<S>,
+    #[serde(skip)]
+    save: bool,
 }
 
 impl<S: FftSource> Default for Process<S> {
@@ -80,6 +84,7 @@ impl<S: FftSource> Default for Process<S> {
         Self {
             core: Default::default(),
             delta: Default::default(),
+            save: false,
         }
     }
 }
@@ -116,6 +121,12 @@ impl<S: FftSource> Process<S> {
                 })
                 .collect();
         }
+        if self.save {
+            self.save = false;
+            crate::notify::TOASTS.lock().info("Data saved");
+            use ui_traits::DisplayStr;
+            crate::util::save_data(&ret, self.core.component.desc()).notify_global();
+        }
         ret
     }
     pub fn proc_f32(&mut self, data: &S, running: bool) -> Vec<f32> {
@@ -134,6 +145,12 @@ impl<S: FftSource> Process<S> {
                     }
                 })
                 .collect();
+        }
+        if self.save {
+            self.save = false;
+            crate::notify::TOASTS.lock().info("Data saved");
+            use ui_traits::DisplayStr;
+            crate::util::save_data(&ret, self.core.component.desc()).notify_global();
         }
         ret
     }
@@ -223,9 +240,14 @@ impl<S: FftSource> ui_traits::ControllerUI for Process<S> {
         self.core.component.show_controller(ui);
         ui.separator();
         ui.toggle_value(&mut self.core.db_scale, "dB scale");
+        ui.separator();
         if ui.toggle_value(&mut self.delta.active, "Delta").changed() && !self.delta.active {
             self.delta.backup = None;
             self.delta.last = None;
+        }
+        ui.separator();
+        if ui.button("Save").clicked() {
+            self.save = true;
         }
     }
 }
@@ -362,6 +384,7 @@ impl<S: Clone> Delta<S> {
         self.backup = None;
     }
 
+    #[allow(unused)]
     pub fn init(&mut self) {
         self.last = None;
         self.backup = None;

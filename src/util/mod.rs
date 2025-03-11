@@ -140,3 +140,15 @@ pub fn attractive_head(text: &str, color: impl Into<Option<egui::Color32>>) -> e
 }
 
 pub use ui_traits::DisplayStr;
+
+pub fn save_data<S: ToString>(data: &[S], name: &str) -> anyhow::Result<()> {
+    let mut file = std::fs::File::create(format!("{name}.txt"))?;
+    let data = data
+        .iter()
+        .map(|x| x.to_string())
+        .collect::<Vec<_>>()
+        .join("\n");
+    use std::io::Write;
+    file.write_all(data.as_bytes())?;
+    Ok(())
+}
