@@ -93,19 +93,6 @@ pub struct DisperLleController2 {
     pub(crate) disper: CosDispersionProperty2,
 }
 
-#[cfg(test)]
-mod test {
-    use lle::LinearOp;
-
-    use super::*;
-    #[test]
-    fn test_disper2_dispersion_symmetric() {
-        let c = CosDispersionProperty2::default().generate_op();
-        for i in 0..100 {
-            assert_eq!(c.get_value(0, i), c.get_value(0, -i));
-        }
-    }
-}
 
 impl DisperLleController2 {
     pub fn linear_op(&self) -> impl StaticLinearOp<f64> {
@@ -149,5 +136,20 @@ impl<NL: Default + lle::NonLinearOp<f64>> Controller<LleSolver<NL, Complex64>>
         engine.constant = Complex64::from(self.basic.pump.get_value());
         engine.step_dist = self.basic.step_dist.get_value();
         engine.linear = self.linear_op().cached_linear_op(engine.state().len());
+    }
+}
+
+
+#[cfg(test)]
+mod test {
+    use lle::LinearOp;
+
+    use super::*;
+    #[test]
+    fn test_disper2_dispersion_symmetric() {
+        let c = CosDispersionProperty2::default().generate_op();
+        for i in 0..100 {
+            assert_eq!(c.get_value(0, i), c.get_value(0, -i));
+        }
     }
 }

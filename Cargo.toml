@@ -61,6 +61,7 @@ static_assertions = "1.1.0"
 
 ui_traits = { path = "./ui_traits" }
 ron = "0.8.1"
+assert_approx_eq = "1"
 
 # native:
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
@@ -91,12 +92,10 @@ opt-level = 3 # fast and small wasm
 opt-level = 2
 
 [patch."https://github.com/TsuITOAR/Lle.git"]
-# lle = { path = "../Lle" }
+lle = { path = "../Lle" }
 
 
 [patch."https://github.com/TsuITOAR/poll-promise.git"]
 # poll-promise = { path = "../poll-promise" }
 
 
-[dev-dependencies]
-assert_approx_eq = "1"

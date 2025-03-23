@@ -187,7 +187,7 @@ impl<S: FftSource> ProcessCore<S> {
         let data = if let Some((f, _)) = fft.as_mut().map(|x| x.get_fft(data.fft_len())) {
             data.fft_process_forward(f);
             let data_slice = data.as_mut();
-            let split_pos = (data_slice.len() + 1) / 2; //for odd situations, need to shift (len+1)/2..len, for evens, len/2..len
+            let split_pos = data_slice.len().div_ceil(2); //for odd situations, need to shift (len+1)/2..len, for evens, len/2..len
             let (pos_freq, neg_freq) = data_slice.split_at_mut(split_pos);
             neg_freq.iter().chain(pos_freq.iter()).copied().collect()
         } else {
