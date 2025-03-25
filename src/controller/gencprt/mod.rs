@@ -205,8 +205,9 @@ impl<NL: Default + lle::NonLinearOp<f64>> Controller<LleSolver<NL, NoneOp<f64>, 
     }
 }
 
-fn singularity_point(freq: i32, center: f64, period: f64) -> bool {
-    let freq = freq as f64 - center;
+fn singularity_point(freq0: i32, center: f64, period: f64) -> bool {
+    let freq = freq0 as f64 - center;
     let diff = (freq + period / 4.).rem_euclid(period / 2.);
-    (0. ..1.).contains(&diff)
+    let ret = (0. ..1.).contains(&diff);
+    ret
 }

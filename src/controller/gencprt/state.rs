@@ -17,6 +17,17 @@ pub struct CoupleInfo {
 }
 
 impl CoupleInfo {
+    pub fn singular_modes(&self, len: usize) -> Vec<i32> {
+        let mut ret = vec![];
+        let range = (-(len as i32) / 2 + 1)..len as i32 / 2;
+        for i in range {
+            if singularity_point(i, self.center, self.period) {
+                ret.push(i);
+            }
+        }
+        ret
+    }
+
     pub fn m(&self, freq: i32) -> i32 {
         let freq = (freq as f64) - self.center;
         let offset = freq + freq.signum() * self.period / 4.;
@@ -28,29 +39,16 @@ impl CoupleInfo {
 
         let phi_m = 2. * PI * (m - self.center) / self.period;
         let alpha = (self.g.cos() * phi_m.cos()).acos();
-        let sign = if self.m(mode) % 2 == 0 { 1. } else { -1. };
+        // let sign = if self.m(mode) % 2 == 0 { 1. } else { -1. };
         //let denominator = 2. * alpha.sin() * phi_m.cos();
         let cp_angle = f64::atan2(
             (alpha + phi_m).sin().abs().sqrt(),
-            (alpha - phi_m).sin().abs().sqrt() * sign,
+            (alpha - phi_m).sin().abs().sqrt(),
         );
-        let ret = (
+        (
             (cp_angle.cos(), -cp_angle.sin()),
             (cp_angle.sin(), cp_angle.cos()),
-        );
-        if singularity_point(mode, self.center, self.period) {
-            let (a, b) = if ret.0 .0.abs() > ret.0 .1.abs() {
-                (1., 0.)
-            } else {
-                (0., 1.)
-            };
-            (
-                (ret.0 .0.signum() * a, ret.0 .1.signum() * b),
-                (ret.1 .0.signum() * b, ret.1 .1.signum() * a),
-            )
-        } else {
-            ret
-        }
+        )
     }
 }
 
@@ -62,21 +60,24 @@ mod test {
         let c = CoupleInfo {
             g: 0.5,
             mu: 0.5,
-            center: 0.5,
+            center: 0.,
             period: 1.0,
         };
         use assert_approx_eq::assert_approx_eq;
         for i in 0..100 {
-            let ((a1, b1), (a2, b2)) = c.fraction_at(i * 2);
+            let ((a1, b1), (a2, b2)) = c.fraction_at(i);
             assert_approx_eq!(a1, b2);
             assert_approx_eq!(a2, -b1);
-            let ((a3, b3), (a4, b4)) = c.fraction_at(-i * 2);
+            let ((a3, b3), (a4, b4)) = c.fraction_at(-i);
             assert_approx_eq!(a3, b4);
             assert_approx_eq!(a4, -b3);
             assert_approx_eq!(a1, -b3);
             assert_approx_eq!(b1, -a3);
             assert_approx_eq!(a2, b4);
             assert_approx_eq!(b2, a4);
+            assert_approx_eq!(a1.powi(2) + a2.powi(2), 1.);
+            assert_approx_eq!(a1 * b1 + a2 * b2, 0.);
+            assert_approx_eq!(b2.powi(2) + b2.powi(2), 1.);
         }
     }
     #[test]
