@@ -207,6 +207,7 @@ mod test {
             mu: 0.5,
             center: 1.5,
             period: 5.,
+            frac_d1_2pi: 0.5,
         };
         let data_sample = data;
         let len = data.len();
@@ -229,6 +230,7 @@ mod test {
             mu: 0.5,
             center: 1.5,
             period: 20.,
+            frac_d1_2pi: 0.5,
         };
         use lle::FftSource;
         let mut state = State {
@@ -262,6 +264,7 @@ mod test {
                 mu: 0.5,
                 center: 1.5,
                 period: 5.1,
+                frac_d1_2pi: 0.5,
             },
         };
         let mut fft = State::default_fft(state.fft_len());

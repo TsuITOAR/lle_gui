@@ -4,14 +4,17 @@ use state::CoupleInfo;
 
 use super::{cprt2::CoupleStrength, Controller, Property};
 
+pub use walkoff::WalkOff;
+
 pub mod ops;
 pub mod state;
 pub mod visualizer;
+mod walkoff;
 
 #[allow(unused)]
 pub type App = crate::app::GenApp<
     GenCprtController,
-    LleSolver<lle::SPhaMod, NoneOp<f64>, PumpFreq>,
+    WalkOff<LleSolver<lle::SPhaMod, NoneOp<f64>, PumpFreq>>,
     crate::drawer::ViewField<state::State>,
 >;
 
@@ -117,6 +120,7 @@ impl GenCprtDisperSubController {
             mu: self.center_pos.get_value(),
             center: self.center_pos.get_value(),
             period: self.period.get_value(),
+            frac_d1_2pi: self.frac_d1_2pi.get_value(),
         }
     }
 }

@@ -14,6 +14,8 @@ pub struct CoupleInfo {
     pub mu: f64,
     pub center: f64,
     pub period: f64,
+    #[serde(default = "f64::default")]
+    pub frac_d1_2pi: f64,
 }
 
 impl CoupleInfo {
@@ -39,11 +41,11 @@ impl CoupleInfo {
 
         let phi_m = 2. * PI * (m - self.center) / self.period;
         let alpha = (self.g.cos() * phi_m.cos()).acos();
-        // let sign = if self.m(mode) % 2 == 0 { 1. } else { -1. };
+        let sign = if self.m(mode) % 2 == 0 { 1. } else { -1. };
         //let denominator = 2. * alpha.sin() * phi_m.cos();
         let cp_angle = f64::atan2(
             (alpha + phi_m).sin().abs().sqrt(),
-            (alpha - phi_m).sin().abs().sqrt(),
+            (alpha - phi_m).sin().abs().sqrt() * sign,
         );
         (
             (cp_angle.cos(), -cp_angle.sin()),
@@ -62,6 +64,7 @@ mod test {
             mu: 0.5,
             center: 0.,
             period: 1.0,
+            frac_d1_2pi: 0.5,
         };
         use assert_approx_eq::assert_approx_eq;
         for i in 0..100 {
@@ -87,6 +90,7 @@ mod test {
             mu: 0.5,
             center: 0.,
             period: 10.0,
+            frac_d1_2pi: 0.5,
         };
         assert_eq!(cp.m(0), 0);
         assert_eq!(cp.m(2), 0);
