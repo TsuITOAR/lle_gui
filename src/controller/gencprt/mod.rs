@@ -46,6 +46,12 @@ impl GenCprtController {
                 Complex64::i() * beta / 2. * ((f as f64).div_euclid(2.)).powi(2)
             })
             .add_linear_op(self.disper.get_cprt_dispersion())
+            .add_linear_op((
+                1,
+                -Complex64::i() * self.disper.frac_d1_2pi.get_value() / 2.
+                    * 2.
+                    * std::f64::consts::PI,
+            ))
     }
 }
 
@@ -212,6 +218,5 @@ impl<NL: Default + lle::NonLinearOp<f64>> Controller<LleSolver<NL, NoneOp<f64>, 
 fn singularity_point(freq0: i32, center: f64, period: f64) -> bool {
     let freq = freq0 as f64 - center;
     let diff = (freq + period / 4.).rem_euclid(period / 2.);
-    let ret = (0. ..1.).contains(&diff);
-    ret
+    (0. ..1.).contains(&diff)
 }
