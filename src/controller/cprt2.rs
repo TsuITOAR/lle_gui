@@ -83,7 +83,7 @@ pub(crate) struct CoupleStrength {
 }
 
 impl CoupleStrength {
-    fn get_coupling(&self, f: f64) -> f64 {
+    pub(crate) fn get_coupling(&self, f: f64) -> f64 {
         self.couple_strength * (-f / self.decay).exp()
     }
 }

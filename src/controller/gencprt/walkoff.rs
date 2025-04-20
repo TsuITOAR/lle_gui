@@ -1,4 +1,4 @@
-use lle::{freq_at, num_complex::Complex64, ConstOp, DiffOrder, Evolver, StaticLinearOp, Step};
+use lle::{num_complex::Complex64, ConstOp, DiffOrder, Evolver, StaticLinearOp, Step};
 
 use crate::{
     controller::{Controller, SharedState, Simulator, StoreState},
@@ -6,7 +6,7 @@ use crate::{
     FftSource,
 };
 
-use super::{ops::PumpFreq, GenCprtController};
+use super::{ops::PumpFreq, singularity_point, GenCprtController};
 
 pub struct WalkOff<E> {
     pub cp: super::state::CoupleInfo,
@@ -33,8 +33,7 @@ impl<
     }
     fn evolve(&mut self) {
         let step_dist = self.core.step_dist;
-        self.core.evolve();
-        /* let data = self.core.state_mut();
+        let data = self.core.state_mut();
         let len = data.len();
         let fft = self
             .fft
@@ -46,7 +45,8 @@ impl<
         fft.1.fft_process(f_a);
         fft.1.fft_process(f_b);
         let scale = data.len() as f64 / 2.;
-        data.iter_mut().for_each(|x| *x /= scale); */
+        data.iter_mut().for_each(|x| *x /= scale);
+        self.core.evolve();
     }
 }
 
@@ -57,12 +57,24 @@ fn apply_walk_off(
     step_dist: f64,
 ) {
     let d1 = cp.frac_d1_2pi * 2. * std::f64::consts::PI;
+    //let step_dist = 1. / d1;
     let len = f_a.len();
-    for (i, (f_a, f_b)) in f_a.iter_mut().zip(f_b.iter_mut()).enumerate() {
-        let freq = freq_at(len, i);
-        let m = cp.m(freq as _) as f64;
-        *f_a *= (Complex64::i() * -m / 2. * d1 * step_dist).exp();
-        *f_b *= (Complex64::i() * m / 2. * d1 * step_dist).exp();
+    let mut f_a = f_a.iter_mut();
+    let mut f_b = f_b.iter_mut();
+    for i in (0..len).into_iter().map(|x| lle::freq_at(len, x)) {
+        let m = cp.m_original(i * 2) as f64;
+        if singularity_point(i, cp.center, cp.period) {
+            if let Some(f_a) = f_a.next() {
+                *f_a *= (-Complex64::i() * -m / 2. * d1 * step_dist).exp();
+            }
+        } else {
+            if let Some(f_a) = f_a.next() {
+                *f_a *= (-Complex64::i() * -m / 2. * d1 * step_dist).exp();
+            }
+            if let Some(f_b) = f_b.next() {
+                *f_b *= (-Complex64::i() * m / 2. * d1 * step_dist).exp();
+            }
+        }
     }
 }
 
@@ -70,8 +82,7 @@ impl<NL: Default + lle::NonLinearOp<f64>>
     Controller<WalkOff<super::LleSolver<NL, lle::NoneOp<f64>, PumpFreq>>> for GenCprtController
 {
     const EXTENSION: &'static str = "gencprt";
-    type Dispersion =
-        lle::LinearOpAdd<f64, (DiffOrder, Complex64), crate::controller::cprt2::CprtDispersion2>;
+    type Dispersion = lle::LinearOpAdd<f64, (DiffOrder, Complex64), super::CprtDispersionFrac>;
     fn dispersion(&self) -> Self::Dispersion {
         use lle::LinearOp;
         (2, Complex64::i() * self.disper.linear.get_value() / 2. / 4.)

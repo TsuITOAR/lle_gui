@@ -1,12 +1,10 @@
-use std::f64::{self, consts::PI};
+use std::f64::consts::TAU;
 
 use lle::num_complex::Complex;
 use num_traits::Zero;
 use static_assertions::assert_impl_all;
 
 use crate::FftSource;
-
-use super::singularity_point;
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct CoupleInfo {
@@ -19,43 +17,34 @@ pub struct CoupleInfo {
 }
 
 impl CoupleInfo {
-    pub fn singular_modes(&self, len: usize) -> Vec<i32> {
-        let mut ret = vec![];
-        let range = (-(len as i32) / 2 + 1)..len as i32 / 2;
-        for i in range {
-            if singularity_point(i, self.center, self.period) {
-                ret.push(i);
-            }
-        }
-        ret
+    fn m_period(&self) -> f64 {
+        // /2 for half 2pi, *2 for double modes
+        self.period
     }
 
-    pub fn m(&self, freq: i32) -> i32 {
-        let freq = (freq as f64) - self.center;
-        let offset = freq + freq.signum() * self.period / 4.;
-        (offset / (self.period / 2.)).trunc() as i32
+    pub(crate) fn m_original(&self, freq: lle::Freq) -> i32 {
+        let f = freq as f64 - self.center * 2. + self.period / 2.;
+        f.div_euclid(self.m_period()) as i32
     }
-
     pub fn fraction_at(&self, mode: i32) -> ((f64, f64), (f64, f64)) {
         let m = mode as f64;
 
-        let phi_m = 2. * PI * (m - self.center) / self.period;
+        let phi_m = TAU * (m - self.center) / self.period;
         let alpha = (self.g.cos() * phi_m.cos()).acos();
-        let sign = if self.m(mode) % 2 == 0 { 1. } else { -1. };
-        //let denominator = 2. * alpha.sin() * phi_m.cos();
         let cp_angle = f64::atan2(
             (alpha + phi_m).sin().abs().sqrt(),
-            (alpha - phi_m).sin().abs().sqrt() * sign,
+            (alpha - phi_m).sin().abs().sqrt(),
         );
         (
-            (cp_angle.cos(), -cp_angle.sin()),
-            (cp_angle.sin(), cp_angle.cos()),
+            (cp_angle.cos(), cp_angle.sin()),
+            (-cp_angle.sin(), cp_angle.cos()),
         )
     }
 }
 
 #[cfg(test)]
 mod test {
+
     use super::*;
     #[test]
     fn test_fraction_at() {
@@ -74,10 +63,10 @@ mod test {
             let ((a3, b3), (a4, b4)) = c.fraction_at(-i);
             assert_approx_eq!(a3, b4);
             assert_approx_eq!(a4, -b3);
-            assert_approx_eq!(a1, -b3);
-            assert_approx_eq!(b1, -a3);
-            assert_approx_eq!(a2, b4);
-            assert_approx_eq!(b2, a4);
+            assert_approx_eq!(a1, b3);
+            assert_approx_eq!(b1, a3);
+            assert_approx_eq!(a2, -b4);
+            assert_approx_eq!(b2, -a4);
             assert_approx_eq!(a1.powi(2) + a2.powi(2), 1.);
             assert_approx_eq!(a1 * b1 + a2 * b2, 0.);
             assert_approx_eq!(b2.powi(2) + b2.powi(2), 1.);
@@ -92,13 +81,13 @@ mod test {
             period: 10.0,
             frac_d1_2pi: 0.5,
         };
-        assert_eq!(cp.m(0), 0);
-        assert_eq!(cp.m(2), 0);
-        assert_eq!(cp.m(3), 1);
-        assert_eq!(cp.m(4), 1);
-        assert_eq!(cp.m(7), 1);
-        assert_eq!(cp.m(8), 2);
-        assert_eq!(cp.m(-8), -2);
+        assert_eq!(cp.m_original(0 * 2), 0);
+        assert_eq!(cp.m_original(2 * 2), 0);
+        assert_eq!(cp.m_original(3 * 2), 1);
+        assert_eq!(cp.m_original(4 * 2), 1);
+        assert_eq!(cp.m_original(7 * 2), 1);
+        assert_eq!(cp.m_original(8 * 2), 2);
+        assert_eq!(cp.m_original(-8 * 2), -2);
     }
 }
 

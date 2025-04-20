@@ -6,10 +6,14 @@ use super::{cprt2::CoupleStrength, Controller, Property};
 
 pub use walkoff::WalkOff;
 
+pub mod cprt_disper;
 pub mod ops;
 pub mod state;
 pub mod visualizer;
+
 mod walkoff;
+
+use cprt_disper::CprtDispersionFrac;
 
 #[allow(unused)]
 pub type App = crate::app::GenApp<
@@ -46,12 +50,12 @@ impl GenCprtController {
                 Complex64::i() * beta / 2. * ((f as f64).div_euclid(2.)).powi(2)
             })
             .add_linear_op(self.disper.get_cprt_dispersion())
-            .add_linear_op((
-                1,
-                -Complex64::i() * self.disper.frac_d1_2pi.get_value() / 2.
-                    * 2.
-                    * std::f64::consts::PI,
-            ))
+        /* .add_linear_op((
+            1,
+            -Complex64::i() * self.disper.frac_d1_2pi.get_value() / 2.
+                * 2.
+                * std::f64::consts::PI,
+        )) */
     }
 }
 
@@ -108,15 +112,14 @@ pub struct GenCprtDisperSubController {
 }
 
 impl GenCprtDisperSubController {
-    fn get_cprt_dispersion(&self) -> super::cprt2::CprtDispersion2 {
-        super::cprt2::CprtDispersion2 {
+    fn get_cprt_dispersion(&self) -> CprtDispersionFrac {
+        CprtDispersionFrac {
             center_pos: self.center_pos.get_value(),
             period: self.period.get_value(),
             couple_strength: CoupleStrength {
                 couple_strength: self.couple_strength.get_value(),
                 decay: self.couple_decay.get_value(),
             },
-
             frac_d1_2pi: self.frac_d1_2pi.get_value(),
         }
     }
@@ -180,7 +183,7 @@ impl<NL: Default + lle::NonLinearOp<f64>> Controller<LleSolver<NL, NoneOp<f64>, 
     for GenCprtController
 {
     const EXTENSION: &'static str = "gencprt";
-    type Dispersion = lle::LinearOpAdd<f64, (DiffOrder, Complex64), super::cprt2::CprtDispersion2>;
+    type Dispersion = lle::LinearOpAdd<f64, (DiffOrder, Complex64), CprtDispersionFrac>;
     fn dispersion(&self) -> Self::Dispersion {
         use lle::LinearOp;
         (2, Complex64::i() * self.disper.linear.get_value() / 2. / 4.)
@@ -215,7 +218,7 @@ impl<NL: Default + lle::NonLinearOp<f64>> Controller<LleSolver<NL, NoneOp<f64>, 
     }
 }
 
-fn singularity_point(freq0: i32, center: f64, period: f64) -> bool {
+fn singularity_point(freq0: lle::Freq, center: f64, period: f64) -> bool {
     let freq = freq0 as f64 - center;
     let diff = (freq + period / 4.).rem_euclid(period / 2.);
     (0. ..1.).contains(&diff)
