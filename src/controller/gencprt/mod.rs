@@ -124,13 +124,7 @@ impl GenCprtDisperSubController {
         }
     }
     fn get_coup_info(&self) -> CoupleInfo {
-        CoupleInfo {
-            g: self.couple_strength.get_value(),
-            mu: self.center_pos.get_value(),
-            center: self.center_pos.get_value(),
-            period: self.period.get_value(),
-            frac_d1_2pi: self.frac_d1_2pi.get_value(),
-        }
+        self.get_cprt_dispersion()
     }
 }
 

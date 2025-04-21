@@ -1,57 +1,22 @@
-use std::f64::consts::TAU;
-
 use lle::num_complex::Complex;
 use num_traits::Zero;
 use static_assertions::assert_impl_all;
 
 use crate::FftSource;
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-pub struct CoupleInfo {
-    pub g: f64,
-    pub mu: f64,
-    pub center: f64,
-    pub period: f64,
-    #[serde(default = "f64::default")]
-    pub frac_d1_2pi: f64,
-}
-
-impl CoupleInfo {
-    fn m_period(&self) -> f64 {
-        // /2 for half 2pi, *2 for double modes
-        self.period
-    }
-
-    pub(crate) fn m_original(&self, freq: lle::Freq) -> i32 {
-        let f = freq as f64 - self.center * 2. + self.period / 2.;
-        f.div_euclid(self.m_period()) as i32
-    }
-    pub fn fraction_at(&self, mode: i32) -> ((f64, f64), (f64, f64)) {
-        let m = mode as f64;
-
-        let phi_m = TAU * (m - self.center) / self.period;
-        let alpha = (self.g.cos() * phi_m.cos()).acos();
-        let cp_angle = f64::atan2(
-            (alpha + phi_m).sin().abs().sqrt(),
-            (alpha - phi_m).sin().abs().sqrt(),
-        );
-        (
-            (cp_angle.cos(), cp_angle.sin()),
-            (-cp_angle.sin(), cp_angle.cos()),
-        )
-    }
-}
+pub type CoupleInfo = super::cprt_disper::CprtDispersionFrac;
 
 #[cfg(test)]
 mod test {
+
+    use crate::controller::cprt2::CoupleStrength;
 
     use super::*;
     #[test]
     fn test_fraction_at() {
         let c = CoupleInfo {
-            g: 0.5,
-            mu: 0.5,
-            center: 0.,
+            couple_strength: CoupleStrength::default(),
+            center_pos: 0.,
             period: 1.0,
             frac_d1_2pi: 0.5,
         };
@@ -75,9 +40,8 @@ mod test {
     #[test]
     fn test_m() {
         let cp = CoupleInfo {
-            g: 0.5,
-            mu: 0.5,
-            center: 0.,
+            couple_strength: Default::default(),
+            center_pos: 1.5,
             period: 10.0,
             frac_d1_2pi: 0.5,
         };

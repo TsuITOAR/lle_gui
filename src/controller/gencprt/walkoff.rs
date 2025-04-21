@@ -59,20 +59,39 @@ fn apply_walk_off(
     let d1 = cp.frac_d1_2pi * 2. * std::f64::consts::PI;
     //let step_dist = 1. / d1;
     let len = f_a.len();
-    let mut f_a = f_a.iter_mut();
-    let mut f_b = f_b.iter_mut();
-    for i in (0..len).into_iter().map(|x| lle::freq_at(len, x)) {
-        let m = cp.m_original(i * 2) as f64;
-        if singularity_point(i, cp.center, cp.period) {
-            if let Some(f_a) = f_a.next() {
-                *f_a *= (-Complex64::i() * -m / 2. * d1 * step_dist).exp();
+    let (f_a_p, f_a_n) = f_a.split_at_mut(len / 2);
+    let (f_b_p, f_b_n) = f_b.split_at_mut(len / 2);
+    let mut f_a_p = f_a_p.iter_mut();
+    let mut f_a_n = f_a_n.iter_mut().rev();
+    let mut f_b_p = f_b_p.iter_mut();
+    let mut f_b_n = f_b_n.iter_mut().rev();
+    for i in (0..(len / 2)).map(|x| lle::freq_at(len, x)) {
+        let m = -cp.m_original(i * 2) as f64;
+        if singularity_point(i, cp.center_pos, cp.period) {
+            if let Some(f) = f_b_p.next() {
+                *f *= (-Complex64::i() * m / 2. * d1 * step_dist).exp();
             }
         } else {
-            if let Some(f_a) = f_a.next() {
-                *f_a *= (-Complex64::i() * -m / 2. * d1 * step_dist).exp();
+            if let Some(f) = f_a_p.next() {
+                *f *= (-Complex64::i() * -m / 2. * d1 * step_dist).exp();
             }
-            if let Some(f_b) = f_b.next() {
-                *f_b *= (-Complex64::i() * m / 2. * d1 * step_dist).exp();
+            if let Some(f) = f_b_p.next() {
+                *f *= (-Complex64::i() * m / 2. * d1 * step_dist).exp();
+            }
+        }
+    }
+    for i in ((len / 2)..len).rev().map(|x| lle::freq_at(len, x)) {
+        let m = -cp.m_original(i * 2) as f64;
+        if singularity_point(i, cp.center_pos, cp.period) {
+            if let Some(f) = f_b_n.next() {
+                *f *= (-Complex64::i() * m / 2. * d1 * step_dist).exp();
+            }
+        } else {
+            if let Some(f) = f_a_n.next() {
+                *f *= (-Complex64::i() * -m / 2. * d1 * step_dist).exp();
+            }
+            if let Some(f) = f_b_n.next() {
+                *f *= (-Complex64::i() * m / 2. * d1 * step_dist).exp();
             }
         }
     }

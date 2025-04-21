@@ -79,7 +79,7 @@ fn coupling_modes(s1: &mut [Complex64], s2: &mut [Complex64], cp: &super::state:
         let freq = lle::freq_at(len, i);
         debug_assert!(freq >= 0);
         let (a, b) = (s1t[i], s2t[j]);
-        if singularity_point(freq, cp.center, cp.period) {
+        if singularity_point(freq, cp.center_pos, cp.period) {
             new_p.push(a);
             m_f += 1;
         } else {
@@ -99,7 +99,7 @@ fn coupling_modes(s1: &mut [Complex64], s2: &mut [Complex64], cp: &super::state:
         let freq = lle::freq_at(len, i);
         debug_assert!(freq.is_negative());
         let (a, b) = (s1t[i], s2t[j]);
-        if singularity_point(freq, cp.center, cp.period) {
+        if singularity_point(freq, cp.center_pos, cp.period) {
             new_n.push(a);
             m_b += 1;
         } else {
@@ -118,7 +118,7 @@ fn coupling_modes(s1: &mut [Complex64], s2: &mut [Complex64], cp: &super::state:
     s1.copy_from_slice(&new_p);
     s2.iter_mut()
         .rev()
-        .zip(new_n.into_iter())
+        .zip(new_n)
         .for_each(|(a, b)| *a = b);
 }
 
@@ -135,7 +135,7 @@ fn decoupling_modes(f_p: &mut [Complex64], f_n: &mut [Complex64], cp: &super::st
         let freq = lle::freq_at(len, i);
         debug_assert!(freq >= 0);
         let (a, b) = (&mut f_p[i], &mut f_n[j]);
-        if singularity_point(freq, cp.center, cp.period) {
+        if singularity_point(freq, cp.center_pos, cp.period) {
             *a = tp.next().unwrap();
             m_f += 1;
         } else {
@@ -153,7 +153,7 @@ fn decoupling_modes(f_p: &mut [Complex64], f_n: &mut [Complex64], cp: &super::st
         let freq = lle::freq_at(len, i);
         debug_assert!(freq.is_negative());
         let (a, b) = (&mut f_p[i], &mut f_n[j]);
-        if singularity_point(freq, cp.center, cp.period) {
+        if singularity_point(freq, cp.center_pos, cp.period) {
             *a = tn.next().unwrap();
             m_b += 1;
         } else {
@@ -203,9 +203,8 @@ mod test {
     fn coupling_decoupling() {
         let mut data = DATA;
         let cp = CoupleInfo {
-            g: 0.5,
-            mu: 0.5,
-            center: 1.5,
+            couple_strength: Default::default(),
+            center_pos: 1.5,
             period: 5.,
             frac_d1_2pi: 0.5,
         };
@@ -226,9 +225,8 @@ mod test {
     fn fft_consistent() {
         let data = DATA;
         let cp = CoupleInfo {
-            g: 0.5,
-            mu: 0.5,
-            center: 1.5,
+            couple_strength: Default::default(),
+            center_pos: 1.5,
             period: 20.,
             frac_d1_2pi: 0.5,
         };
@@ -260,9 +258,8 @@ mod test {
         let mut state = State {
             data: data.to_vec(),
             cp: CoupleInfo {
-                g: 0.5,
-                mu: 0.5,
-                center: 1.5,
+                couple_strength: Default::default(),
+                center_pos: 1.5,
                 period: 5.1,
                 frac_d1_2pi: 0.5,
             },

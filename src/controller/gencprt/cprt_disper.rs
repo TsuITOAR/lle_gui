@@ -8,6 +8,7 @@ impl StaticLinearOp<f64> for CprtDispersionFrac {}
 
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
 pub struct CprtDispersionFrac {
+    #[serde(alias = "center")]
     pub(crate) center_pos: f64,
     pub(crate) period: f64,
     #[serde(default)]
@@ -24,6 +25,21 @@ impl CprtDispersionFrac {
     pub(crate) fn m_original(&self, freq: Freq) -> i32 {
         let f = freq as f64 - self.center_pos * 2. + self.period / 2.;
         f.div_euclid(self.m_period()) as i32
+    }
+
+    pub fn fraction_at(&self, mode: i32) -> ((f64, f64), (f64, f64)) {
+        let m = mode as f64;
+
+        let phi_m = TAU * (m - self.center_pos) / self.period;
+        let alpha = (self.couple_strength.get_coupling(m).cos() * phi_m.cos()).acos();
+        let cp_angle = f64::atan2(
+            (alpha + phi_m).sin().abs().sqrt(),
+            (alpha - phi_m).sin().abs().sqrt(),
+        );
+        (
+            (cp_angle.cos(), cp_angle.sin()),
+            (-cp_angle.sin(), cp_angle.cos()),
+        )
     }
 }
 

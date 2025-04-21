@@ -77,7 +77,7 @@ pub struct CprtDispersion2 {
 }
 
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
-pub(crate) struct CoupleStrength {
+pub struct CoupleStrength {
     pub(crate) couple_strength: f64,
     pub(crate) decay: f64,
 }
