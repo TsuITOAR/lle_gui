@@ -1,4 +1,4 @@
-use lle::num_complex::Complex;
+use lle::num_complex::{Complex, Complex64};
 use num_traits::Zero;
 use static_assertions::assert_impl_all;
 
@@ -6,9 +6,505 @@ use crate::FftSource;
 
 pub type CoupleInfo = super::cprt_disper::CprtDispersionFrac;
 
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct State {
+    pub data: Vec<Complex64>,
+    pub(crate) cp: CoupleInfo,
+    #[serde(default)]
+    pub(crate) time: f64,
+}
+
+impl State {
+    pub(crate) fn coupling_iter_positive(&self) -> CouplingStateIterPositive<'_> {
+        let cp = self.cp.clone();
+        let len = self.data.len();
+        let (state_a, state_b) = self.data.split_at(len / 2);
+        let (state_a_p, _) = state_a.split_at(len / 4);
+        let (state_b_p, _) = state_b.split_at(len / 4);
+        CouplingStateIterPositive {
+            state_a_p: state_a_p.into(),
+            state_b_p: state_b_p.into(),
+            cp,
+            len,
+            cur_freq: 0,
+        }
+    }
+    pub(crate) fn coupling_iter_negative(&self) -> CouplingStateIterNegative<'_> {
+        let cp = self.cp.clone();
+        let len = self.data.len();
+        let (state_a, state_b) = self.data.split_at(len / 2);
+        let (_, state_a_n) = state_a.split_at(len / 4);
+        let (_, state_b_n) = state_b.split_at(len / 4);
+        CouplingStateIterNegative {
+            state_a_n: state_a_n.into(),
+            state_b_n: state_b_n.into(),
+            cp,
+            len,
+            cur_freq: -1,
+        }
+    }
+
+    pub(crate) fn coupling_iter_mut(
+        &mut self,
+    ) -> (
+        CouplingStateIterMutPositive<'_>,
+        CouplingStateIterMutNegative<'_>,
+    ) {
+        let cp = self.cp.clone();
+        let len = self.data.len();
+        let (state_a, state_b) = self.data.split_at_mut(len / 2);
+        let (state_a_p, state_a_n) = state_a.split_at_mut(len / 4);
+        let (state_b_p, state_b_n) = state_b.split_at_mut(len / 4);
+        (
+            CouplingStateIterMutPositive {
+                state_a_p: state_a_p.into(),
+                state_b_p: state_b_p.into(),
+                cp: cp.clone(),
+                len,
+                cur_freq: 0,
+            },
+            CouplingStateIterMutNegative {
+                state_a_n: state_a_n.into(),
+                state_b_n: state_b_n.into(),
+                cp,
+                len,
+                cur_freq: -1,
+            },
+        )
+    }
+
+    pub(crate) fn decoupling_iter_positive(&self) -> DecouplingStateIterPositive<'_> {
+        let cp = self.cp.clone();
+        let len = self.data.len();
+        let (state_p, _) = self.data.split_at(len / 2);
+        DecouplingStateIterPositive {
+            state_p: state_p.into(),
+            cp,
+            len,
+            cur_freq: 0,
+        }
+    }
+    pub(crate) fn decoupling_iter_negative(&self) -> DecouplingStateIterNegative<'_> {
+        let cp = self.cp.clone();
+        let len = self.data.len();
+        let (_, state_n) = self.data.split_at(len / 2);
+        DecouplingStateIterNegative {
+            state_n: state_n.into(),
+            cp,
+            len,
+            cur_freq: -1,
+        }
+    }
+}
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct ModeMeta {
+    pub(crate) m: i32,
+    pub(crate) freq: lle::Freq,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum Mode {
+    Single {
+        amp: Complex64,
+        meta: ModeMeta,
+    },
+    Pair {
+        amp1: Complex64,
+        amp2: Complex64,
+        meta: ModeMeta,
+    },
+}
+
+#[derive(Debug)]
+pub enum ModeMut<'a> {
+    Single {
+        amp: Option<&'a mut Complex64>,
+        meta: ModeMeta,
+    },
+    Pair {
+        amp1: Option<&'a mut Complex64>,
+        amp2: Option<&'a mut Complex64>,
+        meta: ModeMeta,
+    },
+}
+
+impl<'a> ModeMut<'a> {
+    pub(crate) fn m(&self) -> i32 {
+        match self {
+            ModeMut::Single { meta, .. } => meta.m,
+            ModeMut::Pair { meta, .. } => meta.m,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct CouplingStateIterPositive<'a> {
+    state_a_p: MySliceIter<'a>,
+    state_b_p: MySliceIter<'a>,
+    pub(crate) cp: CoupleInfo,
+    pub(crate) len: usize,
+    pub(crate) cur_freq: lle::Freq,
+}
+
+impl<'a> Iterator for CouplingStateIterPositive<'a> {
+    type Item = Mode;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.cur_freq > self.len as _ {
+            return None;
+        }
+        let real_number = self.state_a_p.cur as i32 + self.state_b_p.cur as i32;
+        let m = self.cp.m_original(real_number);
+        let freq = self.cur_freq;
+        if self.cp.singularity_point(real_number) {
+            self.cur_freq += 1;
+            let amp = self.state_a_p.next().unwrap_or_default();
+            Some(Mode::Single {
+                amp,
+                meta: ModeMeta { m, freq },
+            })
+        } else {
+            self.cur_freq += 2;
+            let amp1 = self.state_a_p.next().unwrap_or_default();
+            let amp2 = self.state_b_p.next().unwrap_or_default();
+            Some(Mode::Pair {
+                amp1,
+                amp2,
+                meta: ModeMeta { m, freq },
+            })
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct CouplingStateIterNegative<'a> {
+    state_a_n: MySliceIterRev<'a>,
+    state_b_n: MySliceIterRev<'a>,
+    pub(crate) cp: CoupleInfo,
+    pub(crate) len: usize,
+    pub(crate) cur_freq: lle::Freq,
+}
+
+impl<'a> Iterator for CouplingStateIterNegative<'a> {
+    type Item = Mode;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if -self.cur_freq > self.len as i32 - 1 {
+            return None;
+        }
+        let real_number = -1i32 - self.state_a_n.cur as i32 - self.state_b_n.cur as i32;
+        let m = self.cp.m_original(real_number);
+        let freq = self.cur_freq;
+        if self.cp.singularity_point(real_number) {
+            self.cur_freq -= 1;
+            let amp = self.state_a_n.next().unwrap_or_default();
+            Some(Mode::Single {
+                amp,
+                meta: ModeMeta { m, freq },
+            })
+        } else {
+            self.cur_freq -= 2;
+            let amp1 = self.state_a_n.next().unwrap_or_default();
+            let amp2 = self.state_b_n.next().unwrap_or_default();
+            Some(Mode::Pair {
+                amp1,
+                amp2,
+                meta: ModeMeta { m, freq },
+            })
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct CouplingStateIterMutPositive<'a> {
+    state_a_p: MySliceIterMut<'a>,
+    state_b_p: MySliceIterMut<'a>,
+    pub(crate) cp: CoupleInfo,
+    pub(crate) len: usize,
+    pub(crate) cur_freq: lle::Freq,
+}
+
+impl<'a> Iterator for CouplingStateIterMutPositive<'a> {
+    type Item = ModeMut<'a>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.cur_freq > self.len as _ {
+            return None;
+        }
+        let real_number = self.state_a_p.cur as i32 + self.state_b_p.cur as i32;
+        let m = self.cp.m_original(real_number);
+        let freq = self.cur_freq;
+        if self.cp.singularity_point(real_number) {
+            self.cur_freq += 1;
+            let amp = self.state_a_p.next();
+            Some(ModeMut::Single {
+                amp,
+                meta: ModeMeta { m, freq },
+            })
+        } else {
+            self.cur_freq += 2;
+            let amp1 = self.state_a_p.next();
+            let amp2 = self.state_b_p.next();
+            Some(ModeMut::Pair {
+                amp1,
+                amp2,
+                meta: ModeMeta { m, freq },
+            })
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct CouplingStateIterMutNegative<'a> {
+    state_a_n: MySliceIterMutRev<'a>,
+    state_b_n: MySliceIterMutRev<'a>,
+    pub(crate) cp: CoupleInfo,
+    pub(crate) len: usize,
+    pub(crate) cur_freq: lle::Freq,
+}
+
+impl<'a> Iterator for CouplingStateIterMutNegative<'a> {
+    type Item = ModeMut<'a>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if -self.cur_freq > self.len as i32 - 1 {
+            return None;
+        }
+        let real_number = -1i32 - self.state_a_n.cur as i32 - self.state_b_n.cur as i32;
+        let m = self.cp.m_original(real_number);
+        let freq = self.cur_freq;
+        if self.cp.singularity_point(real_number) {
+            self.cur_freq -= 1;
+            let amp = self.state_a_n.next();
+            Some(ModeMut::Single {
+                amp,
+                meta: ModeMeta { m, freq },
+            })
+        } else {
+            self.cur_freq -= 2;
+            let amp1 = self.state_a_n.next();
+            let amp2 = self.state_b_n.next();
+            Some(ModeMut::Pair {
+                amp1,
+                amp2,
+                meta: ModeMeta { m, freq },
+            })
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct DecouplingStateIterPositive<'a> {
+    state_p: MySliceIter<'a>,
+    pub(crate) cp: CoupleInfo,
+    pub(crate) len: usize,
+    pub(crate) cur_freq: lle::Freq,
+}
+
+impl<'a> Iterator for DecouplingStateIterPositive<'a> {
+    type Item = Mode;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.cur_freq > self.len as _ {
+            return None;
+        }
+        let real_number = self.state_p.cur as i32;
+        let m = self.cp.m_original(real_number);
+        let freq = self.cur_freq;
+        if self.cp.singularity_point(real_number) {
+            self.cur_freq += 1;
+            let amp = self.state_p.next().unwrap_or_default();
+            Some(Mode::Single {
+                amp,
+                meta: ModeMeta { m, freq },
+            })
+        } else {
+            self.cur_freq += 2;
+            let amp1 = self.state_p.next().unwrap_or_default();
+            let amp2 = self.state_p.next().unwrap_or_default();
+            Some(Mode::Pair {
+                amp1,
+                amp2,
+                meta: ModeMeta { m, freq },
+            })
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct DecouplingStateIterNegative<'a> {
+    state_n: MySliceIterRev<'a>,
+    pub(crate) cp: CoupleInfo,
+    pub(crate) len: usize,
+    pub(crate) cur_freq: lle::Freq,
+}
+
+impl<'a> Iterator for DecouplingStateIterNegative<'a> {
+    type Item = Mode;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if -self.cur_freq > self.len as i32 - 1 {
+            return None;
+        }
+        let real_number = -1i32 - self.state_n.cur as i32;
+        let m = self.cp.m_original(real_number);
+        let freq = self.cur_freq;
+        if self.cp.singularity_point(real_number) {
+            self.cur_freq -= 1;
+            let amp = self.state_n.next().unwrap_or_default();
+            Some(Mode::Single {
+                amp,
+                meta: ModeMeta { m, freq },
+            })
+        } else {
+            self.cur_freq -= 2;
+            let amp1 = self.state_n.next().unwrap_or_default();
+            let amp2 = self.state_n.next().unwrap_or_default();
+            Some(Mode::Pair {
+                amp1,
+                amp2,
+                meta: ModeMeta { m, freq },
+            })
+        }
+    }
+}
+
+assert_impl_all!(State:FftSource);
+
+impl From<Vec<Complex<f64>>> for State {
+    fn from(c: Vec<Complex<f64>>) -> Self {
+        Self {
+            data: c,
+            cp: super::GenCprtDisperSubController::default().get_coup_info(),
+            time: 0.0,
+        }
+    }
+}
+
+impl State {
+    pub fn new(len: usize, cp: CoupleInfo, time: f64) -> Self {
+        Self {
+            data: vec![Complex::zero(); len],
+            cp,
+            time,
+        }
+    }
+}
+
+impl AsRef<[Complex<f64>]> for State {
+    fn as_ref(&self) -> &[Complex<f64>] {
+        &self.data
+    }
+}
+
+impl AsMut<[Complex<f64>]> for State {
+    fn as_mut(&mut self) -> &mut [Complex<f64>] {
+        &mut self.data
+    }
+}
+
+#[derive(Debug, Clone)]
+struct MySliceIter<'a> {
+    slice: &'a [Complex64],
+    cur: usize,
+}
+
+impl<'a> From<&'a [Complex64]> for MySliceIter<'a> {
+    fn from(slice: &'a [Complex64]) -> Self {
+        Self { slice, cur: 0 }
+    }
+}
+
+impl Iterator for MySliceIter<'_> {
+    type Item = Complex64;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.cur >= self.slice.len() {
+            return None;
+        }
+        let item = self.slice[self.cur];
+        self.cur += 1;
+        Some(item)
+    }
+}
+
+#[derive(Debug, Clone)]
+struct MySliceIterRev<'a> {
+    slice: &'a [Complex64],
+    cur: usize,
+}
+
+impl<'a> From<&'a [Complex64]> for MySliceIterRev<'a> {
+    fn from(slice: &'a [Complex64]) -> Self {
+        Self { slice, cur: 0 }
+    }
+}
+
+impl Iterator for MySliceIterRev<'_> {
+    type Item = Complex64;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.cur >= self.slice.len() {
+            return None;
+        }
+        let item = self.slice[self.slice.len() - 1 - self.cur];
+        self.cur += 1;
+        Some(item)
+    }
+}
+
+#[derive(Debug)]
+struct MySliceIterMut<'a> {
+    slice: &'a mut [Complex64],
+    cur: usize,
+}
+
+impl<'a> From<&'a mut [Complex64]> for MySliceIterMut<'a> {
+    fn from(slice: &'a mut [Complex64]) -> Self {
+        Self { slice, cur: 0 }
+    }
+}
+
+impl<'a> Iterator for MySliceIterMut<'a> {
+    type Item = &'a mut Complex64;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.cur >= self.slice.len() {
+            return None;
+        }
+        let item = unsafe { &mut *(self.slice.as_mut_ptr().add(self.cur)) };
+        self.cur += 1;
+        Some(item)
+    }
+}
+
+#[derive(Debug)]
+struct MySliceIterMutRev<'a> {
+    slice: &'a mut [Complex64],
+    cur: usize,
+}
+
+impl<'a> From<&'a mut [Complex64]> for MySliceIterMutRev<'a> {
+    fn from(slice: &'a mut [Complex64]) -> Self {
+        Self { slice, cur: 0 }
+    }
+}
+
+impl<'a> Iterator for MySliceIterMutRev<'a> {
+    type Item = &'a mut Complex64;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.cur >= self.slice.len() {
+            return None;
+        }
+        let item = unsafe { &mut *(self.slice.as_mut_ptr().add(self.slice.len() - 1 - self.cur)) };
+        self.cur += 1;
+        Some(item)
+    }
+}
+
 #[cfg(test)]
 mod test {
-
     use crate::controller::cprt2::CoupleStrength;
 
     use super::*;
@@ -46,54 +542,12 @@ mod test {
             period: 10.0,
             frac_d1_2pi: 0.5,
         };
-        assert_eq!(cp.m_original(0 * 2), 0);
+        assert_eq!(cp.m_original(0), 0);
         assert_eq!(cp.m_original(2 * 2), 0);
         assert_eq!(cp.m_original(3 * 2), 0);
         assert_eq!(cp.m_original(4 * 2), 1);
         assert_eq!(cp.m_original(7 * 2), 1);
         assert_eq!(cp.m_original(8 * 2), 1);
         assert_eq!(cp.m_original(-8 * 2), -2);
-    }
-}
-
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-pub struct State {
-    pub data: Vec<Complex<f64>>,
-    pub(crate) cp: CoupleInfo,
-    #[serde(default)]
-    pub(crate) time: f64,
-}
-
-assert_impl_all!(State:FftSource);
-
-impl From<Vec<Complex<f64>>> for State {
-    fn from(c: Vec<Complex<f64>>) -> Self {
-        Self {
-            data: c,
-            cp: super::GenCprtDisperSubController::default().get_coup_info(),
-            time: 0.0,
-        }
-    }
-}
-
-impl State {
-    pub fn new(len: usize, cp: CoupleInfo, time: f64) -> Self {
-        Self {
-            data: vec![Complex::zero(); len],
-            cp,
-            time,
-        }
-    }
-}
-
-impl AsRef<[Complex<f64>]> for State {
-    fn as_ref(&self) -> &[Complex<f64>] {
-        &self.data
-    }
-}
-
-impl AsMut<[Complex<f64>]> for State {
-    fn as_mut(&mut self) -> &mut [Complex<f64>] {
-        &mut self.data
     }
 }

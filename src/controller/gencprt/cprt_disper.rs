@@ -27,6 +27,12 @@ impl CprtDispersionFrac {
         let f = freq as f64 - self.center_pos * 2. + self.period / 2.;
         f.div_euclid(self.m_period()) as i32
     }
+    /// freq0 the real number
+    pub fn singularity_point(&self, freq: lle::Freq) -> bool {
+        let freq = freq as f64 - self.center_pos * 2.;
+        let diff = (freq + self.period / 2.).rem_euclid(self.period);
+        (0. ..1.).contains(&diff)
+    }
 
     pub fn fraction_at(
         &self,

@@ -8,7 +8,7 @@ use crate::{
     FftSource,
 };
 
-use super::{ops::PumpFreq, singularity_point, GenCprtController};
+use super::{ops::PumpFreq, state::State, GenCprtController};
 
 pub struct WalkOff<E> {
     pub cp: super::state::CoupleInfo,
@@ -17,12 +17,11 @@ pub struct WalkOff<E> {
 }
 
 impl<
-        S: FftSource + for<'a> serde::Deserialize<'a> + serde::Serialize,
         L: lle::LinearOp<f64> + Send + Sync + 'static,
         NL: lle::NonLinearOp<f64> + Send + Sync + 'static,
         C: ConstOp<f64> + Send + Sync + 'static,
         CF: ConstOp<f64> + Send + Sync + 'static,
-    > Evolver<f64> for WalkOff<lle::LleSolver<f64, S, L, NL, C, CF>>
+    > Evolver<f64> for WalkOff<lle::LleSolver<f64, State, L, NL, C, CF>>
 {
     fn state(&self) -> &[lle::num_complex::Complex<f64>] {
         self.core.state()
@@ -35,68 +34,70 @@ impl<
     }
     fn evolve(&mut self) {
         let step_dist = self.core.step_dist;
-        apply_walk_off(self.core.state_mut(), step_dist, &mut self.fft, &self.cp);
+        let state = self.core.get_raw_state_mut();
+        apply_walk_off(state, step_dist, &mut self.fft);
         self.core.evolve();
     }
 }
 
 fn apply_walk_off(
-    state: &mut [Complex64],
+    state: &mut State,
     step_dist: f64,
     fft: &mut Option<(lle::BufferedFft<f64>, lle::BufferedFft<f64>)>,
-    cp: &super::state::CoupleInfo,
 ) {
-    let len = state.len();
+    let d1 = state.cp.frac_d1_2pi * TAU;
+    let len = state.data.len();
     let fft = fft.get_or_insert_with(|| lle::BufferedFft::new(len / 2));
+    let (a, b) = state.data.split_at_mut(len / 2);
+    fft.0.fft_process(a);
+    fft.0.fft_process(b);
 
-    let (f_a, f_b) = state.split_at_mut(len / 2);
-    fft.0.fft_process(f_a);
-    fft.0.fft_process(f_b);
-    let d1 = cp.frac_d1_2pi * TAU;
-    //let step_dist = 1. / d1;
-    let len = f_a.len();
-    let (f_a_p, f_a_n) = f_a.split_at_mut(len / 2);
-    let (f_b_p, f_b_n) = f_b.split_at_mut(len / 2);
-    let mut f_a_p = f_a_p.iter_mut();
-    let mut f_a_n = f_a_n.iter_mut().rev();
-    let mut f_b_p = f_b_p.iter_mut();
-    let mut f_b_n = f_b_n.iter_mut().rev();
-    for freq in (0..(len / 2)).map(|x| lle::freq_at(len, x)) {
-        debug_assert!(freq >= 0);
-        let m = cp.m_original(freq * 2) as f64;
-        if singularity_point(freq * 2, cp.center_pos, cp.period) {
-            if let Some(f) = f_a_p.next() {
-                *f *= (-Complex64::i() * -m / 2. * d1 * step_dist).exp();
+    let (freq_iter_mut_pos, freq_iter_mut_neg) = state.coupling_iter_mut();
+    freq_iter_mut_pos.for_each(|x| {
+        use super::state::ModeMut;
+        let m = x.m() as f64;
+        match x {
+            ModeMut::Single { amp, .. } => {
+                if let Some(amp) = amp {
+                    *amp *= (-Complex64::i() * m / 2. * d1 * step_dist).exp()
+                }
             }
-        } else {
-            if let Some(f) = f_a_p.next() {
-                *f *= (-Complex64::i() * -m / 2. * d1 * step_dist).exp();
+            ModeMut::Pair { amp1, amp2, .. } => {
+                if let Some(amp1) = amp1 {
+                    *amp1 *= (-Complex64::i() * m / 2. * d1 * step_dist).exp()
+                }
+                if let Some(amp2) = amp2 {
+                    *amp2 *= (-Complex64::i() * -m / 2. * d1 * step_dist).exp()
+                }
             }
-            if let Some(f) = f_b_p.next() {
-                *f *= (-Complex64::i() * m / 2. * d1 * step_dist).exp();
+        };
+    });
+
+    freq_iter_mut_neg.for_each(|x| {
+        use super::state::ModeMut;
+        let m = x.m() as f64;
+        match x {
+            ModeMut::Single { amp, .. } => {
+                if let Some(amp) = amp {
+                    *amp *= (-Complex64::i() * m / 2. * d1 * step_dist).exp()
+                }
             }
-        }
-    }
-    for freq in ((len / 2)..len).rev().map(|x| lle::freq_at(len, x)) {
-        debug_assert!(freq < 0);
-        let m = cp.m_original(freq * 2) as f64;
-        if singularity_point(freq * 2, cp.center_pos, cp.period) {
-            if let Some(f) = f_a_n.next() {
-                *f *= (-Complex64::i() * -m / 2. * d1 * step_dist).exp();
+            ModeMut::Pair { amp1, amp2, .. } => {
+                if let Some(amp1) = amp1 {
+                    *amp1 *= (-Complex64::i() * m / 2. * d1 * step_dist).exp()
+                }
+                if let Some(amp2) = amp2 {
+                    *amp2 *= (-Complex64::i() * -m / 2. * d1 * step_dist).exp()
+                }
             }
-        } else {
-            if let Some(f) = f_a_n.next() {
-                *f *= (-Complex64::i() * -m / 2. * d1 * step_dist).exp();
-            }
-            if let Some(f) = f_b_n.next() {
-                *f *= (-Complex64::i() * m / 2. * d1 * step_dist).exp();
-            }
-        }
-    }
-    fft.1.fft_process(f_a);
-    fft.1.fft_process(f_b);
-    let scale = state.len() as f64 / 2.;
-    state.iter_mut().for_each(|x| *x /= scale);
+        };
+    });
+
+    let (a, b) = state.data.split_at_mut(len / 2);
+    fft.1.fft_process(a);
+    fft.1.fft_process(b);
+    let scale = len as f64 / 2.;
+    state.data.iter_mut().for_each(|x| *x /= scale);
 }
 
 impl<NL: Default + lle::NonLinearOp<f64>>
@@ -202,14 +203,11 @@ impl<
 }
 
 impl<
-        S: FftSource + for<'a> serde::Deserialize<'a> + serde::Serialize,
         L: lle::LinearOp<f64> + Send + Sync + 'static,
         NL: lle::NonLinearOp<f64> + Send + Sync + 'static,
         C: ConstOp<f64> + Send + Sync + 'static,
         CF: ConstOp<f64> + Send + Sync + 'static,
-    > Simulator for WalkOff<lle::LleSolver<f64, S, L, NL, C, CF>>
-where
-    S::FftProcessor: Send + Sync,
+    > Simulator for WalkOff<lle::LleSolver<f64, State, L, NL, C, CF>>
 {
     fn run(&mut self, steps: u32) {
         self.evolve_n(steps as _);
@@ -245,19 +243,15 @@ mod test {
 
         let step_dist = 1e-2;
 
-        let len = state.data.len();
-
-        let mut back = state.data.clone();
-        let (back_p, back_n) = back.split_at_mut(len / 2);
-        coupling_modes(back_p, back_n, &cp, state.time);
+        let mut back = state.clone();
+        coupling_modes(&mut back);
 
         let mut fft = None;
-        apply_walk_off(&mut state.data, step_dist, &mut fft, &state.cp);
+        apply_walk_off(&mut state, step_dist, &mut fft);
 
-        let (data_p, data_n) = state.data.split_at_mut(len / 2);
-        coupling_modes(data_p, data_n, &cp, state.time + step_dist);
+        coupling_modes(&mut state);
 
-        for (i, (a, b)) in back.iter().zip(state.data.iter()).enumerate() {
+        for (i, (a, b)) in back.data.iter().zip(state.data.iter()).enumerate() {
             assert!((a - b).norm_sqr() < 1e-5, "i: {}, a: {}, b: {}", i, a, b);
         }
     }

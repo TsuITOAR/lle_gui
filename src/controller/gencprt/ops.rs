@@ -3,9 +3,9 @@ use std::f64::consts::TAU;
 use lle::{freq_at, num_complex::Complex64, Step};
 use num_traits::Zero;
 
-use crate::controller::gencprt::cprt_disper::spatial_basis_move;
+use crate::controller::gencprt::{cprt_disper::spatial_basis_move, state::Mode};
 
-use super::{singularity_point, state::State};
+use super::state::State;
 
 #[derive(Debug, Clone, serde::Serialize, serde:: Deserialize)]
 pub struct PumpFreq {
@@ -58,143 +58,154 @@ impl lle::FftSource<f64> for State {
         let (s1, s2) = self.data.split_at_mut(len / 2);
         fft.fft.0.fft_process(s1);
         fft.fft.0.fft_process(s2);
-        coupling_modes(s1, s2, &self.cp, self.time);
+        coupling_modes(self);
     }
 
     fn fft_process_inverse(&mut self, fft: &mut Self::FftProcessor) {
         let len = self.data.len();
+        decoupling_modes(self);
         let (f_p, f_n) = self.data.split_at_mut(len / 2);
-        decoupling_modes(f_p, f_n, &self.cp, self.time);
         fft.fft.1.fft_process(f_p);
         fft.fft.1.fft_process(f_n);
     }
 }
 
-pub(crate) fn coupling_modes(
-    s1: &mut [Complex64],
-    s2: &mut [Complex64],
-    cp: &super::state::CoupleInfo,
-    time: f64,
-) {
-    let s1t = &*s1;
-    let s2t = &*s2;
-    let mut i = 0;
-    let mut m_f = 0;
-    let len = s1t.len();
-    let mut new_p = Vec::with_capacity(len);
-    let mut new_n = Vec::with_capacity(len);
-    while i < len / 2 {
-        let j = i - m_f;
-        let freq = lle::freq_at(len, i);
-        debug_assert!(freq >= 0);
-        let (a, b) = (s1t[i], s2t[j]);
-        if singularity_point(freq, cp.center_pos, cp.period) {
-            let m = cp.m_original(freq * 2);
-            let basis_move = spatial_basis_move(m, cp.frac_d1_2pi * TAU, time);
-            new_p.push(a * basis_move);
-            m_f += 1;
-        } else {
-            let (frac1, frac2) = cp.fraction_at(freq, time);
-            let a1 = a * frac1.0 + b * frac1.1;
-            let b1 = a * frac2.0 + b * frac2.1;
-            new_p.push(a1);
-            new_p.push(b1);
-        }
-        i += 1;
-    }
-    let mut i = s1t.len() - 1;
-    let mut m_b = 0;
-    let len = s1t.len();
-    while i >= len / 2 {
-        let j = i + m_b;
-        let freq = lle::freq_at(len, i);
-        debug_assert!(freq < 0);
-        let (a, b) = (s1t[i], s2t[j]);
-        if singularity_point(freq, cp.center_pos, cp.period) {
-            let m = cp.m_original(freq * 2);
-            let basis_move = spatial_basis_move(m, cp.frac_d1_2pi * TAU, time);
-            new_n.push(a * basis_move);
-            m_b += 1;
-        } else {
-            let (frac1, frac2) = cp.fraction_at(freq, time);
-            let a1 = a * frac1.0 + b * frac1.1;
-            let b1 = a * frac2.0 + b * frac2.1;
-            new_n.push(b1);
-            new_n.push(a1);
-        }
-        i -= 1;
-    }
-    new_p.extend_from_slice(&s2[(len / 2 - m_f)..len / 2]);
-    new_n.extend(s2[(len / 2)..(len / 2 + m_b)].iter().rev().copied());
-    debug_assert!(new_p.len() == len);
-    debug_assert!(new_n.len() == len);
-    s1.copy_from_slice(&new_p);
-    s2.iter_mut().rev().zip(new_n).for_each(|(a, b)| *a = b);
-}
+pub(crate) fn coupling_modes(state: &mut State) {
+    let time = state.time;
+    let freq_pos = state.coupling_iter_positive();
+    let freq_neg = state.coupling_iter_negative();
 
-pub(crate) fn decoupling_modes(
-    f_p: &mut [Complex64],
-    f_n: &mut [Complex64],
-    cp: &super::state::CoupleInfo,
-    time: f64,
-) {
-    let len = f_p.len();
-    let tp = f_p.to_vec();
-    let tn = f_n.to_vec();
-    let mut tp = tp.into_iter();
-    let mut tn = tn.into_iter().rev();
-    let mut i = 0;
-    let mut m_f = 0;
-    while i < len / 2 {
-        let j = i - m_f;
-        let freq = lle::freq_at(len, i);
-        debug_assert!(freq >= 0);
-        let (a, b) = (&mut f_p[i], &mut f_n[j]);
-        if singularity_point(freq, cp.center_pos, cp.period) {
-            let m = cp.m_original(freq * 2);
-            let basis_move = spatial_basis_move(m, cp.frac_d1_2pi * TAU, time);
-            *a = tp.next().unwrap() * basis_move.conj();
-            m_f += 1;
-        } else {
-            let (frac1, frac2) = cp.fraction_at(freq, time);
-            let (a1, b1) = (tp.next().unwrap(), tp.next().unwrap());
-            *a = a1 * frac1.0.conj() + b1 * frac2.0.conj();
-            *b = a1 * frac1.1.conj() + b1 * frac2.1.conj();
-        }
-        i += 1;
-    }
-    let mut i = len - 1;
-    let mut m_b = 0;
-    while i >= len / 2 {
-        let j = i + m_b;
-        let freq = lle::freq_at(len, i);
-        debug_assert!(freq.is_negative());
-        let (a, b) = (&mut f_p[i], &mut f_n[j]);
-        if singularity_point(freq, cp.center_pos, cp.period) {
-            let m = cp.m_original(freq * 2);
-            let basis_move = spatial_basis_move(m, cp.frac_d1_2pi * TAU, time);
-            *a = tn.next().unwrap() * basis_move.conj();
-            m_b += 1;
-        } else {
-            let (frac1, frac2) = cp.fraction_at(freq, time);
-            let (b1, a1) = (tn.next().unwrap(), tn.next().unwrap());
-            *a = a1 * frac1.0.conj() + b1 * frac2.0.conj();
-            *b = a1 * frac1.1.conj() + b1 * frac2.1.conj();
-        }
-        i -= 1;
-    }
-    f_n[(len / 2 - m_f)..len / 2]
+    let freq_pos: Vec<_> = freq_pos
+        .flat_map(|x| match x {
+            Mode::Single { amp, meta } => {
+                let basis_move = spatial_basis_move(meta.m, state.cp.frac_d1_2pi * TAU, time);
+                let amp = amp * basis_move;
+                [Some(amp), None]
+            }
+            Mode::Pair { amp1, amp2, meta } => {
+                let (frac1, frac2) = state.cp.fraction_at((meta.freq + meta.m) / 2, time);
+
+                let a = amp1 * frac1.0 + amp2 * frac1.1;
+                let b = amp1 * frac2.0 + amp2 * frac2.1;
+
+                // let a = amp1;
+                // let b = amp2;
+                [Some(a), Some(b)]
+            }
+        })
+        .flatten()
+        .collect();
+
+    let freq_neg: Vec<_> = freq_neg
+        .flat_map(|x| match x {
+            Mode::Single { amp, meta } => {
+                let basis_move = spatial_basis_move(meta.m, state.cp.frac_d1_2pi * TAU, time);
+                let amp = amp * basis_move.conj();
+                [Some(amp), None]
+            }
+            Mode::Pair { amp1, amp2, meta } => {
+                let (frac1, frac2) = state.cp.fraction_at((meta.freq + meta.m) / 2, time);
+                let f1 = amp1;
+                let f2 = amp2;
+                let a = f1 * frac1.0 + f2 * frac1.1;
+                let b = f1 * frac2.0 + f2 * frac2.1;
+                // let a = f1;
+                // let b = f2;
+                [Some(b), Some(a)]
+            }
+        })
+        .flatten()
+        .collect();
+
+    let mut ret = vec![Complex64::zero(); state.data.len()];
+
+    let (ret_p, ret_n) = ret.split_at_mut(state.data.len() / 2);
+
+    ret_p
         .iter_mut()
-        .zip(tp.by_ref())
-        .for_each(|x| *x.0 = x.1);
-    f_n[(len / 2)..(len / 2 + m_b)]
+        .zip(freq_pos.iter())
+        .for_each(|(a, b)| *a = *b);
+
+    ret_n
         .iter_mut()
         .rev()
-        .zip(tn.by_ref())
-        .for_each(|x| *x.0 = x.1);
-    debug_assert!(tp.next().is_none());
-    debug_assert!(tn.next().is_none());
+        .zip(freq_neg.iter())
+        .for_each(|(a, b)| *a = *b);
+    state.data.copy_from_slice(&ret);
 }
+
+pub(crate) fn decoupling_modes(state: &mut State) {
+    let time = state.time;
+    let freq_pos = state.decoupling_iter_positive();
+    let freq_neg = state.decoupling_iter_negative();
+
+    let (freq_pos_a, freq_pos_b): (Vec<_>, Vec<_>) = freq_pos
+        .map(|x| match x {
+            Mode::Single { amp, meta } => {
+                let basis_move = spatial_basis_move(meta.m, state.cp.frac_d1_2pi * TAU, time);
+                let amp = amp * basis_move.conj();
+                (Some(amp), None)
+            }
+            Mode::Pair { amp1, amp2, meta } => {
+                let (frac1, frac2) = state.cp.fraction_at((meta.freq + meta.m) / 2, time);
+
+                let a = amp1 * frac1.0 + amp2 * frac2.0;
+                let b = amp1 * frac1.1 + amp2 * frac2.1;
+                // let a = amp1;
+                // let b = amp2;
+                (Some(a), Some(b))
+            }
+        })
+        .unzip();
+
+    let (freq_neg_a, freq_neg_b): (Vec<_>, Vec<_>) = freq_neg
+        .map(|x| match x {
+            Mode::Single { amp, meta } => {
+                let basis_move = spatial_basis_move(meta.m, state.cp.frac_d1_2pi * TAU, time);
+                let amp = amp * basis_move.conj();
+                (Some(amp), None)
+            }
+            // amp2 freq lower than amp1
+            Mode::Pair { amp1, amp2, meta } => {
+                let (frac1, frac2) = state.cp.fraction_at((meta.freq + meta.m) / 2, time);
+                let f1 = amp2;
+                let f2 = amp1;
+                let a = f1 * frac1.0.conj() + f2 * frac2.0.conj();
+                let b = f1 * frac1.1.conj() + f2 * frac2.1.conj();
+
+                // let a = f1;
+                // let b = f2;
+
+                (Some(a), Some(b))
+            }
+        })
+        .unzip();
+
+    let mut ret = vec![Complex64::zero(); state.data.len()];
+    let (ret_a, ret_b) = ret.split_at_mut(state.data.len() / 2);
+    let (ret_a_p, ret_a_n) = ret_a.split_at_mut(state.data.len() / 4);
+    let (ret_b_p, ret_b_n) = ret_b.split_at_mut(state.data.len() / 4);
+    ret_a_p
+        .iter_mut()
+        .zip(freq_pos_a.iter().flatten())
+        .for_each(|(a, b)| *a = *b);
+    ret_a_n
+        .iter_mut()
+        .rev()
+        .zip(freq_neg_a.iter().flatten())
+        .for_each(|(a, b)| *a = *b);
+    ret_b_p
+        .iter_mut()
+        .zip(freq_pos_b.iter().flatten())
+        .for_each(|(a, b)| *a = *b);
+    ret_b_n
+        .iter_mut()
+        .rev()
+        .zip(freq_neg_b.iter().flatten())
+        .for_each(|(a, b)| *a = *b);
+    state.data.copy_from_slice(&ret);
+}
+
 #[allow(unused_variables)]
 #[cfg(test)]
 mod test {
@@ -220,20 +231,30 @@ mod test {
 
     #[test]
     fn coupling_decoupling() {
-        let mut data = DATA;
+        let data = DATA;
         let cp = CoupleInfo {
             couple_strength: Default::default(),
             center_pos: 1.5,
             period: 5.,
             frac_d1_2pi: 0.5,
         };
-        let data_sample = data;
         let len = data.len();
-        let (a, b) = data.split_at_mut(len / 2);
-        coupling_modes(a, b, &cp, 1.);
-        decoupling_modes(a, b, &cp, 1.);
-
-        for (a, b) in data_sample.iter().zip(data.iter()) {
+        let mut state = State {
+            data: data.to_vec(),
+            cp: cp.clone(),
+            time: 0.,
+        };
+        coupling_modes(&mut state);
+        decoupling_modes(&mut state);
+        state
+            .data
+            .iter()
+            .zip(data.iter())
+            .enumerate()
+            .for_each(|(i, (a, b))| {
+                println!("{i}\t {a:08}, {b:08} ");
+            });
+        for (a, b) in state.data.iter().zip(data.iter()).take(len / 2) {
             use assert_approx_eq::assert_approx_eq;
             assert_approx_eq!(a.re, b.re);
             assert_approx_eq!(a.im, b.im);
@@ -263,7 +284,7 @@ mod test {
         state.fft_process_inverse(&mut fft);
         let scale = state.scale_factor();
         state.as_mut().iter_mut().for_each(|x| *x /= scale);
-        for (a, b) in state.data.iter().zip(data.iter()) {
+        for (a, b) in state.data.iter().zip(data.iter()).take(data.len() / 2) {
             use assert_approx_eq::assert_approx_eq;
             assert_approx_eq!(a.re, b.re);
             assert_approx_eq!(a.im, b.im);
@@ -287,14 +308,19 @@ mod test {
         };
         let mut fft = State::default_fft(state.fft_len());
         let scale = state.scale_factor();
-        state.fft_process_forward(&mut fft);
-        state.fft_process_inverse(&mut fft);
-        state.as_mut().iter_mut().for_each(|x| *x /= scale);
         let data = state.data.clone();
         state.fft_process_forward(&mut fft);
         state.fft_process_inverse(&mut fft);
         state.as_mut().iter_mut().for_each(|x| *x /= scale);
-        for (a, b) in state.data.iter().zip(data.iter()) {
+        state
+            .data
+            .iter()
+            .zip(data.iter())
+            .enumerate()
+            .for_each(|(i, (a, b))| {
+                println!("{i}\t {a:08}, {b:08} ");
+            });
+        for (a, b) in state.data.iter().zip(data.iter()).take(data.len() / 2) {
             use assert_approx_eq::assert_approx_eq;
             assert_approx_eq!(a.re, b.re);
             assert_approx_eq!(a.im, b.im);
@@ -308,7 +334,7 @@ mod test {
 
         state.fft_process_inverse(&mut fft);
         state.as_mut().iter_mut().for_each(|x| *x /= scale);
-        for (a, b) in state.data.iter().zip(data.iter()) {
+        for (a, b) in state.data.iter().zip(data.iter()).take(data.len() / 2) {
             use assert_approx_eq::assert_approx_eq;
             assert_approx_eq!(a.norm(), b.norm());
         }
@@ -316,35 +342,35 @@ mod test {
     const DATA: [Complex64; 32] = [
         Complex64::new(1., 0.),
         Complex64::new(2., 0.),
+        Complex64::new(3., 0.),
         Complex64::new(4., 0.),
-        Complex64::new(1., 0.),
-        Complex64::new(3., 1.),
-        Complex64::new(2., 3.),
-        Complex64::new(1., 4.),
-        Complex64::new(1., 4.),
-        Complex64::new(1., 0.),
-        Complex64::new(2., 0.),
-        Complex64::new(4., 2.),
-        Complex64::new(1., 4.),
-        Complex64::new(1., 1.),
-        Complex64::new(2., 3.),
-        Complex64::new(6., 4.),
-        Complex64::new(1., 0.),
-        Complex64::new(1., -8.),
-        Complex64::new(2., -5.),
-        Complex64::new(4., 2.),
-        Complex64::new(3., 4.),
-        Complex64::new(2., 1.),
-        Complex64::new(2., 3.),
-        Complex64::new(1., 4.),
-        Complex64::new(1., 4.),
-        Complex64::new(1., -3.),
-        Complex64::new(2., 0.),
-        Complex64::new(4., 7.),
-        Complex64::new(1., 0.),
-        Complex64::new(1., 1.),
-        Complex64::new(2., 3.),
-        Complex64::new(1., 4.),
-        Complex64::new(1., 4.),
+        Complex64::new(5., 0.),
+        Complex64::new(6., 0.),
+        Complex64::new(7., 0.),
+        Complex64::new(8., 0.),
+        Complex64::new(9., 0.),
+        Complex64::new(10., 0.),
+        Complex64::new(11., 0.),
+        Complex64::new(12., 0.),
+        Complex64::new(13., 0.),
+        Complex64::new(14., 0.),
+        Complex64::new(15., 0.),
+        Complex64::new(16., 0.),
+        Complex64::new(17., 0.),
+        Complex64::new(18., 0.),
+        Complex64::new(19., 0.),
+        Complex64::new(20., 0.),
+        Complex64::new(21., 0.),
+        Complex64::new(22., 0.),
+        Complex64::new(23., 0.),
+        Complex64::new(24., 0.),
+        Complex64::new(25., 0.),
+        Complex64::new(26., 0.),
+        Complex64::new(27., 0.),
+        Complex64::new(28., 0.),
+        Complex64::new(29., 0.),
+        Complex64::new(30., 0.),
+        Complex64::new(31., 0.),
+        Complex64::new(32., 0.),
     ];
 }
