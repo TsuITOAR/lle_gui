@@ -55,7 +55,7 @@ fn apply_walk_off(
     let (freq_iter_mut_pos, freq_iter_mut_neg) = state.coupling_iter_mut();
     freq_iter_mut_pos.for_each(|x| {
         use super::state::ModeMut;
-        let m = x.m() as f64;
+        let m = -x.m() as f64;
         match x {
             ModeMut::Single { amp, .. } => {
                 if let Some(amp) = amp {
@@ -75,7 +75,7 @@ fn apply_walk_off(
 
     freq_iter_mut_neg.for_each(|x| {
         use super::state::ModeMut;
-        let m = x.m() as f64;
+        let m = -x.m() as f64;
         match x {
             ModeMut::Single { amp, .. } => {
                 if let Some(amp) = amp {
@@ -83,11 +83,12 @@ fn apply_walk_off(
                 }
             }
             ModeMut::Pair { amp1, amp2, .. } => {
+                // amp1 is from ring 2
                 if let Some(amp1) = amp1 {
-                    *amp1 *= (-Complex64::i() * m / 2. * d1 * step_dist).exp()
+                    *amp1 *= (-Complex64::i() * -m / 2. * d1 * step_dist).exp()
                 }
                 if let Some(amp2) = amp2 {
-                    *amp2 *= (-Complex64::i() * -m / 2. * d1 * step_dist).exp()
+                    *amp2 *= (-Complex64::i() * m / 2. * d1 * step_dist).exp()
                 }
             }
         };
@@ -232,7 +233,7 @@ mod test {
         let cp = CoupleInfo {
             couple_strength: Default::default(),
             center_pos: 1.5,
-            period: 2.1,
+            period: 10.1,
             frac_d1_2pi: 0.5,
         };
         let mut state = State {
@@ -250,7 +251,14 @@ mod test {
         apply_walk_off(&mut state, step_dist, &mut fft);
 
         coupling_modes(&mut state);
-
+        state
+            .data
+            .iter()
+            .zip(back.data.iter())
+            .enumerate()
+            .for_each(|(i, (a, b))| {
+                println!("{i}\t {a:08}, {b:08} ");
+            });
         for (i, (a, b)) in back.data.iter().zip(state.data.iter()).enumerate() {
             assert!((a - b).norm_sqr() < 1e-5, "i: {}, a: {}, b: {}", i, a, b);
         }

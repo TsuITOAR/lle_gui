@@ -129,11 +129,14 @@ pub enum ModeMut<'a> {
 }
 
 impl<'a> ModeMut<'a> {
-    pub(crate) fn m(&self) -> i32 {
+    pub(crate) fn meta(&self) -> ModeMeta {
         match self {
-            ModeMut::Single { meta, .. } => meta.m,
-            ModeMut::Pair { meta, .. } => meta.m,
+            ModeMut::Single { meta, .. } => *meta,
+            ModeMut::Pair { meta, .. } => *meta,
         }
+    }
+    pub(crate) fn m(&self) -> i32 {
+        self.meta().m
     }
 }
 
@@ -505,33 +508,46 @@ impl<'a> Iterator for MySliceIterMutRev<'a> {
 
 #[cfg(test)]
 mod test {
+    use core::f64;
+
     use crate::controller::cprt2::CoupleStrength;
 
     use super::*;
     #[test]
     fn test_fraction_at() {
         let c = CoupleInfo {
-            couple_strength: CoupleStrength::default(),
+            couple_strength: CoupleStrength {
+                couple_strength: 1.,
+                decay: f64::INFINITY,
+            },
             center_pos: 0.,
-            period: 1.0,
+            period: 5.0,
             frac_d1_2pi: 100.,
         };
         use assert_approx_eq::assert_approx_eq;
         use lle::num_complex::ComplexFloat;
+        let s = (Complex64::i(), Complex64::new(1., 0.));
         for i in 0..100 {
-            let ((a1, b1), (a2, b2)) = c.fraction_at(i, 1.);
-            assert_approx_eq!(a1, b2);
-            assert_approx_eq!(a2, -b1);
-            let ((a3, b3), (a4, b4)) = c.fraction_at(-i, 1.);
-            assert_approx_eq!(a3, b4);
-            assert_approx_eq!(a4, -b3);
+            let ((a1, b1), (a2, b2)) = c.fraction_at(i, 1, 1.1);
+            assert_approx_eq!(a1, b2.conj());
+            assert_approx_eq!(a2, -b1.conj());
+            let ((a3, b3), (a4, b4)) = c.fraction_at(-i, -1, 1.1);
+            assert_approx_eq!(a3, b4.conj());
+            assert_approx_eq!(a4, -b3.conj());
             assert_approx_eq!(a1, b3);
             assert_approx_eq!(b1, a3);
             assert_approx_eq!(a2, -b4);
             assert_approx_eq!(b2, -a4);
             assert_approx_eq!(a1.norm_sqr() + a2.norm_sqr(), 1.);
             assert_approx_eq!(a1 * b1.conj() + a2 * b2.conj(), 0.);
-            assert_approx_eq!(b2.norm_sqr() + b2.norm_sqr(), 1.);
+            assert_approx_eq!(b2.norm_sqr() + b4.norm_sqr(), 1.);
+            let b = (s.0 * a1 + s.1 * b1, s.0 * a2 + s.1 * b2);
+            let c = (
+                b.0 * a1.conj() + b.1 * a2.conj(),
+                b.0 * b1.conj() + b.1 * b2.conj(),
+            );
+            assert_approx_eq!(c.0, s.0);
+            assert_approx_eq!(c.1, s.1);
         }
     }
     #[test]

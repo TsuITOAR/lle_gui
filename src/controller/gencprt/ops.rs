@@ -83,7 +83,7 @@ pub(crate) fn coupling_modes(state: &mut State) {
                 [Some(amp), None]
             }
             Mode::Pair { amp1, amp2, meta } => {
-                let (frac1, frac2) = state.cp.fraction_at((meta.freq + meta.m) / 2, time);
+                let (frac1, frac2) = state.cp.fraction_at((meta.freq + meta.m) / 2, meta.m, time);
 
                 let a = amp1 * frac1.0 + amp2 * frac1.1;
                 let b = amp1 * frac2.0 + amp2 * frac2.1;
@@ -104,7 +104,7 @@ pub(crate) fn coupling_modes(state: &mut State) {
                 [Some(amp), None]
             }
             Mode::Pair { amp1, amp2, meta } => {
-                let (frac1, frac2) = state.cp.fraction_at((meta.freq + meta.m) / 2, time);
+                let (frac1, frac2) = state.cp.fraction_at((meta.freq + meta.m) / 2, meta.m, time);
                 let f1 = amp1;
                 let f2 = amp2;
                 let a = f1 * frac1.0 + f2 * frac1.1;
@@ -147,10 +147,10 @@ pub(crate) fn decoupling_modes(state: &mut State) {
                 (Some(amp), None)
             }
             Mode::Pair { amp1, amp2, meta } => {
-                let (frac1, frac2) = state.cp.fraction_at((meta.freq + meta.m) / 2, time);
+                let (frac1, frac2) = state.cp.fraction_at((meta.freq + meta.m) / 2, meta.m, time);
 
-                let a = amp1 * frac1.0 + amp2 * frac2.0;
-                let b = amp1 * frac1.1 + amp2 * frac2.1;
+                let a = amp1 * frac1.0.conj() + amp2 * frac2.0.conj();
+                let b = amp1 * frac1.1.conj() + amp2 * frac2.1.conj();
                 // let a = amp1;
                 // let b = amp2;
                 (Some(a), Some(b))
@@ -167,7 +167,7 @@ pub(crate) fn decoupling_modes(state: &mut State) {
             }
             // amp2 freq lower than amp1
             Mode::Pair { amp1, amp2, meta } => {
-                let (frac1, frac2) = state.cp.fraction_at((meta.freq + meta.m) / 2, time);
+                let (frac1, frac2) = state.cp.fraction_at((meta.freq + meta.m) / 2, meta.m, time);
                 let f1 = amp2;
                 let f2 = amp1;
                 let a = f1 * frac1.0.conj() + f2 * frac2.0.conj();
@@ -268,17 +268,17 @@ mod test {
             couple_strength: Default::default(),
             center_pos: 1.5,
             period: 20.,
-            frac_d1_2pi: 0.5,
+            frac_d1_2pi: 2.5,
         };
         use lle::FftSource;
         let mut state = State {
             data: data.to_vec(),
             cp: cp.clone(),
-            time: 0.,
+            time: 1.1,
         };
         let mut fft = State::default_fft(state.fft_len());
-        state.fft_process_forward(&mut fft);
-        state.fft_process_inverse(&mut fft);
+        // state.fft_process_forward(&mut fft);
+        // state.fft_process_inverse(&mut fft);
         let data = state.data.clone();
         state.fft_process_forward(&mut fft);
         state.fft_process_inverse(&mut fft);
@@ -301,13 +301,16 @@ mod test {
             cp: CoupleInfo {
                 couple_strength: Default::default(),
                 center_pos: 1.5,
-                period: 5.1,
-                frac_d1_2pi: 0.5,
+                period: 7.1,
+                frac_d1_2pi: 2.1,
             },
             time: 1.,
         };
         let mut fft = State::default_fft(state.fft_len());
         let scale = state.scale_factor();
+        state.fft_process_forward(&mut fft);
+        state.fft_process_inverse(&mut fft);
+        state.as_mut().iter_mut().for_each(|x| *x /= scale);
         let data = state.data.clone();
         state.fft_process_forward(&mut fft);
         state.fft_process_inverse(&mut fft);

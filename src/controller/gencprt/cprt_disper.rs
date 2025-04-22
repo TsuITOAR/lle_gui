@@ -33,22 +33,22 @@ impl CprtDispersionFrac {
         let diff = (freq + self.period / 2.).rem_euclid(self.period);
         (0. ..1.).contains(&diff)
     }
-
+    /// freq the pair number
     pub fn fraction_at(
         &self,
-        mode: i32,
-        t: f64,
+        freq: i32,
+        m: i32,
+        time: f64,
     ) -> ((Complex64, Complex64), (Complex64, Complex64)) {
-        let m = mode as f64;
+        let freq = freq as f64;
         let d1 = self.frac_d1_2pi * TAU;
-        let phi_m = TAU * (m - self.center_pos) / self.period;
-        let alpha = (self.couple_strength.get_coupling(m).cos() * phi_m.cos()).acos();
+        let phi_m = TAU * (freq - self.center_pos) / self.period;
+        let alpha = (self.couple_strength.get_coupling(freq).cos() * phi_m.cos()).acos();
         let cp_angle = f64::atan2(
             (alpha + phi_m).sin().abs().sqrt(),
             (alpha - phi_m).sin().abs().sqrt(),
         );
-        let m = self.m_original(mode * 2);
-        let spatial_move_term = spatial_basis_move(m, d1, t);
+        let spatial_move_term = spatial_basis_move(m, d1, time);
         (
             (
                 cp_angle.cos() * spatial_move_term,
@@ -62,19 +62,22 @@ impl CprtDispersionFrac {
     }
 }
 
-pub(crate) fn spatial_basis_move(m: i32, d1: f64, t: f64) -> Complex64 {
-    (Complex64::I * m as f64 / 2. * d1 * t).exp()
+pub(crate) fn spatial_basis_move(m: i32, d1: f64, time: f64) -> Complex64 {
+    (Complex64::I * m as f64 / 2. * d1 * time).exp()
+    // Complex64::i()
 }
 
 impl LinearOp<f64> for CprtDispersionFrac {
     fn get_value(&self, _step: Step, freq: Freq) -> Complex64 {
         let m = self.m_original(freq);
-        let branch = (freq - m).rem_euclid(2);
+        let branch = (freq + m).rem_euclid(2);
+        let f_eff = (freq + m).div_euclid(2);
         debug_assert!(branch == 0 || branch == 1);
-        let f = |f: Freq, m: Freq| {
-            let f = (f - m).div_euclid(2) as f64;
-            let cos1 = (((f - self.center_pos) / self.period) * TAU).cos().abs();
-            let couple_strength = self.couple_strength.get_coupling(f);
+        let f = |f: Freq| {
+            let cos1 = (((f as f64 - self.center_pos) / self.period) * TAU)
+                .cos()
+                .abs();
+            let couple_strength = self.couple_strength.get_coupling(f as f64);
             //dbg!(f, couple_strength);
             let cos2 = couple_strength.cos();
 
@@ -82,9 +85,9 @@ impl LinearOp<f64> for CprtDispersionFrac {
         };
 
         if branch == 1 {
-            -Complex64::i() * (f(freq, m) - f(1, 0))
+            -Complex64::i() * (f(f_eff) - f(0))
         } else {
-            -Complex64::i() * (-f(freq, m) - f(1, 0))
+            -Complex64::i() * (-f(f_eff) - f(0))
         }
     }
     fn skip(&self) -> bool {
