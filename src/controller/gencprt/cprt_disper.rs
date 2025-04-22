@@ -22,25 +22,42 @@ impl CprtDispersionFrac {
         self.period
     }
 
+    // freq counting for two modes, not pairs
     pub(crate) fn m_original(&self, freq: Freq) -> i32 {
         let f = freq as f64 - self.center_pos * 2. + self.period / 2.;
         f.div_euclid(self.m_period()) as i32
     }
 
-    pub fn fraction_at(&self, mode: i32) -> ((f64, f64), (f64, f64)) {
+    pub fn fraction_at(
+        &self,
+        mode: i32,
+        t: f64,
+    ) -> ((Complex64, Complex64), (Complex64, Complex64)) {
         let m = mode as f64;
-
+        let d1 = self.frac_d1_2pi * TAU;
         let phi_m = TAU * (m - self.center_pos) / self.period;
         let alpha = (self.couple_strength.get_coupling(m).cos() * phi_m.cos()).acos();
         let cp_angle = f64::atan2(
             (alpha + phi_m).sin().abs().sqrt(),
             (alpha - phi_m).sin().abs().sqrt(),
         );
+        let m = self.m_original(mode * 2);
+        let spatial_move_term = spatial_basis_move(m, d1, t);
         (
-            (cp_angle.cos(), cp_angle.sin()),
-            (-cp_angle.sin(), cp_angle.cos()),
+            (
+                cp_angle.cos() * spatial_move_term,
+                cp_angle.sin() * spatial_move_term.conj(),
+            ),
+            (
+                -cp_angle.sin() * spatial_move_term,
+                cp_angle.cos() * spatial_move_term.conj(),
+            ),
         )
     }
+}
+
+pub(crate) fn spatial_basis_move(m: i32, d1: f64, t: f64) -> Complex64 {
+    (Complex64::I * m as f64 / 2. * d1 * t).exp()
 }
 
 impl LinearOp<f64> for CprtDispersionFrac {

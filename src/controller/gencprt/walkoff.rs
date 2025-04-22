@@ -1,3 +1,5 @@
+use std::f64::consts::TAU;
+
 use lle::{num_complex::Complex64, ConstOp, DiffOrder, Evolver, StaticLinearOp, Step};
 
 use crate::{
@@ -33,30 +35,24 @@ impl<
     }
     fn evolve(&mut self) {
         let step_dist = self.core.step_dist;
-        let data = self.core.state_mut();
-        let len = data.len();
-        let fft = self
-            .fft
-            .get_or_insert_with(|| lle::BufferedFft::new(len / 2));
-        let (f_a, f_b) = data.split_at_mut(len / 2);
-        fft.0.fft_process(f_a);
-        fft.0.fft_process(f_b);
-        apply_walk_off(f_a, f_b, &self.cp, step_dist);
-        fft.1.fft_process(f_a);
-        fft.1.fft_process(f_b);
-        let scale = data.len() as f64 / 2.;
-        data.iter_mut().for_each(|x| *x /= scale);
+        apply_walk_off(self.core.state_mut(), step_dist, &mut self.fft, &self.cp);
         self.core.evolve();
     }
 }
 
 fn apply_walk_off(
-    f_a: &mut [Complex64],
-    f_b: &mut [Complex64],
-    cp: &super::state::CoupleInfo,
+    state: &mut [Complex64],
     step_dist: f64,
+    fft: &mut Option<(lle::BufferedFft<f64>, lle::BufferedFft<f64>)>,
+    cp: &super::state::CoupleInfo,
 ) {
-    let d1 = cp.frac_d1_2pi * 2. * std::f64::consts::PI;
+    let len = state.len();
+    let fft = fft.get_or_insert_with(|| lle::BufferedFft::new(len / 2));
+
+    let (f_a, f_b) = state.split_at_mut(len / 2);
+    fft.0.fft_process(f_a);
+    fft.0.fft_process(f_b);
+    let d1 = cp.frac_d1_2pi * TAU;
     //let step_dist = 1. / d1;
     let len = f_a.len();
     let (f_a_p, f_a_n) = f_a.split_at_mut(len / 2);
@@ -65,11 +61,12 @@ fn apply_walk_off(
     let mut f_a_n = f_a_n.iter_mut().rev();
     let mut f_b_p = f_b_p.iter_mut();
     let mut f_b_n = f_b_n.iter_mut().rev();
-    for i in (0..(len / 2)).map(|x| lle::freq_at(len, x)) {
-        let m = -cp.m_original(i * 2) as f64;
-        if singularity_point(i, cp.center_pos, cp.period) {
-            if let Some(f) = f_b_p.next() {
-                *f *= (-Complex64::i() * m / 2. * d1 * step_dist).exp();
+    for freq in (0..(len / 2)).map(|x| lle::freq_at(len, x)) {
+        debug_assert!(freq >= 0);
+        let m = cp.m_original(freq * 2) as f64;
+        if singularity_point(freq * 2, cp.center_pos, cp.period) {
+            if let Some(f) = f_a_p.next() {
+                *f *= (-Complex64::i() * -m / 2. * d1 * step_dist).exp();
             }
         } else {
             if let Some(f) = f_a_p.next() {
@@ -80,11 +77,12 @@ fn apply_walk_off(
             }
         }
     }
-    for i in ((len / 2)..len).rev().map(|x| lle::freq_at(len, x)) {
-        let m = -cp.m_original(i * 2) as f64;
-        if singularity_point(i, cp.center_pos, cp.period) {
-            if let Some(f) = f_b_n.next() {
-                *f *= (-Complex64::i() * m / 2. * d1 * step_dist).exp();
+    for freq in ((len / 2)..len).rev().map(|x| lle::freq_at(len, x)) {
+        debug_assert!(freq < 0);
+        let m = cp.m_original(freq * 2) as f64;
+        if singularity_point(freq * 2, cp.center_pos, cp.period) {
+            if let Some(f) = f_a_n.next() {
+                *f *= (-Complex64::i() * -m / 2. * d1 * step_dist).exp();
             }
         } else {
             if let Some(f) = f_a_n.next() {
@@ -95,6 +93,10 @@ fn apply_walk_off(
             }
         }
     }
+    fft.1.fft_process(f_a);
+    fft.1.fft_process(f_b);
+    let scale = state.len() as f64 / 2.;
+    state.iter_mut().for_each(|x| *x /= scale);
 }
 
 impl<NL: Default + lle::NonLinearOp<f64>>
@@ -113,7 +115,12 @@ impl<NL: Default + lle::NonLinearOp<f64>>
     ) -> WalkOff<super::LleSolver<NL, lle::NoneOp<f64>, PumpFreq>> {
         let step_dist = self.step_dist.get_value();
         let pump = self.pump.get_pump();
-        let state = super::state::State::new(dim, self.disper.get_coup_info());
+        let state = super::state::State::new(
+            dim,
+            self.disper.get_coup_info(),
+            (self.steps.get_value() as f64 * step_dist)
+                .rem_euclid(self.disper.frac_d1_2pi.get_value() * TAU),
+        );
         //r.add_random(init.as_mut_slice());
         let core = super::LleSolver::builder()
             .state(state)
@@ -213,4 +220,80 @@ where
     fn cur_step(&self) -> u32 {
         Simulator::cur_step(&self.core)
     }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use crate::controller::gencprt::{
+        ops::coupling_modes,
+        state::{CoupleInfo, State},
+    };
+    #[test]
+    fn test_walkoff() {
+        let cp = CoupleInfo {
+            couple_strength: Default::default(),
+            center_pos: 1.5,
+            period: 2.1,
+            frac_d1_2pi: 0.5,
+        };
+        let mut state = State {
+            data: DATA.to_vec(),
+            cp: cp.clone(),
+            time: 1.,
+        };
+
+        let step_dist = 1e-2;
+
+        let len = state.data.len();
+
+        let mut back = state.data.clone();
+        let (back_p, back_n) = back.split_at_mut(len / 2);
+        coupling_modes(back_p, back_n, &cp, state.time);
+
+        let mut fft = None;
+        apply_walk_off(&mut state.data, step_dist, &mut fft, &state.cp);
+
+        let (data_p, data_n) = state.data.split_at_mut(len / 2);
+        coupling_modes(data_p, data_n, &cp, state.time + step_dist);
+
+        for (i, (a, b)) in back.iter().zip(state.data.iter()).enumerate() {
+            assert!((a - b).norm_sqr() < 1e-5, "i: {}, a: {}, b: {}", i, a, b);
+        }
+    }
+
+    const DATA: [Complex64; 32] = [
+        Complex64::new(1., 0.),
+        Complex64::new(2., 0.),
+        Complex64::new(4., 0.),
+        Complex64::new(1., 0.),
+        Complex64::new(3., 1.),
+        Complex64::new(2., 3.),
+        Complex64::new(1., 4.),
+        Complex64::new(1., 4.),
+        Complex64::new(1., 0.),
+        Complex64::new(2., 0.),
+        Complex64::new(4., 2.),
+        Complex64::new(1., 4.),
+        Complex64::new(1., 1.),
+        Complex64::new(2., 3.),
+        Complex64::new(6., 4.),
+        Complex64::new(1., 0.),
+        Complex64::new(1., -8.),
+        Complex64::new(2., -5.),
+        Complex64::new(4., 2.),
+        Complex64::new(3., 4.),
+        Complex64::new(2., 1.),
+        Complex64::new(2., 3.),
+        Complex64::new(1., 4.),
+        Complex64::new(1., 4.),
+        Complex64::new(1., -3.),
+        Complex64::new(2., 0.),
+        Complex64::new(4., 7.),
+        Complex64::new(1., 0.),
+        Complex64::new(1., 1.),
+        Complex64::new(2., 3.),
+        Complex64::new(1., 4.),
+        Complex64::new(1., 4.),
+    ];
 }

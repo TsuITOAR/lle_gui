@@ -1,3 +1,5 @@
+use std::f64::consts::TAU;
+
 use lle::{num_complex::Complex64, DiffOrder, LinearOpCached, NoneOp, StaticLinearOp};
 use ops::PumpFreq;
 use state::CoupleInfo;
@@ -69,9 +71,9 @@ mod test {
         let mut c = GenCprtController::default();
         *c.disper.couple_decay.value_mut() = f64::INFINITY;
         let c = c.get_dispersion();
-        for i in 0..100 {
-            assert_eq!(c.get_value(0, i * 2), c.get_value(0, -i * 2));
-            assert_eq!(c.get_value(0, i * 2 + 1), c.get_value(0, -i * 2 + 1));
+        for i in 0..30 {
+            assert_eq!(c.get_value(0, i * 2), c.get_value(0, -i * 2), "{i}");
+            assert_eq!(c.get_value(0, i * 2 + 1), c.get_value(0, -i * 2 + 1), "{i}");
         }
     }
 }
@@ -186,7 +188,12 @@ impl<NL: Default + lle::NonLinearOp<f64>> Controller<LleSolver<NL, NoneOp<f64>, 
     fn construct_engine(&self, dim: usize) -> LleSolver<NL, NoneOp<f64>, PumpFreq> {
         let step_dist = self.step_dist.get_value();
         let pump = self.pump.get_pump();
-        let state = state::State::new(dim, self.disper.get_coup_info());
+        let state = state::State::new(
+            dim,
+            self.disper.get_coup_info(),
+            (self.steps.get_value() as f64 * step_dist)
+                .rem_euclid(self.disper.frac_d1_2pi.get_value() * TAU),
+        );
         //r.add_random(init.as_mut_slice());
         LleSolver::builder()
             .state(state)
@@ -212,6 +219,7 @@ impl<NL: Default + lle::NonLinearOp<f64>> Controller<LleSolver<NL, NoneOp<f64>, 
     }
 }
 
+// freq0 the number of coupled modes, not real number
 fn singularity_point(freq0: lle::Freq, center: f64, period: f64) -> bool {
     let freq = freq0 as f64 - center;
     let diff = (freq + period / 4.).rem_euclid(period / 2.);

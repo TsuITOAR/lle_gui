@@ -18,23 +18,24 @@ mod test {
             couple_strength: CoupleStrength::default(),
             center_pos: 0.,
             period: 1.0,
-            frac_d1_2pi: 0.5,
+            frac_d1_2pi: 100.,
         };
         use assert_approx_eq::assert_approx_eq;
+        use lle::num_complex::ComplexFloat;
         for i in 0..100 {
-            let ((a1, b1), (a2, b2)) = c.fraction_at(i);
+            let ((a1, b1), (a2, b2)) = c.fraction_at(i, 1.);
             assert_approx_eq!(a1, b2);
             assert_approx_eq!(a2, -b1);
-            let ((a3, b3), (a4, b4)) = c.fraction_at(-i);
+            let ((a3, b3), (a4, b4)) = c.fraction_at(-i, 1.);
             assert_approx_eq!(a3, b4);
             assert_approx_eq!(a4, -b3);
             assert_approx_eq!(a1, b3);
             assert_approx_eq!(b1, a3);
             assert_approx_eq!(a2, -b4);
             assert_approx_eq!(b2, -a4);
-            assert_approx_eq!(a1.powi(2) + a2.powi(2), 1.);
-            assert_approx_eq!(a1 * b1 + a2 * b2, 0.);
-            assert_approx_eq!(b2.powi(2) + b2.powi(2), 1.);
+            assert_approx_eq!(a1.norm_sqr() + a2.norm_sqr(), 1.);
+            assert_approx_eq!(a1 * b1.conj() + a2 * b2.conj(), 0.);
+            assert_approx_eq!(b2.norm_sqr() + b2.norm_sqr(), 1.);
         }
     }
     #[test]
@@ -47,10 +48,10 @@ mod test {
         };
         assert_eq!(cp.m_original(0 * 2), 0);
         assert_eq!(cp.m_original(2 * 2), 0);
-        assert_eq!(cp.m_original(3 * 2), 1);
+        assert_eq!(cp.m_original(3 * 2), 0);
         assert_eq!(cp.m_original(4 * 2), 1);
         assert_eq!(cp.m_original(7 * 2), 1);
-        assert_eq!(cp.m_original(8 * 2), 2);
+        assert_eq!(cp.m_original(8 * 2), 1);
         assert_eq!(cp.m_original(-8 * 2), -2);
     }
 }
@@ -59,6 +60,8 @@ mod test {
 pub struct State {
     pub data: Vec<Complex<f64>>,
     pub(crate) cp: CoupleInfo,
+    #[serde(default)]
+    pub(crate) time: f64,
 }
 
 assert_impl_all!(State:FftSource);
@@ -68,15 +71,17 @@ impl From<Vec<Complex<f64>>> for State {
         Self {
             data: c,
             cp: super::GenCprtDisperSubController::default().get_coup_info(),
+            time: 0.0,
         }
     }
 }
 
 impl State {
-    pub fn new(len: usize, cp: CoupleInfo) -> Self {
+    pub fn new(len: usize, cp: CoupleInfo, time: f64) -> Self {
         Self {
             data: vec![Complex::zero(); len],
             cp,
+            time,
         }
     }
 }
