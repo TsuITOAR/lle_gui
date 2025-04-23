@@ -100,7 +100,7 @@ pub(crate) fn coupling_modes(state: &mut State) {
         .flat_map(|x| match x {
             Mode::Single { amp, meta } => {
                 let basis_move = spatial_basis_move(meta.m, state.cp.frac_d1_2pi * TAU, time);
-                let amp = amp * basis_move.conj();
+                let amp = amp * basis_move;
                 [Some(amp), None]
             }
             Mode::Pair { amp1, amp2, meta } => {
@@ -235,14 +235,14 @@ mod test {
         let cp = CoupleInfo {
             couple_strength: Default::default(),
             center_pos: 1.5,
-            period: 5.,
-            frac_d1_2pi: 0.5,
+            period: 7.,
+            frac_d1_2pi: 2.5,
         };
         let len = data.len();
         let mut state = State {
             data: data.to_vec(),
             cp: cp.clone(),
-            time: 0.,
+            time: 1.0,
         };
         coupling_modes(&mut state);
         decoupling_modes(&mut state);
@@ -267,7 +267,7 @@ mod test {
         let cp = CoupleInfo {
             couple_strength: Default::default(),
             center_pos: 1.5,
-            period: 20.,
+            period: 7.,
             frac_d1_2pi: 2.5,
         };
         use lle::FftSource;
@@ -277,13 +277,21 @@ mod test {
             time: 1.1,
         };
         let mut fft = State::default_fft(state.fft_len());
-        // state.fft_process_forward(&mut fft);
-        // state.fft_process_inverse(&mut fft);
+        state.fft_process_forward(&mut fft);
+        state.fft_process_inverse(&mut fft);
         let data = state.data.clone();
         state.fft_process_forward(&mut fft);
         state.fft_process_inverse(&mut fft);
         let scale = state.scale_factor();
         state.as_mut().iter_mut().for_each(|x| *x /= scale);
+        state
+            .data
+            .iter()
+            .zip(data.iter())
+            .enumerate()
+            .for_each(|(i, (a, b))| {
+                println!("{i}\t {a:08}, {b:08} ");
+            });
         for (a, b) in state.data.iter().zip(data.iter()).take(data.len() / 2) {
             use assert_approx_eq::assert_approx_eq;
             assert_approx_eq!(a.re, b.re);
@@ -301,10 +309,10 @@ mod test {
             cp: CoupleInfo {
                 couple_strength: Default::default(),
                 center_pos: 1.5,
-                period: 7.1,
-                frac_d1_2pi: 2.1,
+                period: 5.0,
+                frac_d1_2pi: 2.0,
             },
-            time: 1.,
+            time: 0.,
         };
         let mut fft = State::default_fft(state.fft_len());
         let scale = state.scale_factor();
@@ -323,7 +331,7 @@ mod test {
             .for_each(|(i, (a, b))| {
                 println!("{i}\t {a:08}, {b:08} ");
             });
-        for (a, b) in state.data.iter().zip(data.iter()).take(data.len() / 2) {
+        for (a, b) in state.data.iter().zip(data.iter()) {
             use assert_approx_eq::assert_approx_eq;
             assert_approx_eq!(a.re, b.re);
             assert_approx_eq!(a.im, b.im);

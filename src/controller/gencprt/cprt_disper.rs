@@ -35,7 +35,7 @@ impl CprtDispersionFrac {
         m: i32,
         time: f64,
     ) -> ((Complex64, Complex64), (Complex64, Complex64)) {
-        /* let freq = freq as f64;
+        let freq = freq as f64;
         let d1 = self.frac_d1_2pi * TAU;
         let phi_m = TAU * (freq - self.center_pos) / self.period;
         let alpha = (self.couple_strength.get_coupling(freq).cos() * phi_m.cos()).acos();
@@ -53,8 +53,8 @@ impl CprtDispersionFrac {
                 -cp_angle.sin() * spatial_move_term,
                 cp_angle.cos() * spatial_move_term.conj(),
             ),
-        ) */
-        (((1.).into(), (0.).into()), ((0.).into(), (1.).into()))
+        )
+        // (((1.).into(), (0.).into()), ((0.).into(), (1.).into()))
     }
 }
 

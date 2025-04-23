@@ -115,6 +115,19 @@ pub enum Mode {
     },
 }
 
+#[allow(unused)]
+impl Mode {
+    pub(crate) fn meta(&self) -> ModeMeta {
+        match self {
+            Mode::Single { meta, .. } => *meta,
+            Mode::Pair { meta, .. } => *meta,
+        }
+    }
+    pub(crate) fn m(&self) -> i32 {
+        self.meta().m
+    }
+}
+
 #[derive(Debug)]
 pub enum ModeMut<'a> {
     Single {
@@ -423,6 +436,7 @@ impl Iterator for MySliceIter<'_> {
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.cur >= self.slice.len() {
+            self.cur += 1;
             return None;
         }
         let item = self.slice[self.cur];
@@ -448,6 +462,7 @@ impl Iterator for MySliceIterRev<'_> {
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.cur >= self.slice.len() {
+            self.cur += 1;
             return None;
         }
         let item = self.slice[self.slice.len() - 1 - self.cur];
@@ -473,6 +488,7 @@ impl<'a> Iterator for MySliceIterMut<'a> {
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.cur >= self.slice.len() {
+            self.cur += 1;
             return None;
         }
         let item = unsafe { &mut *(self.slice.as_mut_ptr().add(self.cur)) };
@@ -498,6 +514,7 @@ impl<'a> Iterator for MySliceIterMutRev<'a> {
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.cur >= self.slice.len() {
+            self.cur += 1;
             return None;
         }
         let item = unsafe { &mut *(self.slice.as_mut_ptr().add(self.slice.len() - 1 - self.cur)) };
@@ -566,4 +583,85 @@ mod test {
         assert_eq!(cp.m_original(8 * 2), 1);
         assert_eq!(cp.m_original(-8 * 2), -2);
     }
+    #[test]
+    fn test_state_iter() {
+        let data = DATA;
+        let state = State {
+            data: data.to_vec(),
+            cp: CoupleInfo {
+                couple_strength: Default::default(),
+                center_pos: 1.5,
+                period: 7.1,
+                frac_d1_2pi: 2.1,
+            },
+            time: 0.,
+        };
+        let de_freq_pos = state.decoupling_iter_positive();
+        let de_freq_neg = state.decoupling_iter_negative();
+        let freq_pos = state.coupling_iter_positive();
+        let freq_neg = state.coupling_iter_negative();
+
+        freq_pos
+            .zip(de_freq_pos)
+            .enumerate()
+            .for_each(|(i, (a, b))| {
+                assert_eq!(a.meta().m, b.meta().m);
+                assert_eq!(a.meta().freq, b.meta().freq);
+                match (a, b) {
+                    (Mode::Single { .. }, Mode::Single { .. }) => {}
+                    (Mode::Pair { .. }, Mode::Pair { .. }) => {}
+                    _ => {
+                        panic!("mismatch at {i}\n a: {a:#?}\n b: {b:#?}");
+                    }
+                }
+            });
+        freq_neg
+            .zip(de_freq_neg)
+            .enumerate()
+            .for_each(|(i, (a, b))| {
+                assert_eq!(a.meta().m, b.meta().m);
+                assert_eq!(a.meta().freq, b.meta().freq);
+                match (a, b) {
+                    (Mode::Single { .. }, Mode::Single { .. }) => {}
+                    (Mode::Pair { .. }, Mode::Pair { .. }) => {}
+                    _ => {
+                        panic!("mismatch at {i}\n a: {a:#?}\n b: {b:#?}");
+                    }
+                }
+            });
+    }
+    const DATA: [Complex64; 32] = [
+        Complex64::new(1., 0.),
+        Complex64::new(2., 0.),
+        Complex64::new(3., 0.),
+        Complex64::new(4., 0.),
+        Complex64::new(5., 0.),
+        Complex64::new(6., 0.),
+        Complex64::new(7., 0.),
+        Complex64::new(8., 0.),
+        Complex64::new(9., 0.),
+        Complex64::new(10., 0.),
+        Complex64::new(11., 0.),
+        Complex64::new(12., 0.),
+        Complex64::new(13., 0.),
+        Complex64::new(14., 0.),
+        Complex64::new(15., 0.),
+        Complex64::new(16., 0.),
+        Complex64::new(17., 0.),
+        Complex64::new(18., 0.),
+        Complex64::new(19., 0.),
+        Complex64::new(20., 0.),
+        Complex64::new(21., 0.),
+        Complex64::new(22., 0.),
+        Complex64::new(23., 0.),
+        Complex64::new(24., 0.),
+        Complex64::new(25., 0.),
+        Complex64::new(26., 0.),
+        Complex64::new(27., 0.),
+        Complex64::new(28., 0.),
+        Complex64::new(29., 0.),
+        Complex64::new(30., 0.),
+        Complex64::new(31., 0.),
+        Complex64::new(32., 0.),
+    ];
 }
