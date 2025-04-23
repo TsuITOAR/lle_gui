@@ -17,21 +17,16 @@ pub struct CprtDispersionFrac {
 }
 
 impl CprtDispersionFrac {
-    fn m_period(&self) -> f64 {
-        // /2 for half 2pi, *2 for double modes
-        self.period
-    }
-
     // freq counting for two modes, not pairs
     pub(crate) fn m_original(&self, freq: Freq) -> i32 {
-        let f = freq as f64 - self.center_pos * 2. + self.period / 2.;
-        f.div_euclid(self.m_period()) as i32
+        let f = freq as f64 + self.period / 2. - self.center_pos * 2.;
+        f.div_euclid(self.period) as i32
     }
     /// freq0 the real number
     pub fn singularity_point(&self, freq: lle::Freq) -> bool {
         let freq = freq as f64 - self.center_pos * 2.;
-        let diff = (freq + self.period / 2.).rem_euclid(self.period);
-        (0. ..1.).contains(&diff)
+        let diff = (freq + self.period / 2.).rem_euclid(self.period) as i32;
+        diff == 0
     }
     /// freq the pair number
     pub fn fraction_at(
@@ -40,7 +35,7 @@ impl CprtDispersionFrac {
         m: i32,
         time: f64,
     ) -> ((Complex64, Complex64), (Complex64, Complex64)) {
-        let freq = freq as f64;
+        /* let freq = freq as f64;
         let d1 = self.frac_d1_2pi * TAU;
         let phi_m = TAU * (freq - self.center_pos) / self.period;
         let alpha = (self.couple_strength.get_coupling(freq).cos() * phi_m.cos()).acos();
@@ -58,7 +53,8 @@ impl CprtDispersionFrac {
                 -cp_angle.sin() * spatial_move_term,
                 cp_angle.cos() * spatial_move_term.conj(),
             ),
-        )
+        ) */
+        (((1.).into(), (0.).into()), ((0.).into(), (1.).into()))
     }
 }
 
@@ -92,5 +88,31 @@ impl LinearOp<f64> for CprtDispersionFrac {
     }
     fn skip(&self) -> bool {
         false
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn test_singularity() {
+        let cp = super::CprtDispersionFrac {
+            center_pos: 1.0,
+            period: 11.0,
+            couple_strength: super::CoupleStrength::default(),
+            frac_d1_2pi: 1.0,
+        };
+        let mut last_m = None;
+        for f in -100..100 {
+            let m = cp.m_original(f);
+            if cp.singularity_point(f) {
+                println!("singularity at f = {}, m = {}, last_m = {:?}", f, m, last_m);
+            } else if cp.singularity_point(f - 1) {
+                println!(
+                    "first freq after singularity at f = {}, m = {}, last_m = {:?}",
+                    f, m, last_m
+                );
+            }
+            last_m = Some(m);
+        }
     }
 }
