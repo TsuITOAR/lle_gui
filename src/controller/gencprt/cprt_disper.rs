@@ -1,4 +1,4 @@
-use std::f64::consts::TAU;
+use std::f64::consts::{FRAC_PI_2, TAU};
 
 use lle::{num_complex::Complex64, Freq, LinearOp, StaticLinearOp, Step};
 
@@ -28,6 +28,52 @@ impl CprtDispersionFrac {
         let diff = (freq + self.period / 2.).rem_euclid(self.period) as i32;
         diff == 0
     }
+
+    pub fn branch_at_upper(&self, freq: Freq) -> bool {
+        let m = self.m_original(freq);
+        let branch = (freq - m).rem_euclid(2);
+        if self.singularity_point(freq) {
+            m > 0
+        } else {
+            branch == 1
+        }
+    }
+
+    /* pub(crate) fn dispersion_array(&self, len: usize) -> Vec<Complex64> {
+
+        use super::state::State;
+        let freq = (0..len as i32)
+            .map(|x| Complex64::from(x as f64))
+            .collect::<Vec<_>>();
+        let mut state = State {
+            data: freq.clone(),
+            cp: self.clone(),
+            time: 0.0,
+        };
+        use super::state::ModeMut;
+        let (freq_pos, freq_neg) = state.coupling_iter_mut();
+        freq_pos.for_each(|x| {
+            let m = x.m();
+            let f = |f: Freq| {
+                let cos1 = (((f as f64 - self.center_pos) / self.period) * TAU)
+                    .cos()
+                    .abs();
+                let couple_strength = self.couple_strength.get_coupling(f as f64);
+                //dbg!(f, couple_strength);
+                let cos2 = couple_strength.cos();
+
+                ((cos1 * cos2).acos()) * self.frac_d1_2pi
+            };
+            match x {
+                ModeMut::Single { amp, .. } => -Complex64::i() * (f(f) - f(0)),
+                ModeMut::Pair { amp1, amp2, .. } => {
+                    *amp1 = Complex64::from(1.0);
+                    *amp2 = Complex64::from(0.0);
+                }
+            }
+        });
+    } */
+
     /// freq the pair number
     pub fn fraction_at(
         &self,
@@ -39,10 +85,12 @@ impl CprtDispersionFrac {
         let d1 = self.frac_d1_2pi * TAU;
         let phi_m = TAU * (freq - self.center_pos) / self.period;
         let alpha = (self.couple_strength.get_coupling(freq).cos() * phi_m.cos()).acos();
+
         let cp_angle = f64::atan2(
             (alpha + phi_m).sin().abs().sqrt(),
             (alpha - phi_m).sin().abs().sqrt(),
-        );
+        ) + if m > 0 { -FRAC_PI_2 } else { 0. }; //todo find out why this works
+
         let spatial_move_term = spatial_basis_move(m, d1, time);
         (
             (
@@ -65,10 +113,11 @@ pub(crate) fn spatial_basis_move(m: i32, d1: f64, time: f64) -> Complex64 {
 
 impl LinearOp<f64> for CprtDispersionFrac {
     fn get_value(&self, _step: Step, freq: Freq) -> Complex64 {
+        //todo: test the freq brach selection is consistent with walk off freq iter impl
         let m = self.m_original(freq);
-        let branch = (freq + m).rem_euclid(2);
-        let f_eff = (freq + m).div_euclid(2);
-        debug_assert!(branch == 0 || branch == 1);
+        let f_eff = (freq - m).div_euclid(2);
+        // return -Complex64::i()*m as f64;
+        let branch_upper = self.branch_at_upper(freq);
         let f = |f: Freq| {
             let cos1 = (((f as f64 - self.center_pos) / self.period) * TAU)
                 .cos()
@@ -80,7 +129,7 @@ impl LinearOp<f64> for CprtDispersionFrac {
             ((cos1 * cos2).acos()) * self.frac_d1_2pi
         };
 
-        if branch == 1 {
+        if branch_upper {
             -Complex64::i() * (f(f_eff) - f(0))
         } else {
             -Complex64::i() * (-f(f_eff) - f(0))
@@ -107,6 +156,7 @@ mod tests {
             if cp.singularity_point(f) {
                 println!("singularity at f = {}, m = {}, last_m = {:?}", f, m, last_m);
             } else if cp.singularity_point(f - 1) {
+                assert!(last_m.map(|last_m| m == last_m).unwrap_or(true));
                 println!(
                     "first freq after singularity at f = {}, m = {}, last_m = {:?}",
                     f, m, last_m
@@ -115,4 +165,69 @@ mod tests {
             last_m = Some(m);
         }
     }
+    #[test]
+    fn test_branch() {
+        let cp = super::CprtDispersionFrac {
+            center_pos: 1.0,
+            period: 11.0,
+            couple_strength: super::CoupleStrength::default(),
+            frac_d1_2pi: 1.0,
+        };
+        let mut last_branch = None;
+        for f in -100..100 {
+            let branch = cp.branch_at_upper(f);
+            let m = cp.m_original(f);
+            if cp.singularity_point(f) {
+                println!(
+                    "singularity at f = {}, m = {}, brach = {}, last_brach = {:?}",
+                    f, m, branch, last_branch
+                );
+            } else if cp.singularity_point(f - 1) {
+                assert!(last_branch
+                    .map(|last_branch| branch != last_branch)
+                    .unwrap_or(true));
+                println!(
+                    "after singularity at f = {}, m = {}, brach = {}, last_brach = {:?}",
+                    f, m, branch, last_branch
+                );
+            }
+            last_branch = Some(branch);
+        }
+    }
+
+    /* #[test]
+    fn test_disper_m_consistent() {
+        use crate::controller::gencprt::state::{Mode, State};
+        use crate::controller::gencprt::TEST_DATA;
+        let cp = super::CprtDispersionFrac {
+            center_pos: 1.0,
+            period: 11.0,
+            couple_strength: super::CoupleStrength::default(),
+            frac_d1_2pi: 1.0,
+        };
+        let state = State {
+            data: TEST_DATA.to_vec(),
+            cp: cp.clone(),
+            time: 0.0,
+        };
+        let freq_iter_p = state.coupling_iter_positive();
+        let freq_iter_n = state.coupling_iter_negative();
+
+        let len = state.data.len();
+
+        let (state_a, state_b) = state.data.split_at(len / 2);
+
+        for f in freq_iter_p {
+            let index = lle::index_at(len, f.meta().freq);
+            match f {
+                Mode::Single { amp, .. } => {
+                    assert_eq!(state_a[index], amp, "index: {index}, f: {f:?}");
+                }
+                Mode::Pair { amp1, amp2, .. } => {
+                    assert_eq!(state_a[index], amp1, "index: {index}, f: {f:?}");
+                    assert_eq!(state_b[index], amp2, "index: {index}, f: {f:?}");
+                }
+            }
+        }
+    } */
 }

@@ -527,6 +527,7 @@ impl<'a> Iterator for MySliceIterMutRev<'a> {
 mod test {
     use core::f64;
 
+    use super::super::TEST_DATA;
     use crate::controller::cprt2::CoupleStrength;
 
     use super::*;
@@ -585,7 +586,7 @@ mod test {
     }
     #[test]
     fn test_state_iter() {
-        let data = DATA;
+        let data = TEST_DATA;
         let state = State {
             data: data.to_vec(),
             cp: CoupleInfo {
@@ -630,38 +631,4 @@ mod test {
                 }
             });
     }
-    const DATA: [Complex64; 32] = [
-        Complex64::new(1., 0.),
-        Complex64::new(2., 0.),
-        Complex64::new(3., 0.),
-        Complex64::new(4., 0.),
-        Complex64::new(5., 0.),
-        Complex64::new(6., 0.),
-        Complex64::new(7., 0.),
-        Complex64::new(8., 0.),
-        Complex64::new(9., 0.),
-        Complex64::new(10., 0.),
-        Complex64::new(11., 0.),
-        Complex64::new(12., 0.),
-        Complex64::new(13., 0.),
-        Complex64::new(14., 0.),
-        Complex64::new(15., 0.),
-        Complex64::new(16., 0.),
-        Complex64::new(17., 0.),
-        Complex64::new(18., 0.),
-        Complex64::new(19., 0.),
-        Complex64::new(20., 0.),
-        Complex64::new(21., 0.),
-        Complex64::new(22., 0.),
-        Complex64::new(23., 0.),
-        Complex64::new(24., 0.),
-        Complex64::new(25., 0.),
-        Complex64::new(26., 0.),
-        Complex64::new(27., 0.),
-        Complex64::new(28., 0.),
-        Complex64::new(29., 0.),
-        Complex64::new(30., 0.),
-        Complex64::new(31., 0.),
-        Complex64::new(32., 0.),
-    ];
 }

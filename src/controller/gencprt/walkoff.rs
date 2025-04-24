@@ -33,10 +33,10 @@ impl<
         Evolver::cur_step(&self.core)
     }
     fn evolve(&mut self) {
+        self.core.evolve();
         let step_dist = self.core.step_dist;
         let state = self.core.get_raw_state_mut();
         apply_walk_off(state, step_dist, &mut self.fft);
-        self.core.evolve();
     }
 }
 
@@ -56,6 +56,8 @@ fn apply_walk_off(
     freq_iter_mut_pos.for_each(|x| {
         use super::state::ModeMut;
         let m = x.m() as f64;
+        let freq = x.meta().freq;
+        println!("{freq}, {m}",);
         match x {
             ModeMut::Single { amp, .. } => {
                 if let Some(amp) = amp {
@@ -76,6 +78,8 @@ fn apply_walk_off(
     freq_iter_mut_neg.for_each(|x| {
         use super::state::ModeMut;
         let m = x.m() as f64;
+        let freq = x.meta().freq;
+        println!("{freq}, {m}",);
         match x {
             ModeMut::Single { amp, .. } => {
                 if let Some(amp) = amp {
@@ -223,11 +227,11 @@ impl<
 
 #[cfg(test)]
 mod test {
+
+    use lle::FftSource;
+
     use super::*;
-    use crate::controller::gencprt::{
-        ops::coupling_modes,
-        state::{CoupleInfo, State},
-    };
+    use crate::controller::gencprt::state::{CoupleInfo, State};
     #[test]
     fn test_walkoff() {
         let cp = CoupleInfo {
@@ -237,7 +241,7 @@ mod test {
             frac_d1_2pi: 0.5,
         };
         let mut state = State {
-            data: DATA.to_vec(),
+            data: TEST_DATA.to_vec(),
             cp: cp.clone(),
             time: 1.,
         };
@@ -245,13 +249,14 @@ mod test {
         let step_dist = 1.;
 
         let mut back = state.clone();
-        coupling_modes(&mut back);
+        let mut fft = State::default_fft(state.fft_len());
+        back.fft_process_forward(&mut fft);
 
-        let mut fft = None;
-        apply_walk_off(&mut state, step_dist, &mut fft);
+        let mut fft1 = None;
+        apply_walk_off(&mut state, step_dist, &mut fft1);
         state.time += step_dist;
-
-        coupling_modes(&mut state);
+        state.fft_process_forward(&mut fft);
+        // coupling_modes(&mut state);
         state
             .data
             .iter()
@@ -261,42 +266,15 @@ mod test {
                 println!("{i}\t {a:08}, {b:08} ");
             });
         for (i, (a, b)) in back.data.iter().zip(state.data.iter()).enumerate() {
-            assert!((a - b).norm_sqr() < 1e-5, "i: {}, a: {}, b: {}", i, a, b);
+            assert!(
+                (a.norm_sqr() - b.norm_sqr()).abs() < 1e-5,
+                "i: {}, a: {}, b: {}",
+                i,
+                a,
+                b
+            );
         }
     }
 
-    const DATA: [Complex64; 32] = [
-        Complex64::new(1., 0.),
-        Complex64::new(2., 0.),
-        Complex64::new(4., 0.),
-        Complex64::new(1., 0.),
-        Complex64::new(3., 1.),
-        Complex64::new(2., 3.),
-        Complex64::new(1., 4.),
-        Complex64::new(1., 4.),
-        Complex64::new(1., 0.),
-        Complex64::new(2., 0.),
-        Complex64::new(4., 2.),
-        Complex64::new(1., 4.),
-        Complex64::new(1., 1.),
-        Complex64::new(2., 3.),
-        Complex64::new(6., 4.),
-        Complex64::new(1., 0.),
-        Complex64::new(1., -8.),
-        Complex64::new(2., -5.),
-        Complex64::new(4., 2.),
-        Complex64::new(3., 4.),
-        Complex64::new(2., 1.),
-        Complex64::new(2., 3.),
-        Complex64::new(1., 4.),
-        Complex64::new(1., 4.),
-        Complex64::new(1., -3.),
-        Complex64::new(2., 0.),
-        Complex64::new(4., 7.),
-        Complex64::new(1., 0.),
-        Complex64::new(1., 1.),
-        Complex64::new(2., 3.),
-        Complex64::new(1., 4.),
-        Complex64::new(1., 4.),
-    ];
+    use super::super::TEST_DATA;
 }
