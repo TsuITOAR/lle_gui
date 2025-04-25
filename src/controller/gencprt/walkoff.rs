@@ -56,8 +56,6 @@ fn apply_walk_off(
     freq_iter_mut_pos.for_each(|x| {
         use super::state::ModeMut;
         let m = x.m() as f64;
-        let freq = x.meta().freq;
-        println!("{freq}, {m}",);
         match x {
             ModeMut::Single { amp, .. } => {
                 if let Some(amp) = amp {
@@ -78,8 +76,6 @@ fn apply_walk_off(
     freq_iter_mut_neg.for_each(|x| {
         use super::state::ModeMut;
         let m = x.m() as f64;
-        let freq = x.meta().freq;
-        println!("{freq}, {m}",);
         match x {
             ModeMut::Single { amp, .. } => {
                 if let Some(amp) = amp {

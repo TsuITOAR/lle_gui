@@ -172,6 +172,7 @@ impl<'a> Iterator for CouplingStateIterPositive<'a> {
         let real_number = self.state_a_p.cur as i32 + self.state_b_p.cur as i32;
         let m = self.cp.m_original(real_number);
         let freq = self.cur_freq;
+        debug_assert_eq!(freq, real_number);
         if self.cp.singularity_point(real_number) {
             self.cur_freq += 1;
             let amp = self.state_a_p.next().unwrap_or_default();
@@ -211,6 +212,7 @@ impl<'a> Iterator for CouplingStateIterNegative<'a> {
         let real_number = -1i32 - self.state_a_n.cur as i32 - self.state_b_n.cur as i32;
         let m = self.cp.m_original(real_number);
         let freq = self.cur_freq;
+        debug_assert_eq!(freq, real_number);
         if self.cp.singularity_point(real_number) {
             self.cur_freq -= 1;
             let amp = self.state_a_n.next().unwrap_or_default();
@@ -573,16 +575,40 @@ mod test {
         let cp = CoupleInfo {
             couple_strength: Default::default(),
             center_pos: 1.5,
-            period: 10.0,
+            period: 12.0,
             frac_d1_2pi: 0.5,
         };
-        assert_eq!(cp.m_original(0), 0);
-        assert_eq!(cp.m_original(2 * 2), 0);
-        assert_eq!(cp.m_original(3 * 2), 0);
-        assert_eq!(cp.m_original(4 * 2), 1);
-        assert_eq!(cp.m_original(7 * 2), 1);
-        assert_eq!(cp.m_original(8 * 2), 1);
-        assert_eq!(cp.m_original(-8 * 2), -2);
+        let state = State {
+            data: TEST_DATA.to_vec(),
+            cp: cp.clone(),
+            time: 0.,
+        };
+        let pos = state.coupling_iter_positive();
+        for p in pos {
+            let meta = p.meta();
+            match p {
+                Mode::Single { .. } => {
+                    assert_eq!(meta.m, cp.m_original(meta.freq), "m mismatch {meta:?}");
+                }
+                Mode::Pair { .. } => {
+                    assert_eq!(meta.m, cp.m_original(meta.freq), "m mismatch {meta:?}");
+                    assert_eq!(meta.m, cp.m_original(meta.freq + 1), "m mismatch {meta:?}");
+                }
+            }
+        }
+        let neg = state.coupling_iter_negative();
+        for n in neg {
+            let meta = n.meta();
+            match n {
+                Mode::Single { .. } => {
+                    assert_eq!(meta.m, cp.m_original(meta.freq), "m mismatch {meta:?}");
+                }
+                Mode::Pair { .. } => {
+                    assert_eq!(meta.m, cp.m_original(meta.freq), "m mismatch {meta:?}");
+                    assert_eq!(meta.m, cp.m_original(meta.freq - 1), "m mismatch {meta:?}");
+                }
+            }
+        }
     }
     #[test]
     fn test_state_iter() {

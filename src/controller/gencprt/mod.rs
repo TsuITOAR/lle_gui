@@ -203,7 +203,7 @@ impl<NL: Default + lle::NonLinearOp<f64>> Controller<LleSolver<NL, NoneOp<f64>, 
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use lle::LinearOp;
 
     use super::*;

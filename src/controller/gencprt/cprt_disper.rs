@@ -1,4 +1,4 @@
-use std::f64::consts::{FRAC_PI_2, TAU};
+use std::f64::consts::{FRAC_PI_2, PI, TAU};
 
 use lle::{num_complex::Complex64, Freq, LinearOp, StaticLinearOp, Step};
 
@@ -24,9 +24,10 @@ impl CprtDispersionFrac {
     }
     /// freq0 the real number
     pub fn singularity_point(&self, freq: lle::Freq) -> bool {
-        let freq = freq as f64 - self.center_pos * 2.;
-        let diff = (freq + self.period / 2.).rem_euclid(self.period) as i32;
-        diff == 0
+        // let freq = freq as f64 - self.center_pos * 2.;
+        // let diff = (freq + self.period / 2.).rem_euclid(self.period) as i32;
+        // diff == 0
+        self.m_original(freq) != self.m_original(freq + 1)
     }
 
     pub fn branch_at_upper(&self, freq: Freq) -> bool {
@@ -74,6 +75,10 @@ impl CprtDispersionFrac {
         });
     } */
 
+    fn phi_m(&self, freq: f64) -> f64 {
+        PI * ((freq - self.center_pos + self.period / 4.) / (self.period / 2.)).rem_euclid(1.)
+    }
+
     /// freq the pair number
     pub fn fraction_at(
         &self,
@@ -83,13 +88,15 @@ impl CprtDispersionFrac {
     ) -> ((Complex64, Complex64), (Complex64, Complex64)) {
         let freq = freq as f64;
         let d1 = self.frac_d1_2pi * TAU;
-        let phi_m = TAU * (freq - self.center_pos) / self.period;
+        let phi_m = PI
+            * ((freq - self.center_pos + self.period / 4.) / (self.period / 2.)).rem_euclid(1.)
+            - FRAC_PI_2;
         let alpha = (self.couple_strength.get_coupling(freq).cos() * phi_m.cos()).acos();
 
         let cp_angle = f64::atan2(
             (alpha + phi_m).sin().abs().sqrt(),
             (alpha - phi_m).sin().abs().sqrt(),
-        ) + if m > 0 { -FRAC_PI_2 } else { 0. }; //todo find out why this works
+        ); //todo find out why this works
 
         let spatial_move_term = spatial_basis_move(m, d1, time);
         (
@@ -169,7 +176,7 @@ mod tests {
     fn test_branch() {
         let cp = super::CprtDispersionFrac {
             center_pos: 1.0,
-            period: 11.0,
+            period: 10.0,
             couple_strength: super::CoupleStrength::default(),
             frac_d1_2pi: 1.0,
         };
@@ -182,14 +189,26 @@ mod tests {
                     "singularity at f = {}, m = {}, brach = {}, last_brach = {:?}",
                     f, m, branch, last_branch
                 );
+                if m > 0 {
+                    assert!(branch == true);
+                } else {
+                    assert!(branch == false);
+                }
             } else if cp.singularity_point(f - 1) {
-                assert!(last_branch
-                    .map(|last_branch| branch != last_branch)
-                    .unwrap_or(true));
                 println!(
                     "after singularity at f = {}, m = {}, brach = {}, last_brach = {:?}",
                     f, m, branch, last_branch
                 );
+                assert!(branch == false);
+            } else if cp.singularity_point(f + 1) {
+                println!(
+                    "before singularity at f = {}, m = {}, brach = {}, last_brach = {:?}",
+                    f, m, branch, last_branch
+                );
+                assert!(branch == true);
+                if let Some(last_branch) = last_branch {
+                    assert!(last_branch != branch);
+                }
             }
             last_branch = Some(branch);
         }
