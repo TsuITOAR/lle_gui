@@ -14,7 +14,7 @@ assert_impl_all!(RandCore: Send, Sync);
 impl RandCore {
     fn new(seed: Option<u64>) -> Self {
         use rand::{Rng, SeedableRng};
-        let seed = seed.unwrap_or(rand::thread_rng().gen());
+        let seed = seed.unwrap_or(rand::rng().random());
 
         Self::Seed {
             seed,
@@ -127,12 +127,12 @@ impl RandomNoise {
     }
 }
 
-fn add_random_with_dist<D: rand::distributions::Distribution<f64>>(
+fn add_random_with_dist<D: rand::prelude::Distribution<f64>>(
     state: &mut [Complex64],
     rng: &mut impl rand::Rng,
     dist: &D,
 ) {
     state
         .iter_mut()
-        .for_each(|x| *x += (Complex64::i() * rng.gen::<f64>() * 2. * PI).exp() * dist.sample(rng));
+        .for_each(|x| *x += (Complex64::i() * rng.random::<f64>() * 2. * PI).exp() * dist.sample(rng));
 }

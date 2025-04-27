@@ -39,7 +39,7 @@ lle = { git = "https://github.com/TsuITOAR/Lle.git", default-features = false, f
 serde = { version = "^1", features = [
     "derive",
 ] } # You only need this if you want app persistence
-rand = "^0.8"
+rand = "^0.9"
 anyhow = "^1"
 log = "^0.4"
 enum-iterator = "^2"
@@ -54,13 +54,13 @@ iterator_ilp = "^2.1.2"
 colorous = "^1.0.14"
 bytemuck = "^1.19.0"
 rayon = "^1"
-rand_distr = { version = "^0.4.3", features = ["serde1"] }
+rand_distr = { version = "^0.5", features = ["serde"] }
 egui-notify = "^0.18"
 rfd = "0.15.0"
 static_assertions = "1.1.0"
 
 ui_traits = { path = "./ui_traits" }
-ron = "0.8.1"
+ron = "0.10"
 assert_approx_eq = "1"
 
 # native:
@@ -74,7 +74,7 @@ poll-promise = { version = "0.3.0", git = "https://github.com/TsuITOAR/poll-prom
 # web:
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 wasm-bindgen-futures = "^0.4"
-getrandom = { version = "^0.2", features = ["js"] }
+getrandom = { version = "^0.3", features = ["wasm_js"] }
 #wasm-bindgen = "^0.2"
 instant = { version = "^0.1", features = ["wasm-bindgen"] }
 console_error_panic_hook = "^0.1"
@@ -92,10 +92,8 @@ opt-level = 3 # fast and small wasm
 opt-level = 2
 
 [patch."https://github.com/TsuITOAR/Lle.git"]
-lle = { path = "../Lle" }
+lle = { path = "../LLE" }
 
 
 [patch."https://github.com/TsuITOAR/poll-promise.git"]
 # poll-promise = { path = "../poll-promise" }
-
-

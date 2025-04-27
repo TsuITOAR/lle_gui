@@ -1,5 +1,3 @@
-use std::f64::consts::{FRAC_PI_2, PI, TAU};
-
 use lle::{num_complex::Complex64, Freq, LinearOp, StaticLinearOp, Step};
 
 use crate::controller::cprt2::CoupleStrength;
@@ -18,65 +16,49 @@ pub struct CprtDispersionFrac {
 
 impl CprtDispersionFrac {
     // freq counting for two modes, not pairs
+    // original should change after even modes
     pub(crate) fn m_original(&self, freq: Freq) -> i32 {
         let f = freq as f64 + self.period / 2. - self.center_pos * 2.;
         f.div_euclid(self.period) as i32
     }
     /// freq0 the real number
     pub fn singularity_point(&self, freq: lle::Freq) -> bool {
-        // let freq = freq as f64 - self.center_pos * 2.;
-        // let diff = (freq + self.period / 2.).rem_euclid(self.period) as i32;
-        // diff == 0
-        self.m_original(freq) != self.m_original(freq + 1)
+        let freq = freq as f64 - self.center_pos * 2.;
+        let diff = (freq + self.period / 2.).rem_euclid(self.period) as i32;
+        diff == 0
+        // if freq > 0 {
+        //     self.m_original(freq) != self.m_original(freq + 1)
+        // } else {
+        //     self.m_original(freq) != self.m_original(freq - 1)
+        // }
     }
 
     pub fn branch_at_upper(&self, freq: Freq) -> bool {
-        let m = self.m_original(freq);
-        let branch = (freq - m).rem_euclid(2);
-        if self.singularity_point(freq) {
-            m > 0
-        } else {
-            branch == 1
-        }
+        // let m = self.m_original(freq);
+        let branch = (freq).rem_euclid(2);
+        // if self.singularity_point(freq) {
+        //     m > 0
+        // } else {
+        //     branch == 1
+        // }
+        branch == 1
     }
 
-    /* pub(crate) fn dispersion_array(&self, len: usize) -> Vec<Complex64> {
-
-        use super::state::State;
-        let freq = (0..len as i32)
-            .map(|x| Complex64::from(x as f64))
-            .collect::<Vec<_>>();
-        let mut state = State {
-            data: freq.clone(),
-            cp: self.clone(),
-            time: 0.0,
-        };
-        use super::state::ModeMut;
-        let (freq_pos, freq_neg) = state.coupling_iter_mut();
-        freq_pos.for_each(|x| {
-            let m = x.m();
-            let f = |f: Freq| {
-                let cos1 = (((f as f64 - self.center_pos) / self.period) * TAU)
-                    .cos()
-                    .abs();
-                let couple_strength = self.couple_strength.get_coupling(f as f64);
-                //dbg!(f, couple_strength);
-                let cos2 = couple_strength.cos();
-
-                ((cos1 * cos2).acos()) * self.frac_d1_2pi
-            };
-            match x {
-                ModeMut::Single { amp, .. } => -Complex64::i() * (f(f) - f(0)),
-                ModeMut::Pair { amp1, amp2, .. } => {
-                    *amp1 = Complex64::from(1.0);
-                    *amp2 = Complex64::from(0.0);
-                }
-            }
-        });
-    } */
-
     fn phi_m(&self, freq: f64) -> f64 {
-        PI * ((freq - self.center_pos + self.period / 4.) / (self.period / 2.)).rem_euclid(1.)
+        use std::f64::consts::TAU;
+        TAU * (freq - self.center_pos) / self.period
+    }
+
+    fn cp_angle(&self, freq: i32, m: i32) -> f64 {
+        use std::f64::consts::*;
+        let freq = freq as f64;
+        let phi_m = self.phi_m(freq);
+        let alpha = (self.couple_strength.get_coupling(freq).cos() * phi_m.cos()).acos();
+        let cp_angle = f64::atan2(
+            (alpha + phi_m).sin().abs().sqrt(),
+            (alpha - phi_m).sin().abs().sqrt(),
+        );
+        cp_angle - m as f64 * FRAC_PI_2
     }
 
     /// freq the pair number
@@ -86,18 +68,9 @@ impl CprtDispersionFrac {
         m: i32,
         time: f64,
     ) -> ((Complex64, Complex64), (Complex64, Complex64)) {
-        let freq = freq as f64;
+        use std::f64::consts::*;
         let d1 = self.frac_d1_2pi * TAU;
-        let phi_m = PI
-            * ((freq - self.center_pos + self.period / 4.) / (self.period / 2.)).rem_euclid(1.)
-            - FRAC_PI_2;
-        let alpha = (self.couple_strength.get_coupling(freq).cos() * phi_m.cos()).acos();
-
-        let cp_angle = f64::atan2(
-            (alpha + phi_m).sin().abs().sqrt(),
-            (alpha - phi_m).sin().abs().sqrt(),
-        ); //todo find out why this works
-
+        let cp_angle = self.cp_angle(freq, m);
         let spatial_move_term = spatial_basis_move(m, d1, time);
         (
             (
@@ -121,8 +94,10 @@ pub(crate) fn spatial_basis_move(m: i32, d1: f64, time: f64) -> Complex64 {
 impl LinearOp<f64> for CprtDispersionFrac {
     fn get_value(&self, _step: Step, freq: Freq) -> Complex64 {
         //todo: test the freq brach selection is consistent with walk off freq iter impl
+
+        use std::f64::consts::*;
         let m = self.m_original(freq);
-        let f_eff = (freq - m).div_euclid(2);
+        let f_eff = (freq + m).div_euclid(2);
         // return -Complex64::i()*m as f64;
         let branch_upper = self.branch_at_upper(freq);
         let f = |f: Freq| {
@@ -136,11 +111,12 @@ impl LinearOp<f64> for CprtDispersionFrac {
             ((cos1 * cos2).acos()) * self.frac_d1_2pi
         };
 
-        if branch_upper {
-            -Complex64::i() * (f(f_eff) - f(0))
-        } else {
-            -Complex64::i() * (-f(f_eff) - f(0))
-        }
+        // -Complex64::i() * (self.cp_angle((freq + m) / 2, m) / PI + m as f64 * 3.) + 
+            if branch_upper {
+                -Complex64::i() * (f(f_eff) - f(0))
+            } else {
+                -Complex64::i() * (-f(f_eff) - f(0))
+            }
     }
     fn skip(&self) -> bool {
         false
