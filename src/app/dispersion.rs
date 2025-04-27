@@ -3,6 +3,7 @@ use crate::{
     views::{State, Views, Visualizer},
 };
 
+
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
 pub(crate) struct ShowDispersion {
     pub(crate) show: bool,
@@ -36,12 +37,12 @@ impl ui_traits::ControllerUI for ShowDispersion {
     }
 }
 
-pub(crate) fn add_dispersion_curve<P, S, V>(
+pub(crate) fn add_dispersion_curve<C, S, V>(
     show_dispersion: &ShowDispersion,
-    core: &super::Core<P, S>,
+    core: &super::Core<C, S>,
     views: &mut Views<V>,
 ) where
-    P: Controller<S>,
+    C: Controller<S>,
     S: Simulator,
     Views<V>: for<'a> Visualizer<<S as SharedState<'a>>::SharedState>,
     for<'a> <S as SharedState<'a>>::SharedState: State<OwnedState = S::OwnedState>,

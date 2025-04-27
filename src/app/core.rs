@@ -83,13 +83,13 @@ where
     }
 }
 
-impl<P, S> Core<P, S>
+impl<C, S> Core<C, S>
 where
-    P: Default + Clone + Controller<S> + serde::Serialize + for<'a> serde::Deserialize<'a>,
+    C: Default + Clone + Controller<S> + serde::Serialize + for<'a> serde::Deserialize<'a>,
     S: Simulator,
     S::OwnedState: serde::Serialize + for<'a> serde::Deserialize<'a>,
 {
     pub(crate) fn reset(&mut self) {
-        *self = Self::new(P::default(), self.dim);
+        *self = Self::new(C::default(), self.dim);
     }
 }

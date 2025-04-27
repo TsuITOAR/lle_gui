@@ -1,4 +1,4 @@
-use super::process::FftSource;
+use super::processor::FftSource;
 
 #[derive(Debug, Clone, Default)]
 pub enum History<S: FftSource> {

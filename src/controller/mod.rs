@@ -212,6 +212,7 @@ pub fn dispersion_line<L: lle::LinearOp<f64>>(l: L, dim: usize, scale: f64) -> P
     PlotElement {
         x: Some(x),
         y,
-        style: Default::default(),
+        legend: Some("Dispersion".to_string()),
+        style: Some(crate::drawer::plot_item::Style::default().interleave()),
     }
 }

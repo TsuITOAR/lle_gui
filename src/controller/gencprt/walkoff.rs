@@ -264,10 +264,7 @@ mod test {
         for (i, (a, b)) in back.data.iter().zip(state.data.iter()).enumerate() {
             assert!(
                 (a.norm_sqr() - b.norm_sqr()).abs() < 1e-5,
-                "i: {}, a: {}, b: {}",
-                i,
-                a,
-                b
+                "i: {i}, a: {a}, b: {b}"
             );
         }
     }

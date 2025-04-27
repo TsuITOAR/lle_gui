@@ -2,7 +2,7 @@ use std::ops::RangeInclusive;
 
 use egui::{Align2, FontId, Pos2, Rect, Stroke, Ui};
 
-use crate::drawer::chart::Y_AXIS_MIN_WIDTH;
+use crate::drawer::colormap::Y_AXIS_MIN_WIDTH;
 
 #[derive(Debug, Clone)]
 pub struct AxisDrawer {
@@ -156,7 +156,7 @@ impl AxisDrawer {
             ui.painter().text(
                 tick_label_pos,
                 Align2::CENTER_TOP,
-                format!("{}", x),
+                format!("{x}"),
                 tick_label_font.clone(),
                 axis_color,
             );
@@ -182,7 +182,7 @@ impl AxisDrawer {
             ui.painter().text(
                 tick_label_pos,
                 Align2::RIGHT_CENTER,
-                format!("{}", y),
+                format!("{y}"),
                 tick_label_font.clone(),
                 axis_color,
             );

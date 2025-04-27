@@ -1,6 +1,6 @@
 use lle::num_complex::Complex64;
 
-use super::{PlotElement, RawPlotElement, ShowOn};
+use super::{PlotElement, RawPlotData, ShowOn};
 
 pub trait State: Clone + Copy {
     type OwnedState: Clone;
@@ -36,7 +36,7 @@ pub trait Visualizer<S: State>: ui_traits::ControllerUI {
     fn record(&mut self, data: S);
     fn push_elements_raw(
         &mut self,
-        points: RawPlotElement<S::OwnedState>,
+        points: RawPlotData<S::OwnedState>,
         on: ShowOn,
         running: bool,
     );

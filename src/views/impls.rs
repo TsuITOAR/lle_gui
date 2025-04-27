@@ -9,7 +9,7 @@ impl<const L: usize, S: FftSource> ControllerUI for Views<[ViewField<S>; L]> {
     fn show_controller(&mut self, ui: &mut egui::Ui) {
         ui.horizontal(|ui| self.views.iter_mut().for_each(|v| v.toggle_record_his(ui)));
         for (i, view) in self.views.iter_mut().enumerate() {
-            ui.collapsing(format!("View {}", i), |ui| {
+            ui.collapsing(format!("View {i}"), |ui| {
                 view.show_which(ui);
             });
         }
@@ -47,7 +47,7 @@ where
 
     fn push_elements_raw(
         &mut self,
-        points: RawPlotElement<<[S; L] as State>::OwnedState>,
+        points: RawPlotData<<[S; L] as State>::OwnedState>,
         on: ShowOn,
         running: bool,
     ) {
@@ -102,27 +102,27 @@ impl<'a> Visualizer<&'a Vec<Complex64>> for ViewField<Vec<Complex64>> {
 
     fn push_elements_raw(
         &mut self,
-        points: RawPlotElement<Vec<Complex64>>,
+        points: RawPlotData<Vec<Complex64>>,
         on: ShowOn,
         running: bool,
     ) {
         match on {
             ShowOn::Both => {
                 if let Some(ref mut f) = self.f_chart {
-                    f.push_additional_raw(&points, running)
+                    f.push_additional_raw_data(&points, running)
                 }
                 if let Some(ref mut r) = self.r_chart {
-                    r.push_additional_raw(&points, running)
+                    r.push_additional_raw_data(&points, running)
                 }
             }
             ShowOn::Time => {
                 if let Some(ref mut r) = self.r_chart {
-                    r.push_additional_raw(&points, running)
+                    r.push_additional_raw_data(&points, running)
                 }
             }
             ShowOn::Freq => {
                 if let Some(ref mut f) = self.f_chart {
-                    f.push_additional_raw(&points, running)
+                    f.push_additional_raw_data(&points, running)
                 }
             }
         }
@@ -182,7 +182,7 @@ where
 
     fn push_elements_raw(
         &mut self,
-        points: RawPlotElement<P::OwnedState>,
+        points: RawPlotData<P::OwnedState>,
         on: ShowOn,
         running: bool,
     ) {

@@ -93,21 +93,29 @@ impl<V> Views<V> {
     }
 }
 
-pub type Style = f64;
+pub type Width = f64;
 
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
-pub struct RawPlotElement<S> {
+pub struct RawPlotData<S> {
     pub(crate) data: S,
     pub(crate) x: Option<Vec<f64>>,
-    pub(crate) style: Style,
+    pub(crate) width: Width,
+    #[serde(default)]
+    pub(crate) style: Option<crate::drawer::plot_item::Style>,
 }
 
-impl<S, const L: usize> RawPlotElement<[S; L]> {
-    fn split(self) -> [RawPlotElement<S>; L] {
-        let RawPlotElement { data, x, style } = self;
-        data.map(|d| RawPlotElement {
+impl<S, const L: usize> RawPlotData<[S; L]> {
+    fn split(self) -> [RawPlotData<S>; L] {
+        let RawPlotData {
+            data,
+            x,
+            width,
+            style,
+        } = self;
+        data.map(|d| RawPlotData {
             data: d,
             x: x.clone(),
+            width,
             style,
         })
     }
@@ -117,7 +125,9 @@ impl<S, const L: usize> RawPlotElement<[S; L]> {
 pub struct PlotElement {
     pub(crate) x: Option<Vec<f64>>,
     pub(crate) y: Vec<f64>,
-    pub(crate) style: Style,
+    pub(crate) legend: Option<String>,
+    #[serde(default)]
+    pub(crate) style: Option<crate::drawer::plot_item::Style>,
 }
 
 #[derive(Debug, Clone, Copy, Default, serde::Deserialize, serde::Serialize)]

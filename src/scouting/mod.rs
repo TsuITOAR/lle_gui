@@ -11,13 +11,13 @@ use crate::{
     app::Core,
     controller::{Controller, SharedState, Simulator, StoreState},
     util::{try_poll, Promise},
-    views::{RawPlotElement, ShowOn, State, Visualizer},
+    views::{RawPlotData, ShowOn, State, Visualizer},
 };
 
 mod impls;
 mod refresh;
 
-type Style = ();
+type Style = crate::drawer::plot_item::Style;
 
 #[derive(serde::Serialize, serde::Deserialize)]
 #[serde(bound(
@@ -33,7 +33,6 @@ where
     pub(crate) config: ScouterConfig<T, C, S>,
     #[serde(skip)]
     pub(crate) sub_cores: Option<SubCores<Core<C, S>>>,
-    pub(crate) style: Style,
     pub(crate) refresh: Refresh,
     #[serde(skip)]
     promise: Option<Promise<Vec<<S as StoreState>::OwnedState>>>,
@@ -51,7 +50,6 @@ where
         f.debug_struct("Scouter")
             .field("config", &self.config)
             .field("sub_cores", &self.sub_cores.is_some())
-            .field("style", &self.style)
             .field("refresh", &self.refresh)
             .finish()
     }
@@ -70,7 +68,6 @@ where
         Self {
             config: self.config.clone(),
             sub_cores: None,
-            style: self.style,
             refresh: self.refresh.clone(),
             promise: None,
             cache: None,
@@ -94,15 +91,16 @@ where
         });
     }
 
-    pub fn plot_elements(&self) -> Option<Vec<RawPlotElement<<S as StoreState>::OwnedState>>> {
+    pub fn plot_elements(&self) -> Option<Vec<RawPlotData<<S as StoreState>::OwnedState>>> {
         Some(
             self.states()?
                 .iter()
                 .zip(self.config.offsets.iter().map(|x| x.1))
-                .map(|state| RawPlotElement {
+                .map(|state| RawPlotData {
                     data: state.0.clone(),
                     x: None,
-                    style: state.1,
+                    width: state.1,
+                    style: Some(Style::default()),
                 })
                 .collect(),
         )
@@ -167,7 +165,6 @@ where
         Self {
             config: Default::default(),
             sub_cores: None,
-            style: (),
             refresh: Default::default(),
             promise: None,
             cache: None,

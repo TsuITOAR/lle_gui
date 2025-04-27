@@ -44,12 +44,12 @@ impl CprtDispersionFrac {
         branch == 1
     }
 
-    fn phi_m(&self, freq: f64) -> f64 {
+    pub(crate) fn phi_m(&self, freq: f64) -> f64 {
         use std::f64::consts::TAU;
         TAU * (freq - self.center_pos) / self.period
     }
 
-    fn cp_angle(&self, freq: i32, m: i32) -> f64 {
+    pub(crate) fn cp_angle(&self, freq: i32, m: i32) -> f64 {
         use std::f64::consts::*;
         let freq = freq as f64;
         let phi_m = self.phi_m(freq);
@@ -58,7 +58,7 @@ impl CprtDispersionFrac {
             (alpha + phi_m).sin().abs().sqrt(),
             (alpha - phi_m).sin().abs().sqrt(),
         );
-        cp_angle - m as f64 * FRAC_PI_2
+        cp_angle + m as f64 * FRAC_PI_2
     }
 
     /// freq the pair number
@@ -111,12 +111,12 @@ impl LinearOp<f64> for CprtDispersionFrac {
             ((cos1 * cos2).acos()) * self.frac_d1_2pi
         };
 
-        // -Complex64::i() * (self.cp_angle((freq + m) / 2, m) / PI + m as f64 * 3.) + 
-            if branch_upper {
-                -Complex64::i() * (f(f_eff) - f(0))
-            } else {
-                -Complex64::i() * (-f(f_eff) - f(0))
-            }
+        // -Complex64::i() * (self.cp_angle((freq + m) / 2, m) / PI + m as f64 * 3.) +
+        if branch_upper {
+            -Complex64::i() * (f(f_eff) - f(0))
+        } else {
+            -Complex64::i() * (-f(f_eff) - f(0))
+        }
     }
     fn skip(&self) -> bool {
         false
@@ -137,12 +137,11 @@ mod tests {
         for f in -100..100 {
             let m = cp.m_original(f);
             if cp.singularity_point(f) {
-                println!("singularity at f = {}, m = {}, last_m = {:?}", f, m, last_m);
+                println!("singularity at f = {f}, m = {m}, last_m = {last_m:?}");
             } else if cp.singularity_point(f - 1) {
                 assert!(last_m.map(|last_m| m == last_m).unwrap_or(true));
                 println!(
-                    "first freq after singularity at f = {}, m = {}, last_m = {:?}",
-                    f, m, last_m
+                    "first freq after singularity at f = {f}, m = {m}, last_m = {last_m:?}"
                 );
             }
             last_m = Some(m);
@@ -162,26 +161,23 @@ mod tests {
             let m = cp.m_original(f);
             if cp.singularity_point(f) {
                 println!(
-                    "singularity at f = {}, m = {}, brach = {}, last_brach = {:?}",
-                    f, m, branch, last_branch
+                    "singularity at f = {f}, m = {m}, brach = {branch}, last_brach = {last_branch:?}"
                 );
                 if m > 0 {
-                    assert!(branch == true);
+                    assert!(branch);
                 } else {
-                    assert!(branch == false);
+                    assert!(!branch);
                 }
             } else if cp.singularity_point(f - 1) {
                 println!(
-                    "after singularity at f = {}, m = {}, brach = {}, last_brach = {:?}",
-                    f, m, branch, last_branch
+                    "after singularity at f = {f}, m = {m}, brach = {branch}, last_brach = {last_branch:?}"
                 );
-                assert!(branch == false);
+                assert!(!branch);
             } else if cp.singularity_point(f + 1) {
                 println!(
-                    "before singularity at f = {}, m = {}, brach = {}, last_brach = {:?}",
-                    f, m, branch, last_branch
+                    "before singularity at f = {f}, m = {m}, brach = {branch}, last_brach = {last_branch:?}"
                 );
-                assert!(branch == true);
+                assert!(branch);
                 if let Some(last_branch) = last_branch {
                     assert!(last_branch != branch);
                 }

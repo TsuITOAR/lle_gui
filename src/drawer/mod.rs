@@ -1,24 +1,23 @@
 use egui::Context;
-use lle::{
-    num_complex::Complex64,
-    num_traits::{Float, FromPrimitive},
-};
+use lle::{num_complex::Complex64, num_traits::FromPrimitive};
+use plot_item::PlotItem;
+use plot_kind::PlotKind;
 use static_assertions::assert_impl_all;
-use std::{fmt::Debug, ops::RangeInclusive};
+use std::fmt::Debug;
+
+mod auto_bound;
+pub use auto_bound::SmartPlot;
+
+mod colormap;
+pub(crate) use colormap::{ColorMapDrawer, DrawMat};
 
 mod history;
 pub use history::History;
 
-mod process;
-pub use process::{FftSource, Process};
+mod processor;
+pub use processor::{FftSource, Process};
 
 pub mod chart;
-
-#[cfg(feature = "gpu")]
-pub mod gpu;
-
-#[cfg(feature = "plotters")]
-pub mod plotters;
 
 use self::chart::LleChart;
 
@@ -140,110 +139,5 @@ impl<S: FftSource> ViewField<S> {
     }
 }
 
-#[derive(
-    Debug,
-    Clone,
-    enum_iterator::Sequence,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    serde::Deserialize,
-    serde::Serialize,
-)]
-pub enum PlotKind {
-    Line,
-    Points,
-}
-
-impl crate::util::DisplayStr for PlotKind {
-    fn desc(&self) -> &str {
-        match self {
-            PlotKind::Line => "Line",
-            PlotKind::Points => "Points",
-        }
-    }
-}
-
-impl PlotKind {
-    pub(crate) fn plot(
-        &self,
-        plot: egui_plot::Plot<'_>,
-        ui: &mut egui::Ui,
-        bound: Option<egui_plot::PlotBounds>,
-        elements: impl Iterator<Item = PlotItem>,
-    ) -> egui_plot::PlotResponse<()> {
-        plot.show(ui, |plot_ui| {
-            if let Some(bound) = bound {
-                plot_ui.set_plot_bounds(bound);
-            }
-            match self {
-                PlotKind::Line => {
-                    elements.for_each(
-                        |PlotItem {
-                             data: e,
-                             desc: d,
-                             style,
-                         }| {
-                            if let Some(d) = d {
-                                plot_ui.line(egui_plot::Line::new(e).name(d).width(style.width()));
-                            } else {
-                                plot_ui.line(egui_plot::Line::new(e).width(style.width()));
-                            }
-                        },
-                    );
-                }
-                PlotKind::Points => {
-                    elements.for_each(
-                        |PlotItem {
-                             data: e,
-                             desc: d,
-                             style,
-                         }| {
-                            if let Some(d) = d {
-                                let (a, b): (Vec<_>, Vec<_>) = e
-                                    .points()
-                                    .chunks_exact(2)
-                                    .map(|x| ([x[0].x, x[0].y], [x[1].x, x[1].y]))
-                                    .unzip();
-                                plot_ui.points(
-                                    egui_plot::Points::new(a)
-                                        .name(format!("{d}1"))
-                                        .radius(style.width()),
-                                );
-                                plot_ui.points(
-                                    egui_plot::Points::new(b)
-                                        .name(format!("{d}2"))
-                                        .radius(style.width()),
-                                );
-                            } else {
-                                plot_ui.points(egui_plot::Points::new(e).radius(style.width()));
-                            }
-                        },
-                    );
-                }
-            }
-        })
-    }
-}
-
-pub(crate) struct PlotItem {
-    data: egui_plot::PlotPoints,
-    desc: Option<String>,
-    style: Style,
-}
-
-#[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
-pub(crate) enum Style {
-    Main,
-    Sub,
-}
-
-impl Style {
-    pub(crate) fn width(&self) -> f32 {
-        match self {
-            Style::Main => 2.0,
-            Style::Sub => 1.0,
-        }
-    }
-}
+pub mod plot_item;
+pub mod plot_kind;

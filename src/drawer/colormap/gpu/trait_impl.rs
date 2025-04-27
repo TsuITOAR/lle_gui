@@ -1,8 +1,11 @@
 use iterator_ilp::IteratorILP;
 
-use crate::drawer::{chart::DrawMat, process::FftSource, Process};
-
 use super::Drawer;
+
+use crate::{
+    drawer::{DrawMat, Process},
+    FftSource,
+};
 
 impl DrawMat for Drawer {
     fn draw_mat_on_ui(&mut self, _len: usize, ui: &mut egui::Ui) -> Result<(), eframe::Error> {

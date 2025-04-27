@@ -40,7 +40,7 @@ fn custom_drag<T: egui::emath::Numeric + std::str::FromStr>(
 ) -> DragValue<'_> {
     let unit = unit.to_f64();
     drag_value
-        .custom_formatter(move |x, _r| format!("{:E}", x))
+        .custom_formatter(move |x, _r| format!("{x:E}"))
         .speed(unit)
 }
 
@@ -51,7 +51,7 @@ fn custom_slider<T: egui::emath::Numeric + std::str::FromStr>(
     let unit = unit.to_f64();
     slider
         .step_by(unit)
-        .custom_formatter(move |x, _r| format!("{:E}", x))
+        .custom_formatter(move |x, _r| format!("{x:E}"))
 }
 
 impl<T: Num + Copy> Property<T> {

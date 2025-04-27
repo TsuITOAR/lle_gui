@@ -109,7 +109,7 @@ impl RandomNoise {
                         .logarithmic(true)
                         .clamping(egui::SliderClamping::Never)
                         .text("Amplitude")
-                        .custom_formatter(|x, _r| format!("{:E}", x)),
+                        .custom_formatter(|x, _r| format!("{x:E}")),
                 );
             }
         });

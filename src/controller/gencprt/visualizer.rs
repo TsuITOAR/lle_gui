@@ -25,27 +25,27 @@ impl<'a> Visualizer<&'a State> for ViewField<State> {
 
     fn push_elements_raw(
         &mut self,
-        points: crate::views::RawPlotElement<<&'a State as crate::views::State>::OwnedState>,
+        points: crate::views::RawPlotData<<&'a State as crate::views::State>::OwnedState>,
         on: ShowOn,
         running: bool,
     ) {
         match on {
             ShowOn::Both => {
                 if let Some(ref mut f) = self.f_chart {
-                    f.push_additional_raw(&points, running)
+                    f.push_additional_raw_data(&points, running)
                 }
                 if let Some(ref mut r) = self.r_chart {
-                    r.push_additional_raw(&points, running)
+                    r.push_additional_raw_data(&points, running)
                 }
             }
             ShowOn::Time => {
                 if let Some(ref mut r) = self.r_chart {
-                    r.push_additional_raw(&points, running)
+                    r.push_additional_raw_data(&points, running)
                 }
             }
             ShowOn::Freq => {
                 if let Some(ref mut f) = self.f_chart {
-                    f.push_additional_raw(&points, running)
+                    f.push_additional_raw_data(&points, running)
                 }
             }
         }

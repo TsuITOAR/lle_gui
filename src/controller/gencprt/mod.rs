@@ -13,6 +13,8 @@ pub mod ops;
 pub mod state;
 pub mod visualizer;
 
+mod debugger;
+
 mod walkoff;
 
 use cprt_disper::CprtDispersionFrac;
@@ -22,6 +24,8 @@ pub type App = crate::app::GenApp<
     GenCprtController,
     WalkOff<LleSolver<lle::SPhaMod, NoneOp<f64>, PumpFreq>>,
     crate::drawer::ViewField<state::State>,
+    crate::scouting::BasicScoutingTarget,
+    debugger::Debugger,
 >;
 
 pub type LleSolver<NL, C, CF> = lle::LleSolver<f64, state::State, LinearOpCached<f64>, NL, C, CF>;
@@ -203,23 +207,6 @@ impl<NL: Default + lle::NonLinearOp<f64>> Controller<LleSolver<NL, NoneOp<f64>, 
 }
 
 #[cfg(test)]
-mod tests {
-    use lle::LinearOp;
-
-    use super::*;
-    #[test]
-    fn test_gencprt_dispersion_symmetric() {
-        let mut c = GenCprtController::default();
-        *c.disper.couple_decay.value_mut() = f64::INFINITY;
-        let c = c.get_dispersion();
-        for i in 0..30 {
-            assert_eq!(c.get_value(0, i * 2), c.get_value(0, -i * 2), "{i}");
-            assert_eq!(c.get_value(0, i * 2 + 1), c.get_value(0, -i * 2 + 1), "{i}");
-        }
-    }
-}
-
-#[cfg(test)]
 pub const TEST_DATA: [Complex64; 32] = [
     Complex64::new(1., 0.),
     Complex64::new(2., 0.),
@@ -254,3 +241,20 @@ pub const TEST_DATA: [Complex64; 32] = [
     Complex64::new(31., 0.),
     Complex64::new(32., 0.),
 ];
+
+#[cfg(test)]
+mod tests {
+    use lle::LinearOp;
+
+    use super::*;
+    #[test]
+    fn test_gencprt_dispersion_symmetric() {
+        let mut c = GenCprtController::default();
+        *c.disper.couple_decay.value_mut() = f64::INFINITY;
+        let c = c.get_dispersion();
+        for i in 0..30 {
+            assert_eq!(c.get_value(0, i * 2), c.get_value(0, -i * 2), "{i}");
+            assert_eq!(c.get_value(0, i * 2 + 1), c.get_value(0, -i * 2 + 1), "{i}");
+        }
+    }
+}

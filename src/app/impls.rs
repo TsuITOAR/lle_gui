@@ -10,13 +10,14 @@ pub(crate) struct PlayControl {
     pub(crate) refresh: bool,
 }
 
-impl<P, S, V, T> GenApp<P, S, V, T>
+impl<P, S, V, T, D> GenApp<P, S, V, T, D>
 where
     P: Default + Clone + Controller<S> + serde::Serialize + for<'a> serde::Deserialize<'a>,
     S: Simulator,
     for<'a> <S as SharedState<'a>>::SharedState: State<OwnedState = S::OwnedState>,
-    T: ScoutingTarget<P, S> + Default + Clone,
-    Views<V>: Default + for<'a> Visualizer<<S as SharedState<'a>>::SharedState> + Clone,
+    T: ScoutingTarget<P, S> + Default,
+    Views<V>: Default + for<'a> Visualizer<<S as SharedState<'a>>::SharedState>,
+    D: for<'a> Debugger<<S as SharedState<'a>>::SharedState> + Default,
 {
     pub(crate) fn show_toasts(&self, ctx: &egui::Context) {
         TOASTS.lock().show(ctx);
@@ -75,6 +76,7 @@ where
             slider_len,
             scout,
             add_rand,
+            debugger,
             ..
         } = self;
         let PlayControl {
@@ -157,6 +159,8 @@ where
             attractive_head("Visualization control", ui.visuals().strong_text_color()).ui(ui);
 
             views.show_controller(ui);
+
+            debugger::show_debugger(ui, debugger);
 
             show_dispersion.show_controller(ui);
 
@@ -285,12 +289,13 @@ where
             scout,
             #[cfg(feature = "gpu")]
             render_state,
+            debugger,
             ..
         } = self;
 
         scout.push_to_views(views, ShowOn::Both, running);
-
-        show_dispersion::add_dispersion_curve(show_dispersion, core, views);
+        dispersion::add_dispersion_curve(show_dispersion, core, views);
+        debugger::add_debugger(core, views, debugger);
 
         views.plot(
             core.simulator.states(),

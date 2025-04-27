@@ -25,7 +25,7 @@ impl State {
             state_a_p: state_a_p.into(),
             state_b_p: state_b_p.into(),
             cp,
-            len,
+            len: len / 2,
             cur_freq: 0,
         }
     }
@@ -39,7 +39,7 @@ impl State {
             state_a_n: state_a_n.into(),
             state_b_n: state_b_n.into(),
             cp,
-            len,
+            len: len / 2,
             cur_freq: -1,
         }
     }
@@ -60,14 +60,14 @@ impl State {
                 state_a_p: state_a_p.into(),
                 state_b_p: state_b_p.into(),
                 cp: cp.clone(),
-                len,
+                len: len / 2,
                 cur_freq: 0,
             },
             CouplingStateIterMutNegative {
                 state_a_n: state_a_n.into(),
                 state_b_n: state_b_n.into(),
                 cp,
-                len,
+                len: len / 2,
                 cur_freq: -1,
             },
         )
@@ -80,7 +80,7 @@ impl State {
         DecouplingStateIterPositive {
             state_p: state_p.into(),
             cp,
-            len,
+            len: len / 2,
             cur_freq: 0,
         }
     }
@@ -91,7 +91,7 @@ impl State {
         DecouplingStateIterNegative {
             state_n: state_n.into(),
             cp,
-            len,
+            len: len / 2,
             cur_freq: -1,
         }
     }

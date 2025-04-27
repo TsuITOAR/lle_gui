@@ -1,11 +1,14 @@
 mod core;
 mod impls;
-mod show_dispersion;
+mod dispersion;
 mod storage;
 
 pub use core::Core;
-use show_dispersion::ShowDispersion;
+use dispersion::ShowDispersion;
 pub use storage::CoreStorage;
+
+pub mod debugger;
+pub use debugger::Debugger;
 
 use egui::{DragValue, Widget};
 use storage::GenAppStorage;
@@ -19,7 +22,7 @@ use crate::{
     util::{attractive_button, attractive_head},
     views::{ShowOn, State, Views, Visualizer},
 };
-pub struct GenApp<P, S, V, T = BasicScoutingTarget>
+pub struct GenApp<P, S, V, T = BasicScoutingTarget, D = ()>
 where
     P: Controller<S>,
     S: Simulator,
@@ -39,11 +42,12 @@ where
     file_checkpoints: file::FileManager,
     #[cfg(feature = "gpu")]
     render_state: eframe::egui_wgpu::RenderState,
+    debugger: Option<D>,
 }
 
 const APP_NAME: &str = "LLE Simulator";
 
-impl<P, S, V, T> GenApp<P, S, V, T>
+impl<P, S, V, T, D> GenApp<P, S, V, T, D>
 where
     P: Default + Controller<S> + for<'a> serde::Deserialize<'a> + Clone,
     S: Simulator,
@@ -80,11 +84,12 @@ where
             check_points: c.check_points.clone(),
             #[cfg(feature = "gpu")]
             render_state: cc.wgpu_render_state.clone().unwrap(),
+            debugger: None,
         }
     }
 }
 
-impl<P, S, V, T> eframe::App for GenApp<P, S, V, T>
+impl<P, S, V, T, D> eframe::App for GenApp<P, S, V, T, D>
 where
     P: Default + Clone + Controller<S> + serde::Serialize + for<'a> serde::Deserialize<'a>,
     S: Simulator,
@@ -95,6 +100,7 @@ where
         + serde::Serialize
         + for<'a> serde::Deserialize<'a>
         + Clone,
+    D: for<'a> Debugger<<S as SharedState<'a>>::SharedState> + Default,
 {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         self.show_toasts(ctx);

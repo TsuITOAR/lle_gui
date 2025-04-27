@@ -95,7 +95,7 @@ impl<T: egui::emath::Numeric + std::str::FromStr> ValueRange<T> {
             }
         });
         let ctx = ui.ctx();
-        egui::Window::new(format!("{} range", label))
+        egui::Window::new(format!("{label} range"))
             .title_bar(true)
             //.collapsible(false)
             .resizable(false)

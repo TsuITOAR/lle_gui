@@ -1,6 +1,6 @@
 use super::backend::EguiBackend;
 
-use crate::drawer::{chart, Process};
+use crate::drawer::{DrawMat, Process};
 
 use lle::num_traits::Pow;
 use plotters::{
@@ -355,7 +355,7 @@ impl ColorMapVisualizer<f64> {
     }
 }
 
-impl chart::DrawMat for ColorMapVisualizer {
+impl DrawMat for ColorMapVisualizer {
     #[allow(unused_must_use)]
     fn draw_mat_on_ui(
         &mut self,
