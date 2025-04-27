@@ -250,6 +250,7 @@ mod test {
 
         let mut fft1 = None;
         for i in 0..100 {
+            // todo: solve this test
             apply_walk_off(&mut state, step_dist, &mut fft1);
             state.time += step_dist;
 
