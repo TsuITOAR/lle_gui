@@ -242,30 +242,34 @@ mod test {
             time: 1.,
         };
 
-        let step_dist = 1.;
+        let step_dist = 0.55;
 
         let mut back = state.clone();
         let mut fft = State::default_fft(state.fft_len());
         back.fft_process_forward(&mut fft);
 
         let mut fft1 = None;
-        apply_walk_off(&mut state, step_dist, &mut fft1);
-        state.time += step_dist;
-        state.fft_process_forward(&mut fft);
-        // coupling_modes(&mut state);
-        state
-            .data
-            .iter()
-            .zip(back.data.iter())
-            .enumerate()
-            .for_each(|(i, (a, b))| {
-                println!("{i}\t {a:08}, {b:08} ");
-            });
-        for (i, (a, b)) in back.data.iter().zip(state.data.iter()).enumerate() {
-            assert!(
-                (a.norm_sqr() - b.norm_sqr()).abs() < 1e-5,
-                "i: {i}, a: {a}, b: {b}"
-            );
+        for i in 0..100 {
+            apply_walk_off(&mut state, step_dist, &mut fft1);
+            state.time += step_dist;
+
+            state.fft_process_forward(&mut fft);
+            // coupling_modes(&mut state);
+            println!("loop {i}");
+            state
+                .data
+                .iter()
+                .zip(back.data.iter())
+                .enumerate()
+                .for_each(|(i, (a, b))| {
+                    println!("{i}\t {a:08}, {b:08} ");
+                });
+            use assert_approx_eq::assert_approx_eq;
+            use lle::num_complex::ComplexFloat;
+            for (a, b) in back.data.iter().zip(state.data.iter()) {
+                assert_approx_eq!(a, b);
+            }
+            state.fft_process_inverse(&mut fft);
         }
     }
 

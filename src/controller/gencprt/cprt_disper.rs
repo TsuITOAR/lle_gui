@@ -19,10 +19,11 @@ impl CprtDispersionFrac {
     // original should change after even modes
     pub(crate) fn m_original(&self, freq: Freq) -> i32 {
         let f = freq as f64 + self.period / 2. - self.center_pos * 2.;
-        f.div_euclid(self.period) as i32
+        f.div_euclid(self.period) as i32 + 1
     }
     /// freq0 the real number
     pub fn singularity_point(&self, freq: lle::Freq) -> bool {
+        // return false;
         let freq = freq as f64 - self.center_pos * 2.;
         let diff = (freq + self.period / 2.).rem_euclid(self.period) as i32;
         diff == 0
@@ -50,7 +51,7 @@ impl CprtDispersionFrac {
     }
 
     pub(crate) fn cp_angle(&self, freq: i32, m: i32) -> f64 {
-        use std::f64::consts::*;
+        // use std::f64::consts::*;
         let freq = freq as f64;
         let phi_m = self.phi_m(freq);
         let alpha = (self.couple_strength.get_coupling(freq).cos() * phi_m.cos()).acos();
@@ -58,7 +59,7 @@ impl CprtDispersionFrac {
             (alpha + phi_m).sin().abs().sqrt(),
             (alpha - phi_m).sin().abs().sqrt(),
         );
-        cp_angle + m as f64 * FRAC_PI_2
+        cp_angle //+ m as f64 * FRAC_PI_2
     }
 
     /// freq the pair number
@@ -141,9 +142,7 @@ mod tests {
                 println!("singularity at f = {f}, m = {m}, last_m = {last_m:?}");
             } else if cp.singularity_point(f - 1) {
                 assert!(last_m.map(|last_m| m == last_m).unwrap_or(true));
-                println!(
-                    "first freq after singularity at f = {f}, m = {m}, last_m = {last_m:?}"
-                );
+                println!("first freq after singularity at f = {f}, m = {m}, last_m = {last_m:?}");
             }
             last_m = Some(m);
         }
