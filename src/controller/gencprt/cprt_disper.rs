@@ -68,6 +68,7 @@ impl CprtDispersionFrac {
         m: i32,
         time: f64,
     ) -> ((Complex64, Complex64), (Complex64, Complex64)) {
+        // todo: only works when no singularity!!!
         use std::f64::consts::*;
         let d1 = self.frac_d1_2pi * TAU;
         let cp_angle = self.cp_angle(freq, m);
