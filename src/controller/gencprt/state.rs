@@ -26,7 +26,7 @@ impl State {
             state_b_p: state_b_p.into(),
             cp,
             len: len / 2,
-            cur_freq: 0,
+            must_pair_next: false,
         }
     }
     pub(crate) fn coupling_iter_negative(&self) -> CouplingStateIterNegative<'_> {
@@ -40,7 +40,7 @@ impl State {
             state_b_n: state_b_n.into(),
             cp,
             len: len / 2,
-            cur_freq: -1,
+            must_pair_next: false,
         }
     }
 
@@ -61,14 +61,14 @@ impl State {
                 state_b_p: state_b_p.into(),
                 cp: cp.clone(),
                 len: len / 2,
-                cur_freq: 0,
+                must_pair_next: false,
             },
             CouplingStateIterMutNegative {
                 state_a_n: state_a_n.into(),
                 state_b_n: state_b_n.into(),
                 cp,
                 len: len / 2,
-                cur_freq: -1,
+                must_pair_next: false,
             },
         )
     }
@@ -81,7 +81,7 @@ impl State {
             state_p: state_p.into(),
             cp,
             len: len / 2,
-            cur_freq: 0,
+            must_pair_next: false,
         }
     }
     pub(crate) fn decoupling_iter_negative(&self) -> DecouplingStateIterNegative<'_> {
@@ -92,7 +92,7 @@ impl State {
             state_n: state_n.into(),
             cp,
             len: len / 2,
-            cur_freq: -1,
+            must_pair_next: false,
         }
     }
 }
@@ -153,35 +153,65 @@ impl<'a> ModeMut<'a> {
     }
 }
 
+#[allow(clippy::collapsible_else_if)]
+fn singular(freq: i32, cp: &CoupleInfo, must_pair_next: &mut bool) -> Option<i32> {
+    let m = cp.m_original(freq);
+    if freq > 0 {
+        if cp.singularity_point(freq) {
+            *must_pair_next = false;
+            Some(m)
+        } else if cp.singularity_point(freq + 1) {
+            debug_assert!(!cp.singularity_point(freq + 2));
+            *must_pair_next = true;
+            Some(m + 1)
+        } else {
+            *must_pair_next = false;
+            None
+        }
+    } else {
+        if cp.singularity_point(freq) {
+            *must_pair_next = false;
+            Some(m)
+        } else if cp.singularity_point(freq - 1) {
+            debug_assert!(!cp.singularity_point(freq - 2));
+            *must_pair_next = true;
+            Some(m)
+        } else {
+            *must_pair_next = false;
+            None
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct CouplingStateIterPositive<'a> {
     state_a_p: MySliceIter<'a>,
     state_b_p: MySliceIter<'a>,
     pub(crate) cp: CoupleInfo,
     pub(crate) len: usize,
-    pub(crate) cur_freq: lle::Freq,
+    pub(crate) must_pair_next: bool,
 }
 
 impl<'a> Iterator for CouplingStateIterPositive<'a> {
     type Item = Mode;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.cur_freq > self.len as _ {
+        let freq = self.state_a_p.cur as i32 + self.state_b_p.cur as i32;
+        if freq > self.len as _ {
             return None;
         }
-        let real_number = self.state_a_p.cur as i32 + self.state_b_p.cur as i32;
-        let m = self.cp.m_original(real_number);
-        let freq = self.cur_freq;
-        debug_assert_eq!(freq, real_number);
-        if self.cp.singularity_point(real_number) {
-            self.cur_freq += 1;
+        let m = self.cp.m_original(freq);
+        let must_pair_next = self.must_pair_next;
+        if let (Some(m), false) = (
+            singular(freq, &self.cp, &mut self.must_pair_next),
+            must_pair_next,
+        ) {
             let amp = self.state_a_p.next().unwrap_or_default();
             Some(Mode::Single {
                 amp,
                 meta: ModeMeta { m, freq },
             })
         } else {
-            self.cur_freq += 2;
             let amp1 = self.state_a_p.next().unwrap_or_default();
             let amp2 = self.state_b_p.next().unwrap_or_default();
             Some(Mode::Pair {
@@ -199,29 +229,29 @@ pub struct CouplingStateIterNegative<'a> {
     state_b_n: MySliceIterRev<'a>,
     pub(crate) cp: CoupleInfo,
     pub(crate) len: usize,
-    pub(crate) cur_freq: lle::Freq,
+    pub(crate) must_pair_next: bool,
 }
 
 impl<'a> Iterator for CouplingStateIterNegative<'a> {
     type Item = Mode;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if -self.cur_freq > self.len as i32 - 1 {
+        let freq = -1i32 - self.state_a_n.cur as i32 - self.state_b_n.cur as i32;
+        if -freq > self.len as i32 - 1 {
             return None;
         }
-        let real_number = -1i32 - self.state_a_n.cur as i32 - self.state_b_n.cur as i32;
-        let m = self.cp.m_original(real_number);
-        let freq = self.cur_freq;
-        debug_assert_eq!(freq, real_number);
-        if self.cp.singularity_point(real_number) {
-            self.cur_freq -= 1;
+        let m = self.cp.m_original(freq);
+        let must_pair_next = self.must_pair_next;
+        if let (Some(m), false) = (
+            singular(freq, &self.cp, &mut self.must_pair_next),
+            must_pair_next,
+        ) {
             let amp = self.state_a_n.next().unwrap_or_default();
             Some(Mode::Single {
                 amp,
                 meta: ModeMeta { m, freq },
             })
         } else {
-            self.cur_freq -= 2;
             let amp1 = self.state_a_n.next().unwrap_or_default();
             let amp2 = self.state_b_n.next().unwrap_or_default();
             Some(Mode::Pair {
@@ -239,28 +269,29 @@ pub struct CouplingStateIterMutPositive<'a> {
     state_b_p: MySliceIterMut<'a>,
     pub(crate) cp: CoupleInfo,
     pub(crate) len: usize,
-    pub(crate) cur_freq: lle::Freq,
+    pub(crate) must_pair_next: bool,
 }
 
 impl<'a> Iterator for CouplingStateIterMutPositive<'a> {
     type Item = ModeMut<'a>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.cur_freq > self.len as _ {
+        let freq = self.state_a_p.cur as i32 + self.state_b_p.cur as i32;
+        if freq > self.len as _ {
             return None;
         }
-        let real_number = self.state_a_p.cur as i32 + self.state_b_p.cur as i32;
-        let m = self.cp.m_original(real_number);
-        let freq = self.cur_freq;
-        if self.cp.singularity_point(real_number) {
-            self.cur_freq += 1;
+        let m = self.cp.m_original(freq);
+        let must_pair_next = self.must_pair_next;
+        if let (Some(m), false) = (
+            singular(freq, &self.cp, &mut self.must_pair_next),
+            must_pair_next,
+        ) {
             let amp = self.state_a_p.next();
             Some(ModeMut::Single {
                 amp,
                 meta: ModeMeta { m, freq },
             })
         } else {
-            self.cur_freq += 2;
             let amp1 = self.state_a_p.next();
             let amp2 = self.state_b_p.next();
             Some(ModeMut::Pair {
@@ -278,28 +309,29 @@ pub struct CouplingStateIterMutNegative<'a> {
     state_b_n: MySliceIterMutRev<'a>,
     pub(crate) cp: CoupleInfo,
     pub(crate) len: usize,
-    pub(crate) cur_freq: lle::Freq,
+    pub(crate) must_pair_next: bool,
 }
 
 impl<'a> Iterator for CouplingStateIterMutNegative<'a> {
     type Item = ModeMut<'a>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if -self.cur_freq > self.len as i32 - 1 {
+        let freq = -1i32 - self.state_a_n.cur as i32 - self.state_b_n.cur as i32;
+        if -freq > self.len as i32 - 1 {
             return None;
         }
-        let real_number = -1i32 - self.state_a_n.cur as i32 - self.state_b_n.cur as i32;
-        let m = self.cp.m_original(real_number);
-        let freq = self.cur_freq;
-        if self.cp.singularity_point(real_number) {
-            self.cur_freq -= 1;
+        let m = self.cp.m_original(freq);
+        let must_pair_next = self.must_pair_next;
+        if let (Some(m), false) = (
+            singular(freq, &self.cp, &mut self.must_pair_next),
+            must_pair_next,
+        ) {
             let amp = self.state_a_n.next();
             Some(ModeMut::Single {
                 amp,
                 meta: ModeMeta { m, freq },
             })
         } else {
-            self.cur_freq -= 2;
             let amp1 = self.state_a_n.next();
             let amp2 = self.state_b_n.next();
             Some(ModeMut::Pair {
@@ -316,28 +348,29 @@ pub struct DecouplingStateIterPositive<'a> {
     state_p: MySliceIter<'a>,
     pub(crate) cp: CoupleInfo,
     pub(crate) len: usize,
-    pub(crate) cur_freq: lle::Freq,
+    pub(crate) must_pair_next: bool,
 }
 
 impl<'a> Iterator for DecouplingStateIterPositive<'a> {
     type Item = Mode;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.cur_freq > self.len as _ {
+        let freq = self.state_p.cur as i32;
+        if freq > self.len as _ {
             return None;
         }
-        let real_number = self.state_p.cur as i32;
-        let m = self.cp.m_original(real_number);
-        let freq = self.cur_freq;
-        if self.cp.singularity_point(real_number) {
-            self.cur_freq += 1;
+        let m = self.cp.m_original(freq);
+        let must_pair_next = self.must_pair_next;
+        if let (Some(m), false) = (
+            singular(freq, &self.cp, &mut self.must_pair_next),
+            must_pair_next,
+        ) {
             let amp = self.state_p.next().unwrap_or_default();
             Some(Mode::Single {
                 amp,
                 meta: ModeMeta { m, freq },
             })
         } else {
-            self.cur_freq += 2;
             let amp1 = self.state_p.next().unwrap_or_default();
             let amp2 = self.state_p.next().unwrap_or_default();
             Some(Mode::Pair {
@@ -354,28 +387,29 @@ pub struct DecouplingStateIterNegative<'a> {
     state_n: MySliceIterRev<'a>,
     pub(crate) cp: CoupleInfo,
     pub(crate) len: usize,
-    pub(crate) cur_freq: lle::Freq,
+    pub(crate) must_pair_next: bool,
 }
 
 impl<'a> Iterator for DecouplingStateIterNegative<'a> {
     type Item = Mode;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if -self.cur_freq > self.len as i32 - 1 {
+        let freq = -1i32 - self.state_n.cur as i32;
+        if -freq > self.len as i32 - 1 {
             return None;
         }
-        let real_number = -1i32 - self.state_n.cur as i32;
-        let m = self.cp.m_original(real_number);
-        let freq = self.cur_freq;
-        if self.cp.singularity_point(real_number) {
-            self.cur_freq -= 1;
+        let m = self.cp.m_original(freq);
+        let must_pair_next = self.must_pair_next;
+        if let (Some(m), false) = (
+            singular(freq, &self.cp, &mut self.must_pair_next),
+            must_pair_next,
+        ) {
             let amp = self.state_n.next().unwrap_or_default();
             Some(Mode::Single {
                 amp,
                 meta: ModeMeta { m, freq },
             })
         } else {
-            self.cur_freq -= 2;
             let amp1 = self.state_n.next().unwrap_or_default();
             let amp2 = self.state_n.next().unwrap_or_default();
             Some(Mode::Pair {

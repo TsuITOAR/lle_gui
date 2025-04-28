@@ -236,8 +236,8 @@ mod test {
     fn test_walkoff() {
         let cp = CoupleInfo {
             couple_strength: Default::default(),
-            center_pos: 1.5,
-            period: 11.1,
+            center_pos: 0.5,
+            period: 20.,
             frac_d1_2pi: 0.5,
         };
         let mut state = State {
@@ -270,7 +270,7 @@ mod test {
                 });
             use assert_approx_eq::assert_approx_eq;
             use lle::num_complex::ComplexFloat;
-            for (a, b) in back.data.iter().zip(state.data.iter()) {
+            for (a, b) in state.data.iter().zip(back.data.iter()) {
                 assert_approx_eq!(a, b);
             }
             state.fft_process_inverse(&mut fft);
@@ -296,7 +296,7 @@ mod test {
                 });
             use assert_approx_eq::assert_approx_eq;
             use lle::num_complex::ComplexFloat;
-            for (a, b) in back.data.iter().zip(state.data.iter()) {
+            for (a, b) in state.data.iter().zip(back.data.iter()) {
                 assert_approx_eq!(a.abs(), b.abs());
             }
             state.fft_process_inverse(&mut fft);

@@ -55,11 +55,10 @@ impl CprtDispersionFrac {
         let freq = freq as f64;
         let phi_m = self.phi_m(freq);
         let alpha = (self.couple_strength.get_coupling(freq).cos() * phi_m.cos()).acos();
-        let cp_angle = f64::atan2(
+        f64::atan2(
             (alpha + phi_m).sin().abs().sqrt(),
             (alpha - phi_m).sin().abs().sqrt(),
-        );
-        cp_angle
+        )
     }
 
     /// freq the pair number
