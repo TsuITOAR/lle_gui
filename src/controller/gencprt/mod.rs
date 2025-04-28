@@ -22,7 +22,7 @@ use cprt_disper::CprtDispersionFrac;
 #[allow(unused)]
 pub type App = crate::app::GenApp<
     GenCprtController,
-    WalkOff<LleSolver<NoneOp<f64>, NoneOp<f64>, PumpFreq>>,
+    WalkOff<LleSolver<lle::SPhaMod, NoneOp<f64>, PumpFreq>>,
     crate::drawer::ViewField<state::State>,
     crate::scouting::BasicScoutingTarget,
     debugger::Debugger,

@@ -19,7 +19,7 @@ impl CprtDispersionFrac {
     // original should change after even modes
     pub(crate) fn m_original(&self, freq: Freq) -> i32 {
         let f = freq as f64 + self.period / 2. - self.center_pos * 2.;
-        f.div_euclid(self.period) as i32 + 1
+        f.div_euclid(self.period) as i32
     }
     /// freq0 the real number
     pub fn singularity_point(&self, freq: lle::Freq) -> bool {
@@ -50,7 +50,7 @@ impl CprtDispersionFrac {
         TAU * (freq - self.center_pos) / self.period
     }
 
-    pub(crate) fn cp_angle(&self, freq: i32, m: i32) -> f64 {
+    pub(crate) fn cp_angle(&self, freq: i32, _m: i32) -> f64 {
         // use std::f64::consts::*;
         let freq = freq as f64;
         let phi_m = self.phi_m(freq);
@@ -59,7 +59,7 @@ impl CprtDispersionFrac {
             (alpha + phi_m).sin().abs().sqrt(),
             (alpha - phi_m).sin().abs().sqrt(),
         );
-        cp_angle //+ m as f64 * FRAC_PI_2
+        cp_angle
     }
 
     /// freq the pair number

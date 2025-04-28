@@ -35,6 +35,10 @@ impl<
     fn evolve(&mut self) {
         self.core.evolve();
         let step_dist = self.core.step_dist;
+        let frac_d1_2pi = self.core.get_raw_state().cp.frac_d1_2pi;
+        let time = self.core.get_raw_state().time;
+        self.core.get_raw_state_mut().time = (time + step_dist).rem_euclid(2. / frac_d1_2pi);
+        let step_dist = self.core.step_dist;
         let state = self.core.get_raw_state_mut();
         apply_walk_off(state, step_dist, &mut self.fft);
     }
@@ -247,10 +251,9 @@ mod test {
         let mut back = state.clone();
         let mut fft = State::default_fft(state.fft_len());
         back.fft_process_forward(&mut fft);
-
+        let scale = state.scale_factor();
         let mut fft1 = None;
         for i in 0..100 {
-            // todo: solve this test
             apply_walk_off(&mut state, step_dist, &mut fft1);
             state.time += step_dist;
 
@@ -271,6 +274,33 @@ mod test {
                 assert_approx_eq!(a, b);
             }
             state.fft_process_inverse(&mut fft);
+            state.data.iter_mut().for_each(|x| *x /= scale);
+        }
+        let linear: (lle::DiffOrder, Complex64) = (2, Complex64::i() * 0.5 / 2. / 4.);
+        for i in 0..100 {
+            use lle::LinearOpExt;
+            apply_walk_off(&mut state, step_dist, &mut fft1);
+            state.time += step_dist;
+
+            state.fft_process_forward(&mut fft);
+            linear.apply_freq(state.as_mut(), step_dist, 0);
+            // coupling_modes(&mut state);
+            println!("loop {i}");
+            state
+                .data
+                .iter()
+                .zip(back.data.iter())
+                .enumerate()
+                .for_each(|(i, (a, b))| {
+                    println!("{i}\t {a:08}, {b:08} ");
+                });
+            use assert_approx_eq::assert_approx_eq;
+            use lle::num_complex::ComplexFloat;
+            for (a, b) in back.data.iter().zip(state.data.iter()) {
+                assert_approx_eq!(a.abs(), b.abs());
+            }
+            state.fft_process_inverse(&mut fft);
+            state.data.iter_mut().for_each(|x| *x /= scale);
         }
     }
 
