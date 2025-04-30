@@ -26,7 +26,7 @@ impl State {
             state_b_p: state_b_p.into(),
             cp,
             len: len / 2,
-            must_pair_next: false,
+            force_pair_next: false,
         }
     }
     pub(crate) fn coupling_iter_negative(&self) -> CouplingStateIterNegative<'_> {
@@ -40,7 +40,7 @@ impl State {
             state_b_n: state_b_n.into(),
             cp,
             len: len / 2,
-            must_pair_next: false,
+            force_pair_next: false,
         }
     }
 
@@ -61,14 +61,14 @@ impl State {
                 state_b_p: state_b_p.into(),
                 cp: cp.clone(),
                 len: len / 2,
-                must_pair_next: false,
+                force_pair_next: false,
             },
             CouplingStateIterMutNegative {
                 state_a_n: state_a_n.into(),
                 state_b_n: state_b_n.into(),
                 cp,
                 len: len / 2,
-                must_pair_next: false,
+                force_pair_next: false,
             },
         )
     }
@@ -81,7 +81,7 @@ impl State {
             state_p: state_p.into(),
             cp,
             len: len / 2,
-            must_pair_next: false,
+            force_pair_next: false,
         }
     }
     pub(crate) fn decoupling_iter_negative(&self) -> DecouplingStateIterNegative<'_> {
@@ -92,7 +92,7 @@ impl State {
             state_n: state_n.into(),
             cp,
             len: len / 2,
-            must_pair_next: false,
+            force_pair_next: false,
         }
     }
 }
@@ -154,33 +154,45 @@ impl<'a> ModeMut<'a> {
 }
 
 #[allow(clippy::collapsible_else_if)]
-fn singular(freq: i32, cp: &CoupleInfo, must_pair_next: &mut bool) -> Option<i32> {
+fn singular(freq: i32, cp: &CoupleInfo, force_pair_next: &mut bool) -> Option<i32> {
     // return cp.singularity_point(freq).then(|| cp.m_original(freq));
     let m = cp.m_original(freq);
     if freq > 0 {
         if cp.singularity_point(freq) {
-            *must_pair_next = false;
+            debug_assert!(!cp.singularity_point(freq + 1));
+            *force_pair_next = false;
             Some(m)
         } else if cp.singularity_point(freq + 1) {
             debug_assert!(!cp.singularity_point(freq + 2));
-            *must_pair_next = true;
-            Some(m + 1)
+            let m = cp.m_original(freq + 1);
+            *force_pair_next = true;
+            Some(m)
         } else {
-            *must_pair_next = false;
+            *force_pair_next = false;
             None
         }
     } else {
         if cp.singularity_point(freq) {
-            *must_pair_next = false;
+            debug_assert!(!cp.singularity_point(freq - 1));
+            *force_pair_next = false;
             Some(m)
         } else if cp.singularity_point(freq - 1) {
             debug_assert!(!cp.singularity_point(freq - 2));
-            *must_pair_next = true;
+            let m = cp.m_original(freq - 1);
+            *force_pair_next = true;
             Some(m)
         } else {
-            *must_pair_next = false;
+            *force_pair_next = false;
             None
         }
+    }
+}
+
+fn modify_force_pair_m(m: i32, freq: i32) -> i32 {
+    if freq < 0 {
+        m - 1
+    } else {
+        m
     }
 }
 
@@ -190,7 +202,7 @@ pub struct CouplingStateIterPositive<'a> {
     state_b_p: MySliceIter<'a>,
     pub(crate) cp: CoupleInfo,
     pub(crate) len: usize,
-    pub(crate) must_pair_next: bool,
+    pub(crate) force_pair_next: bool,
 }
 
 impl<'a> Iterator for CouplingStateIterPositive<'a> {
@@ -201,11 +213,11 @@ impl<'a> Iterator for CouplingStateIterPositive<'a> {
         if freq >= self.len as _ {
             return None;
         }
-        let m = self.cp.m_original(freq);
-        let must_pair_next = self.must_pair_next;
+        let mut m = self.cp.m_original(freq);
+        let force_pair_next = self.force_pair_next;
         if let (Some(m), false) = (
-            singular(freq, &self.cp, &mut self.must_pair_next),
-            must_pair_next,
+            singular(freq, &self.cp, &mut self.force_pair_next),
+            force_pair_next,
         ) {
             let amp = self.state_a_p.next().unwrap_or_default();
             Some(Mode::Single {
@@ -213,6 +225,9 @@ impl<'a> Iterator for CouplingStateIterPositive<'a> {
                 meta: ModeMeta { m, freq },
             })
         } else {
+            if force_pair_next {
+                m = modify_force_pair_m(m, freq);
+            }
             let amp1 = self.state_a_p.next().unwrap_or_default();
             let amp2 = self.state_b_p.next().unwrap_or_default();
             Some(Mode::Pair {
@@ -230,7 +245,7 @@ pub struct CouplingStateIterNegative<'a> {
     state_b_n: MySliceIterRev<'a>,
     pub(crate) cp: CoupleInfo,
     pub(crate) len: usize,
-    pub(crate) must_pair_next: bool,
+    pub(crate) force_pair_next: bool,
 }
 
 impl<'a> Iterator for CouplingStateIterNegative<'a> {
@@ -241,11 +256,11 @@ impl<'a> Iterator for CouplingStateIterNegative<'a> {
         if -freq >= self.len as i32 + 1 {
             return None;
         }
-        let m = self.cp.m_original(freq);
-        let must_pair_next = self.must_pair_next;
+        let mut m = self.cp.m_original(freq);
+        let force_pair_next = self.force_pair_next;
         if let (Some(m), false) = (
-            singular(freq, &self.cp, &mut self.must_pair_next),
-            must_pair_next,
+            singular(freq, &self.cp, &mut self.force_pair_next),
+            force_pair_next,
         ) {
             let amp = self.state_a_n.next().unwrap_or_default();
             Some(Mode::Single {
@@ -253,6 +268,9 @@ impl<'a> Iterator for CouplingStateIterNegative<'a> {
                 meta: ModeMeta { m, freq },
             })
         } else {
+            if force_pair_next {
+                m = modify_force_pair_m(m, freq);
+            }
             let amp1 = self.state_a_n.next().unwrap_or_default();
             let amp2 = self.state_b_n.next().unwrap_or_default();
             Some(Mode::Pair {
@@ -270,7 +288,7 @@ pub struct CouplingStateIterMutPositive<'a> {
     state_b_p: MySliceIterMut<'a>,
     pub(crate) cp: CoupleInfo,
     pub(crate) len: usize,
-    pub(crate) must_pair_next: bool,
+    pub(crate) force_pair_next: bool,
 }
 
 impl<'a> Iterator for CouplingStateIterMutPositive<'a> {
@@ -281,11 +299,11 @@ impl<'a> Iterator for CouplingStateIterMutPositive<'a> {
         if freq >= self.len as _ {
             return None;
         }
-        let m = self.cp.m_original(freq);
-        let must_pair_next = self.must_pair_next;
+        let mut m = self.cp.m_original(freq);
+        let force_pair_next = self.force_pair_next;
         if let (Some(m), false) = (
-            singular(freq, &self.cp, &mut self.must_pair_next),
-            must_pair_next,
+            singular(freq, &self.cp, &mut self.force_pair_next),
+            force_pair_next,
         ) {
             let amp = self.state_a_p.next();
             Some(ModeMut::Single {
@@ -293,6 +311,9 @@ impl<'a> Iterator for CouplingStateIterMutPositive<'a> {
                 meta: ModeMeta { m, freq },
             })
         } else {
+            if force_pair_next {
+                m = modify_force_pair_m(m, freq);
+            }
             let amp1 = self.state_a_p.next();
             let amp2 = self.state_b_p.next();
             Some(ModeMut::Pair {
@@ -310,7 +331,7 @@ pub struct CouplingStateIterMutNegative<'a> {
     state_b_n: MySliceIterMutRev<'a>,
     pub(crate) cp: CoupleInfo,
     pub(crate) len: usize,
-    pub(crate) must_pair_next: bool,
+    pub(crate) force_pair_next: bool,
 }
 
 impl<'a> Iterator for CouplingStateIterMutNegative<'a> {
@@ -321,11 +342,11 @@ impl<'a> Iterator for CouplingStateIterMutNegative<'a> {
         if -freq >= self.len as i32 + 1 {
             return None;
         }
-        let m = self.cp.m_original(freq);
-        let must_pair_next = self.must_pair_next;
+        let mut m = self.cp.m_original(freq);
+        let force_pair_next = self.force_pair_next;
         if let (Some(m), false) = (
-            singular(freq, &self.cp, &mut self.must_pair_next),
-            must_pair_next,
+            singular(freq, &self.cp, &mut self.force_pair_next),
+            force_pair_next,
         ) {
             let amp = self.state_a_n.next();
             Some(ModeMut::Single {
@@ -333,6 +354,9 @@ impl<'a> Iterator for CouplingStateIterMutNegative<'a> {
                 meta: ModeMeta { m, freq },
             })
         } else {
+            if force_pair_next {
+                m = modify_force_pair_m(m, freq);
+            }
             let amp1 = self.state_a_n.next();
             let amp2 = self.state_b_n.next();
             Some(ModeMut::Pair {
@@ -349,7 +373,7 @@ pub struct DecouplingStateIterPositive<'a> {
     state_p: MySliceIter<'a>,
     pub(crate) cp: CoupleInfo,
     pub(crate) len: usize,
-    pub(crate) must_pair_next: bool,
+    pub(crate) force_pair_next: bool,
 }
 
 impl<'a> Iterator for DecouplingStateIterPositive<'a> {
@@ -360,11 +384,11 @@ impl<'a> Iterator for DecouplingStateIterPositive<'a> {
         if freq >= self.len as _ {
             return None;
         }
-        let m = self.cp.m_original(freq);
-        let must_pair_next = self.must_pair_next;
+        let mut m = self.cp.m_original(freq);
+        let force_pair_next = self.force_pair_next;
         if let (Some(m), false) = (
-            singular(freq, &self.cp, &mut self.must_pair_next),
-            must_pair_next,
+            singular(freq, &self.cp, &mut self.force_pair_next),
+            force_pair_next,
         ) {
             let amp = self.state_p.next().unwrap_or_default();
             Some(Mode::Single {
@@ -372,6 +396,9 @@ impl<'a> Iterator for DecouplingStateIterPositive<'a> {
                 meta: ModeMeta { m, freq },
             })
         } else {
+            if force_pair_next {
+                m = modify_force_pair_m(m, freq);
+            }
             let amp1 = self.state_p.next().unwrap_or_default();
             let amp2 = self.state_p.next().unwrap_or_default();
             Some(Mode::Pair {
@@ -388,7 +415,7 @@ pub struct DecouplingStateIterNegative<'a> {
     state_n: MySliceIterRev<'a>,
     pub(crate) cp: CoupleInfo,
     pub(crate) len: usize,
-    pub(crate) must_pair_next: bool,
+    pub(crate) force_pair_next: bool,
 }
 
 impl<'a> Iterator for DecouplingStateIterNegative<'a> {
@@ -399,11 +426,11 @@ impl<'a> Iterator for DecouplingStateIterNegative<'a> {
         if -freq >= self.len as i32 + 1 {
             return None;
         }
-        let m = self.cp.m_original(freq);
-        let must_pair_next = self.must_pair_next;
+        let mut m = self.cp.m_original(freq);
+        let force_pair_next = self.force_pair_next;
         if let (Some(m), false) = (
-            singular(freq, &self.cp, &mut self.must_pair_next),
-            must_pair_next,
+            singular(freq, &self.cp, &mut self.force_pair_next),
+            force_pair_next,
         ) {
             let amp = self.state_n.next().unwrap_or_default();
             Some(Mode::Single {
@@ -411,6 +438,9 @@ impl<'a> Iterator for DecouplingStateIterNegative<'a> {
                 meta: ModeMeta { m, freq },
             })
         } else {
+            if force_pair_next {
+                m = modify_force_pair_m(m, freq);
+            }
             let amp1 = self.state_n.next().unwrap_or_default();
             let amp2 = self.state_n.next().unwrap_or_default();
             Some(Mode::Pair {

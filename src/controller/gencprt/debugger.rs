@@ -22,12 +22,12 @@ impl crate::app::Debugger<&'_ super::state::State> for Debugger {
 
                 match x {
                     Mode::Single { meta, .. } => {
-                        Box::<[_]>::from([(((dim / 2 + 1) + meta.freq) as f64, -2.)])
+                        Box::<[_]>::from([(((dim / 2 + 1) + meta.freq) as f64, (-2., meta.m))])
                     }
                     Mode::Pair { meta, .. } => Box::<[_]>::from(
                         [
-                            (((dim / 2 + 1) + meta.freq) as f64, -1.),
-                            (((dim / 2 + 1) + meta.freq) as f64 + 1., 1.),
+                            (((dim / 2 + 1) + meta.freq) as f64, (-1., meta.m)),
+                            (((dim / 2 + 1) + meta.freq) as f64 + 1., (1., meta.m)),
                         ]
                         .as_slice(),
                     ),
@@ -38,12 +38,12 @@ impl crate::app::Debugger<&'_ super::state::State> for Debugger {
 
                 match x {
                     Mode::Single { meta, .. } => {
-                        Box::<[_]>::from([(((dim / 2 + 1) + meta.freq) as f64, -2.)])
+                        Box::<[_]>::from([(((dim / 2 + 1) + meta.freq) as f64, (-2., meta.m))])
                     }
                     Mode::Pair { meta, .. } => Box::<[_]>::from(
                         [
-                            (((dim / 2 + 1) + meta.freq) as f64, -1.),
-                            (((dim / 2 + 1) + meta.freq) as f64 - 1., 1.),
+                            (((dim / 2 + 1) + meta.freq) as f64, (-0.5, meta.m)),
+                            (((dim / 2 + 1) + meta.freq) as f64 - 1., (0.5, meta.m)),
                         ]
                         .as_slice(),
                     ),
@@ -52,19 +52,24 @@ impl crate::app::Debugger<&'_ super::state::State> for Debugger {
             .flatten()
             .collect::<Vec<_>>();
 
-        let vis2: Vec<_> = (-(dim / 2 + 1)..(dim / 2))
+        let vis3: Vec<_> = (-(dim / 2 + 1)..(dim / 2))
             .map(|x| {
                 use std::f64::consts::PI;
                 let m = cp.m_original(x);
-                
+
                 cp.cp_angle((x + m) / 2, m) / PI * 10.
             })
             .enumerate()
             .map(|(x, y)| (x as f64, y))
             .collect();
-        let legend = ["singularity", "cp_angle"];
-        [vis1, vis2]
+        let (vis1, vis2): (Vec<_>, Vec<_>) = vis1
             .into_iter()
+            .map(|x| ((x.0, x.1 .0), (x.0, x.1 .1 as f64)))
+            .unzip();
+        let legend = ["singularity", "m", "cp_angle"];
+        [vis1, vis2, vis3]
+            .into_iter()
+            //.take(2)
             .zip(legend)
             .map(|(v, legend)| {
                 let (x, y) = v.into_iter().unzip();
