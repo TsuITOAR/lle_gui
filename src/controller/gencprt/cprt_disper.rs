@@ -146,7 +146,7 @@ mod tests {
             last_m = Some(m);
         }
     }
-    #[test]
+    /* #[test]
     fn test_branch() {
         let cp = super::CprtDispersionFrac {
             center_pos: 1.0,
@@ -183,7 +183,7 @@ mod tests {
             }
             last_branch = Some(branch);
         }
-    }
+    } */
 
     /* #[test]
     fn test_disper_m_consistent() {

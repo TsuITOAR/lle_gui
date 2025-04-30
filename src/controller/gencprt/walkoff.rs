@@ -236,8 +236,8 @@ mod test {
     fn test_walkoff() {
         let cp = CoupleInfo {
             couple_strength: Default::default(),
-            center_pos: 0.5,
-            period: 20.,
+            center_pos: 0.0,
+            period: 10.,
             frac_d1_2pi: 0.5,
         };
         let mut state = State {
