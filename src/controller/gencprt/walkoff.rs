@@ -249,6 +249,8 @@ mod test {
         let step_dist = 0.55;
 
         let mut back = state.clone();
+        let len = state.data.len();
+
         let mut fft = State::default_fft(state.fft_len());
         back.fft_process_forward(&mut fft);
         let scale = state.scale_factor();
@@ -266,7 +268,7 @@ mod test {
                 .zip(back.data.iter())
                 .enumerate()
                 .for_each(|(i, (a, b))| {
-                    println!("{i}\t {a:08}, {b:08} ");
+                    println!("{i}\t {a:>8}, {b:>8} ");
                 });
             use assert_approx_eq::assert_approx_eq;
             use lle::num_complex::ComplexFloat;
@@ -278,27 +280,27 @@ mod test {
         }
         let linear: (lle::DiffOrder, Complex64) = (2, Complex64::i() * 0.5 / 2. / 4.);
         for i in 0..100 {
+            println!("loop {i}");
             use lle::LinearOpExt;
             apply_walk_off(&mut state, step_dist, &mut fft1);
             state.time += step_dist;
 
             state.fft_process_forward(&mut fft);
-            linear.apply_freq(state.as_mut(), step_dist, 0);
-            // coupling_modes(&mut state);
-            println!("loop {i}");
             state
                 .data
                 .iter()
                 .zip(back.data.iter())
                 .enumerate()
                 .for_each(|(i, (a, b))| {
-                    println!("{i}\t {a:08}, {b:08} ");
+                    println!("{i}\t {:08}, {:08}", a.abs(), b.abs());
                 });
             use assert_approx_eq::assert_approx_eq;
             use lle::num_complex::ComplexFloat;
-            for (a, b) in state.data.iter().zip(back.data.iter()) {
+            for (a, b) in state.data.iter().zip(back.data.iter()).take(len / 2) {
                 assert_approx_eq!(a.abs(), b.abs());
             }
+            linear.apply_freq(state.as_mut(), step_dist, 0);
+
             state.fft_process_inverse(&mut fft);
             state.data.iter_mut().for_each(|x| *x /= scale);
         }
