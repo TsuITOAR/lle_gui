@@ -15,7 +15,7 @@ where
     P: Default + Clone + Controller<S> + serde::Serialize + for<'a> serde::Deserialize<'a>,
     S: Simulator,
     for<'a> <S as SharedState<'a>>::SharedState: State<OwnedState = S::OwnedState>,
-    T: ScoutingTarget<P, S> + Default,
+    T: PreviewTarget<P, S> + Default,
     Views<V>: Default + for<'a> Visualizer<<S as SharedState<'a>>::SharedState>,
     D: for<'a> Debugger<<S as SharedState<'a>>::SharedState> + Default,
 {
@@ -271,7 +271,7 @@ where
             {
                 puffin_egui::puffin::profile_scope!("calculate");
                 simulator.run(controller.steps());
-                scout.poll_scouters(controller.steps(), *add_rand);
+                scout.poll_previews(controller.steps(), *add_rand);
             }
             return true;
         }

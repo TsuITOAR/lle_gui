@@ -24,7 +24,7 @@ pub type App = crate::app::GenApp<
     GenCprtController,
     WalkOff<LleSolver<lle::SPhaMod, NoneOp<f64>, PumpFreq>>,
     crate::drawer::ViewField<state::State>,
-    crate::scouting::BasicScoutingTarget,
+    crate::preview::BasicPreviewTarget,
     debugger::Debugger,
 >;
 

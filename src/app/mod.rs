@@ -18,18 +18,18 @@ use crate::{
     controller::{Controller, SharedState, Simulator},
     file::{self, FileManager},
     notify::{ResultExt, TOASTS},
-    scouting::{BasicScoutingTarget, Scouter, ScoutingTarget},
+    preview::{BasicPreviewTarget, PreviewTarget, Previewer},
     util::{attractive_button, attractive_head},
     views::{ShowOn, State, Views, Visualizer},
 };
-pub struct GenApp<P, S, V, T = BasicScoutingTarget, D = ()>
+pub struct GenApp<P, S, V, T = BasicPreviewTarget, D = ()>
 where
     P: Controller<S>,
     S: Simulator,
-    T: ScoutingTarget<P, S>,
+    T: PreviewTarget<P, S>,
 {
     core: Core<P, S>,
-    scout: Scouter<P, S, T>,
+    scout: Previewer<P, S, T>,
     is_init: bool,
     slider_len: Option<f32>,
     views: Views<V>,
@@ -56,7 +56,7 @@ where
     Views<V>: Default
         + for<'a> serde::Deserialize<'a>
         + for<'a> Visualizer<<S as SharedState<'a>>::SharedState>,
-    T: ScoutingTarget<P, S> + for<'a> serde::Deserialize<'a> + Default,
+    T: PreviewTarget<P, S> + for<'a> serde::Deserialize<'a> + Default,
 {
     /// Called once before the first frame.
     pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
@@ -94,7 +94,7 @@ where
     P: Default + Clone + Controller<S> + serde::Serialize + for<'a> serde::Deserialize<'a>,
     S: Simulator,
     for<'a> <S as SharedState<'a>>::SharedState: State<OwnedState = S::OwnedState>,
-    T: ScoutingTarget<P, S> + serde::Serialize + for<'a> serde::Deserialize<'a> + Default + Clone,
+    T: PreviewTarget<P, S> + serde::Serialize + for<'a> serde::Deserialize<'a> + Default + Clone,
     Views<V>: Default
         + for<'a> Visualizer<<S as SharedState<'a>>::SharedState>
         + serde::Serialize

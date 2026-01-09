@@ -20,7 +20,7 @@ use super::*;
     serde::Serialize,
     enum_iterator::Sequence,
 )]
-pub enum BasicScoutingTarget {
+pub enum BasicPreviewTarget {
     #[default]
     Alpha,
     Pump,
@@ -28,18 +28,18 @@ pub enum BasicScoutingTarget {
     StepDist,
 }
 
-impl crate::util::DisplayStr for BasicScoutingTarget {
+impl crate::util::DisplayStr for BasicPreviewTarget {
     fn desc(&self) -> &str {
         match self {
-            BasicScoutingTarget::Alpha => "α",
-            BasicScoutingTarget::Pump => "F",
-            BasicScoutingTarget::Linear => "β",
-            BasicScoutingTarget::StepDist => "Δt",
+            BasicPreviewTarget::Alpha => "α",
+            BasicPreviewTarget::Pump => "F",
+            BasicPreviewTarget::Linear => "β",
+            BasicPreviewTarget::StepDist => "Δt",
         }
     }
 }
 
-impl<S> ScoutingTarget<LleController, S> for BasicScoutingTarget
+impl<S> PreviewTarget<LleController, S> for BasicPreviewTarget
 where
     S: Simulator,
     LleController: Controller<S>,
@@ -50,15 +50,15 @@ where
     }
     fn apply(&self, value: f64, controller: &mut LleController) {
         match self {
-            BasicScoutingTarget::Alpha => *controller.alpha.value_mut() += value,
-            BasicScoutingTarget::Pump => *controller.pump.value_mut() += value,
-            BasicScoutingTarget::Linear => *controller.linear.value_mut() += value,
-            BasicScoutingTarget::StepDist => *controller.step_dist.value_mut() += value,
+            BasicPreviewTarget::Alpha => *controller.alpha.value_mut() += value,
+            BasicPreviewTarget::Pump => *controller.pump.value_mut() += value,
+            BasicPreviewTarget::Linear => *controller.linear.value_mut() += value,
+            BasicPreviewTarget::StepDist => *controller.step_dist.value_mut() += value,
         }
     }
 }
 
-impl<S> ScoutingTarget<CoupleLleController, S> for BasicScoutingTarget
+impl<S> PreviewTarget<CoupleLleController, S> for BasicPreviewTarget
 where
     S: Simulator,
     CoupleLleController: Controller<S>,
@@ -70,10 +70,10 @@ where
     fn apply(&self, value: f64, controller: &mut CoupleLleController) {
         let controller = &mut controller.basic;
         match self {
-            BasicScoutingTarget::Alpha => *controller.alpha.value_mut() += value,
-            BasicScoutingTarget::Pump => *controller.pump.value_mut() += value,
-            BasicScoutingTarget::Linear => *controller.linear.value_mut() += value,
-            BasicScoutingTarget::StepDist => *controller.step_dist.value_mut() += value,
+            BasicPreviewTarget::Alpha => *controller.alpha.value_mut() += value,
+            BasicPreviewTarget::Pump => *controller.pump.value_mut() += value,
+            BasicPreviewTarget::Linear => *controller.linear.value_mut() += value,
+            BasicPreviewTarget::StepDist => *controller.step_dist.value_mut() += value,
         }
     }
 }
@@ -84,7 +84,7 @@ use controller::cprt2::CprtLleController2;
 use controller::disper::DisperLleController;
 use controller::disper2::DisperLleController2;
 
-impl<S> ScoutingTarget<CprtLleController, S> for BasicScoutingTarget
+impl<S> PreviewTarget<CprtLleController, S> for BasicPreviewTarget
 where
     S: Simulator,
     CprtLleController: Controller<S>,
@@ -96,15 +96,15 @@ where
     fn apply(&self, value: f64, controller: &mut CprtLleController) {
         let controller = &mut controller.basic;
         match self {
-            BasicScoutingTarget::Alpha => *controller.alpha.value_mut() += value,
-            BasicScoutingTarget::Pump => *controller.pump.value_mut() += value,
-            BasicScoutingTarget::Linear => *controller.linear.value_mut() += value,
-            BasicScoutingTarget::StepDist => *controller.step_dist.value_mut() += value,
+            BasicPreviewTarget::Alpha => *controller.alpha.value_mut() += value,
+            BasicPreviewTarget::Pump => *controller.pump.value_mut() += value,
+            BasicPreviewTarget::Linear => *controller.linear.value_mut() += value,
+            BasicPreviewTarget::StepDist => *controller.step_dist.value_mut() += value,
         }
     }
 }
 
-impl<S> ScoutingTarget<CprtLleController2, S> for BasicScoutingTarget
+impl<S> PreviewTarget<CprtLleController2, S> for BasicPreviewTarget
 where
     S: Simulator,
     CprtLleController2: Controller<S>,
@@ -116,15 +116,15 @@ where
     fn apply(&self, value: f64, controller: &mut CprtLleController2) {
         let controller = &mut controller.basic;
         match self {
-            BasicScoutingTarget::Alpha => *controller.alpha.value_mut() += value,
-            BasicScoutingTarget::Pump => *controller.pump.value_mut() += value,
-            BasicScoutingTarget::Linear => *controller.linear.value_mut() += value,
-            BasicScoutingTarget::StepDist => *controller.step_dist.value_mut() += value,
+            BasicPreviewTarget::Alpha => *controller.alpha.value_mut() += value,
+            BasicPreviewTarget::Pump => *controller.pump.value_mut() += value,
+            BasicPreviewTarget::Linear => *controller.linear.value_mut() += value,
+            BasicPreviewTarget::StepDist => *controller.step_dist.value_mut() += value,
         }
     }
 }
 
-impl<S> ScoutingTarget<DisperLleController, S> for BasicScoutingTarget
+impl<S> PreviewTarget<DisperLleController, S> for BasicPreviewTarget
 where
     S: Simulator,
     DisperLleController: Controller<S>,
@@ -136,15 +136,15 @@ where
     fn apply(&self, value: f64, controller: &mut DisperLleController) {
         let controller = &mut controller.basic;
         match self {
-            BasicScoutingTarget::Alpha => *controller.alpha.value_mut() += value,
-            BasicScoutingTarget::Pump => *controller.pump.value_mut() += value,
-            BasicScoutingTarget::Linear => *controller.linear.value_mut() += value,
-            BasicScoutingTarget::StepDist => *controller.step_dist.value_mut() += value,
+            BasicPreviewTarget::Alpha => *controller.alpha.value_mut() += value,
+            BasicPreviewTarget::Pump => *controller.pump.value_mut() += value,
+            BasicPreviewTarget::Linear => *controller.linear.value_mut() += value,
+            BasicPreviewTarget::StepDist => *controller.step_dist.value_mut() += value,
         }
     }
 }
 
-impl<S> ScoutingTarget<DisperLleController2, S> for BasicScoutingTarget
+impl<S> PreviewTarget<DisperLleController2, S> for BasicPreviewTarget
 where
     S: Simulator,
     DisperLleController2: Controller<S>,
@@ -156,15 +156,15 @@ where
     fn apply(&self, value: f64, controller: &mut DisperLleController2) {
         let controller = &mut controller.basic;
         match self {
-            BasicScoutingTarget::Alpha => *controller.alpha.value_mut() += value,
-            BasicScoutingTarget::Pump => *controller.pump.value_mut() += value,
-            BasicScoutingTarget::Linear => *controller.linear.value_mut() += value,
-            BasicScoutingTarget::StepDist => *controller.step_dist.value_mut() += value,
+            BasicPreviewTarget::Alpha => *controller.alpha.value_mut() += value,
+            BasicPreviewTarget::Pump => *controller.pump.value_mut() += value,
+            BasicPreviewTarget::Linear => *controller.linear.value_mut() += value,
+            BasicPreviewTarget::StepDist => *controller.step_dist.value_mut() += value,
         }
     }
 }
 
-impl<S> ScoutingTarget<PulsePumpLleController, S> for BasicScoutingTarget
+impl<S> PreviewTarget<PulsePumpLleController, S> for BasicPreviewTarget
 where
     S: Simulator,
     PulsePumpLleController: Controller<S>,
@@ -175,15 +175,15 @@ where
     }
     fn apply(&self, value: f64, controller: &mut PulsePumpLleController) {
         match self {
-            BasicScoutingTarget::Alpha => *controller.alpha.value_mut() += value,
-            BasicScoutingTarget::Pump => *controller.pump.peak.value_mut() += value,
-            BasicScoutingTarget::Linear => *controller.linear.value_mut() += value,
-            BasicScoutingTarget::StepDist => *controller.step_dist.value_mut() += value,
+            BasicPreviewTarget::Alpha => *controller.alpha.value_mut() += value,
+            BasicPreviewTarget::Pump => *controller.pump.peak.value_mut() += value,
+            BasicPreviewTarget::Linear => *controller.linear.value_mut() += value,
+            BasicPreviewTarget::StepDist => *controller.step_dist.value_mut() += value,
         }
     }
 }
 
-impl<S> ScoutingTarget<SelfPumpLleController, S> for BasicScoutingTarget
+impl<S> PreviewTarget<SelfPumpLleController, S> for BasicPreviewTarget
 where
     S: Simulator,
     SelfPumpLleController: Controller<S>,
@@ -194,15 +194,15 @@ where
     }
     fn apply(&self, value: f64, controller: &mut SelfPumpLleController) {
         match self {
-            BasicScoutingTarget::Alpha => *controller.alpha.value_mut() += value,
-            BasicScoutingTarget::Pump => *controller.pump.loop_loss.value_mut() += value,
-            BasicScoutingTarget::Linear => *controller.linear.value_mut() += value,
-            BasicScoutingTarget::StepDist => *controller.step_dist.value_mut() += value,
+            BasicPreviewTarget::Alpha => *controller.alpha.value_mut() += value,
+            BasicPreviewTarget::Pump => *controller.pump.loop_loss.value_mut() += value,
+            BasicPreviewTarget::Linear => *controller.linear.value_mut() += value,
+            BasicPreviewTarget::StepDist => *controller.step_dist.value_mut() += value,
         }
     }
 }
 
-impl<S> ScoutingTarget<DualPulsePumpLleController, S> for BasicScoutingTarget
+impl<S> PreviewTarget<DualPulsePumpLleController, S> for BasicPreviewTarget
 where
     S: Simulator,
     DualPulsePumpLleController: Controller<S>,
@@ -218,18 +218,18 @@ where
     }
     fn apply(&self, value: f64, controller: &mut DualPulsePumpLleController) {
         match self {
-            BasicScoutingTarget::Alpha => *controller.alpha.value_mut() += value,
-            BasicScoutingTarget::Pump => {
+            BasicPreviewTarget::Alpha => *controller.alpha.value_mut() += value,
+            BasicPreviewTarget::Pump => {
                 *controller.pump.pulse1.peak.value_mut() += value;
                 *controller.pump.pulse2.peak.value_mut() += value
             }
-            BasicScoutingTarget::Linear => *controller.linear.value_mut() += value,
-            BasicScoutingTarget::StepDist => *controller.step_dist.value_mut() += value,
+            BasicPreviewTarget::Linear => *controller.linear.value_mut() += value,
+            BasicPreviewTarget::StepDist => *controller.step_dist.value_mut() += value,
         }
     }
 }
 
-impl<S> ScoutingTarget<InterleaveSelfPumpLleController, S> for BasicScoutingTarget
+impl<S> PreviewTarget<InterleaveSelfPumpLleController, S> for BasicPreviewTarget
 where
     S: Simulator,
     InterleaveSelfPumpLleController: Controller<S>,
@@ -245,15 +245,15 @@ where
     }
     fn apply(&self, value: f64, controller: &mut InterleaveSelfPumpLleController) {
         match self {
-            BasicScoutingTarget::Alpha => *controller.alpha.value_mut() += value,
-            BasicScoutingTarget::Pump => *controller.pump.loop_loss.value_mut() += value,
-            BasicScoutingTarget::Linear => *controller.linear.value_mut() += value,
-            BasicScoutingTarget::StepDist => *controller.step_dist.value_mut() += value,
+            BasicPreviewTarget::Alpha => *controller.alpha.value_mut() += value,
+            BasicPreviewTarget::Pump => *controller.pump.loop_loss.value_mut() += value,
+            BasicPreviewTarget::Linear => *controller.linear.value_mut() += value,
+            BasicPreviewTarget::StepDist => *controller.step_dist.value_mut() += value,
         }
     }
 }
 
-impl<S> ScoutingTarget<GenCprtController, S> for BasicScoutingTarget
+impl<S> PreviewTarget<GenCprtController, S> for BasicPreviewTarget
 where
     S: Simulator,
     GenCprtController: Controller<S>,
@@ -264,10 +264,10 @@ where
     }
     fn apply(&self, value: f64, controller: &mut GenCprtController) {
         match self {
-            BasicScoutingTarget::Alpha => *controller.alpha.value_mut() += value,
-            BasicScoutingTarget::Pump => *controller.pump.amplitude.value_mut() += value,
-            BasicScoutingTarget::Linear => *controller.disper.linear.value_mut() += value,
-            BasicScoutingTarget::StepDist => *controller.step_dist.value_mut() += value,
+            BasicPreviewTarget::Alpha => *controller.alpha.value_mut() += value,
+            BasicPreviewTarget::Pump => *controller.pump.amplitude.value_mut() += value,
+            BasicPreviewTarget::Linear => *controller.disper.linear.value_mut() += value,
+            BasicPreviewTarget::StepDist => *controller.step_dist.value_mut() += value,
         }
     }
 }

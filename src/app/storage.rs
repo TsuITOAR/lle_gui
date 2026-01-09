@@ -3,7 +3,7 @@ use crate::{
     controller::{Controller, Simulator},
     file::{self, FileManager},
     random::RandomNoise,
-    scouting,
+    preview,
     views::Views,
 };
 
@@ -96,11 +96,11 @@ pub struct GenAppStorage<P, S, V, T>
 where
     P: Controller<S>,
     S: Simulator,
-    T: scouting::ScoutingTarget<P, S> + Default,
+    T: preview::PreviewTarget<P, S> + Default,
 {
     pub(crate) core: CoreStorage<P, S>,
     #[serde(default)]
-    pub(crate) scout: scouting::Scouter<P, S, T>,
+    pub(crate) scout: preview::Previewer<P, S, T>,
     pub(crate) is_init: bool,
     pub(crate) slider_len: Option<f32>,
     #[serde(default)]
@@ -122,7 +122,7 @@ where
     P: Default + Controller<S>,
     S: Simulator,
     Views<V>: Default,
-    T: scouting::ScoutingTarget<P, S> + Default,
+    T: preview::PreviewTarget<P, S> + Default,
 {
     fn default() -> Self {
         Self {

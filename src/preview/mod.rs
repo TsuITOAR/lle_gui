@@ -4,7 +4,7 @@ use egui::mutex::Mutex;
 use rayon::prelude::*;
 use refresh::Refresh;
 
-pub use impls::BasicScoutingTarget;
+pub use impls::BasicPreviewTarget;
 use ui_traits::ControllerUI;
 
 use crate::{
@@ -24,13 +24,13 @@ type Style = crate::drawer::plot_item::Style;
     serialize = "T: serde::Serialize",
     deserialize = "T: for<'a> serde::Deserialize<'a>"
 ))]
-pub struct Scouter<C, S, T>
+pub struct Previewer<C, S, T>
 where
-    T: ScoutingTarget<C, S>,
+    T: PreviewTarget<C, S>,
     C: Controller<S>,
     S: Simulator,
 {
-    pub(crate) config: ScouterConfig<T, C, S>,
+    pub(crate) config: PreviewConfig<T, C, S>,
     #[serde(skip)]
     pub(crate) sub_cores: Option<SubCores<Core<C, S>>>,
     pub(crate) refresh: Refresh,
@@ -40,14 +40,14 @@ where
     cache: Option<Vec<<S as StoreState>::OwnedState>>,
 }
 
-impl<C, S, T> std::fmt::Debug for Scouter<C, S, T>
+impl<C, S, T> std::fmt::Debug for Previewer<C, S, T>
 where
-    T: ScoutingTarget<C, S> + Debug,
+    T: PreviewTarget<C, S> + Debug,
     C: Controller<S>,
     S: Simulator,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Scouter")
+        f.debug_struct("Previewer")
             .field("config", &self.config)
             .field("sub_cores", &self.sub_cores.is_some())
             .field("refresh", &self.refresh)
@@ -55,9 +55,9 @@ where
     }
 }
 
-impl<C, S, T> Scouter<C, S, T>
+impl<C, S, T> Previewer<C, S, T>
 where
-    T: ScoutingTarget<C, S>,
+    T: PreviewTarget<C, S>,
     C: Controller<S> + Clone,
     S: Simulator,
 {
@@ -75,10 +75,10 @@ where
     }
 
     pub fn show(&mut self, e: &Core<C, S>, ui: &mut egui::Ui) {
-        ui.collapsing("Parameter scouting", |ui| {
+        ui.collapsing("Parameter preview", |ui| {
             self.refresh.show(ui);
             self.config.show(ui);
-            crate::util::show_option_with(ui, &mut self.sub_cores, "Scouters", || {
+            crate::util::show_option_with(ui, &mut self.sub_cores, "Previews", || {
                 self.config.refresh(e)
             });
 
@@ -131,7 +131,7 @@ where
             }
     }
 
-    pub fn poll_scouters(&mut self, steps: u32, add_random: bool) -> Option<()> {
+    pub fn poll_previews(&mut self, steps: u32, add_random: bool) -> Option<()> {
         puffin_egui::puffin::profile_function!();
         let sub_cores = self.sub_cores.as_mut()?;
         self.promise.get_or_insert_with(|| {
@@ -154,9 +154,9 @@ where
     }
 }
 
-impl<C, S, T> Default for Scouter<C, S, T>
+impl<C, S, T> Default for Previewer<C, S, T>
 where
-    T: ScoutingTarget<C, S> + Default,
+    T: PreviewTarget<C, S> + Default,
     C: Controller<S>,
     S: Simulator,
 {
@@ -213,7 +213,7 @@ where
     }
 }
 
-pub trait ScoutingTarget<C: Controller<E>, E: Simulator>:
+pub trait PreviewTarget<C: Controller<E>, E: Simulator>:
     Send + Sync + ControllerUI + Default
 {
     fn apply(&self, value: f64, controller: &mut C);
@@ -239,9 +239,9 @@ impl<T: ControllerUI> ControllerUI for Offset<T> {
     serialize = "T: serde::Serialize",
     deserialize = "T: for<'a> serde::Deserialize<'a>"
 ))]
-pub struct ScouterConfig<T, C, S>
+pub struct PreviewConfig<T, C, S>
 where
-    T: ScoutingTarget<C, S>,
+    T: PreviewTarget<C, S>,
     C: Controller<S>,
     S: Simulator,
 {
@@ -249,9 +249,9 @@ where
     phantom: std::marker::PhantomData<Core<C, S>>,
 }
 
-impl<T, C, S> std::fmt::Debug for ScouterConfig<T, C, S>
+impl<T, C, S> std::fmt::Debug for PreviewConfig<T, C, S>
 where
-    T: ScoutingTarget<C, S> + Debug,
+    T: PreviewTarget<C, S> + Debug,
     C: Controller<S>,
     S: Simulator,
 {
@@ -262,9 +262,9 @@ where
     }
 }
 
-impl<T, C, S> Clone for ScouterConfig<T, C, S>
+impl<T, C, S> Clone for PreviewConfig<T, C, S>
 where
-    T: ScoutingTarget<C, S> + Clone,
+    T: PreviewTarget<C, S> + Clone,
     C: Controller<S>,
     S: Simulator,
 {
@@ -276,9 +276,9 @@ where
     }
 }
 
-impl<T, C, S> Default for ScouterConfig<T, C, S>
+impl<T, C, S> Default for PreviewConfig<T, C, S>
 where
-    T: ScoutingTarget<C, S> + Default,
+    T: PreviewTarget<C, S> + Default,
     C: Controller<S>,
     S: Simulator,
 {
@@ -290,9 +290,9 @@ where
     }
 }
 
-impl<T, C, S> ScouterConfig<T, C, S>
+impl<T, C, S> PreviewConfig<T, C, S>
 where
-    T: ScoutingTarget<C, S> + Send + Sync,
+    T: PreviewTarget<C, S> + Send + Sync,
     S: Simulator + Send + Sync,
     C: Controller<S> + Clone + Send + Sync,
 {

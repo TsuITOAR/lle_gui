@@ -15,7 +15,7 @@ mod lle_util;
 mod notify;
 mod property;
 mod random;
-mod scouting;
+mod preview;
 mod util;
 mod views;
 
