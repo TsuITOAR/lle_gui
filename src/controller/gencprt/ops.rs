@@ -43,7 +43,7 @@ pub struct CprtFft {
 impl lle::FftSource<f64> for State {
     type FftProcessor = CprtFft;
     fn fft_len(&self) -> usize {
-        debug_assert!(self.data.len() % 2 == 0);
+        debug_assert!(self.data.len().is_multiple_of(2));
         self.data.len() / 2
     }
     fn default_fft(len: usize) -> Self::FftProcessor {

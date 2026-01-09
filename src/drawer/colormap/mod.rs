@@ -197,7 +197,7 @@ impl<S: FftSource> LleChart<S> {
         &mut self,
         data: impl ExactSizeIterator<Item = f64>,
         running: bool,
-    ) -> (Option<egui_plot::PlotBounds>, egui_plot::PlotPoints) {
+    ) -> (Option<egui_plot::PlotBounds>, egui_plot::PlotPoints<'static>) {
         let mut min = None;
         let mut max = None;
         let n = data.len();
@@ -213,7 +213,7 @@ impl<S: FftSource> LleChart<S> {
             })
             .enumerate()
             .map(|(x, y)| [x as _, y])
-            .collect();
+            .collect::<egui_plot::PlotPoints<'static>>();
         let bound = if let (true, Some(smart)) = (running, self.smart_bound.as_mut()) {
             if let (Some(min), Some(max)) = (min, max) {
                 let (y1, y2) = smart.update_range(min..=max).into_inner();

@@ -83,11 +83,10 @@ impl<S> CheckPoints<S> {
         }
         ui.horizontal(|ui| {
             for (i, checkpoint) in self.checkpoints.iter_mut().enumerate() {
-                let res = egui::SelectableLabel::new(
+                let res = ui.add(egui::Button::selectable(
                     self.current == Some(i),
                     format!("{}.{}", i, checkpoint.name.get_or_insert_default()),
-                )
-                .ui(ui);
+                ));
                 if res.double_clicked() {
                     self.current = Some(i);
                     dst.restore_by_ref(checkpoint);
@@ -102,21 +101,17 @@ impl<S> CheckPoints<S> {
             if ui
                 .add_enabled(self.current.is_some(), egui::Button::new("load"))
                 .clicked()
-            {
-                if let Some(current) = self.current {
+                && let Some(current) = self.current {
                     self.restore(dst, current);
                     changed = true;
                 }
-            }
             if ui
                 .add_enabled(self.current.is_some(), egui::Button::new("delete"))
                 .clicked()
-            {
-                if let Some(current) = self.current {
+                && let Some(current) = self.current {
                     self.delete(current);
                     self.current = None;
                 }
-            }
         });
 
         if let Some(current) = self.current {

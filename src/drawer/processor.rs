@@ -324,7 +324,7 @@ impl<S: lle::FftSource<f64>> FftProcess<S> {
             self.s = None;
         }
         self.s.get_or_insert_with(|| {
-            debug_assert!(len % 2 == 0);
+            debug_assert!(len.is_multiple_of(2));
             (S::default_fft(len), len)
         })
     }

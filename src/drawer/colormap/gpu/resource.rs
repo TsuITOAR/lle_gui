@@ -100,15 +100,15 @@ impl RenderResources {
 
     pub fn refresh_texture(&self, encoder: &mut wgpu::CommandEncoder) {
         encoder.copy_buffer_to_texture(
-            wgpu::ImageCopyBuffer {
+            wgpu::TexelCopyBufferInfo {
                 buffer: &self.cache_buffer,
-                layout: wgpu::ImageDataLayout {
+                layout: wgpu::TexelCopyBufferLayout {
                     offset: 0,
                     bytes_per_row: Some(size_of::<TextureFormat>() as u32 * self.uniforms.width),
                     rows_per_image: Some(self.uniforms.height),
                 },
             },
-            wgpu::ImageCopyTexture {
+            wgpu::TexelCopyTextureInfo {
                 texture: &self.texture,
                 mip_level: 0,
                 origin: wgpu::Origin3d::ZERO,

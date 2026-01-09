@@ -113,8 +113,8 @@ impl<'a> Parser<'a> {
 
     // ```{language}\n{code}```
     fn code_block(&mut self) -> Option<Item<'a>> {
-        if let Some(language_start) = self.s.strip_prefix("```") {
-            if let Some(newline) = language_start.find('\n') {
+        if let Some(language_start) = self.s.strip_prefix("```")
+            && let Some(newline) = language_start.find('\n') {
                 let language = &language_start[..newline];
                 let code_start = &language_start[newline + 1..];
                 if let Some(end) = code_start.find("\n```") {
@@ -127,7 +127,6 @@ impl<'a> Parser<'a> {
                     return Some(Item::CodeBlock(language, code_start));
                 }
             }
-        }
         None
     }
 
@@ -171,15 +170,14 @@ impl<'a> Parser<'a> {
             let this_line = &self.s[..self.s.find('\n').unwrap_or(self.s.len())];
             if let Some(bracket_end) = this_line.find(']') {
                 let text = &this_line[1..bracket_end];
-                if this_line[bracket_end + 1..].starts_with('(') {
-                    if let Some(parens_end) = this_line[bracket_end + 2..].find(')') {
+                if this_line[bracket_end + 1..].starts_with('(')
+                    && let Some(parens_end) = this_line[bracket_end + 2..].find(')') {
                         let parens_end = bracket_end + 2 + parens_end;
                         let url = &self.s[bracket_end + 2..parens_end];
                         self.s = &self.s[parens_end + 1..];
                         self.start_of_line = false;
                         return Some(Item::Hyperlink(self.style, text, url));
                     }
-                }
             }
         }
         None

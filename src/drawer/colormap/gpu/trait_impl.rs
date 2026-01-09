@@ -58,7 +58,7 @@ impl DrawMat for Drawer {
 
 fn search_max_min(data: &[f32]) -> (f32, f32) {
     puffin_egui::puffin::profile_function!();
-    debug_assert!(data.len() % 2 == 0);
+    debug_assert!(data.len().is_multiple_of(2));
     data.chunks(2)
         .map(|x| (x[0], x[1]))
         .reduce_ilp::<8>(|(a, b), (c, d)| (a.max(c).max(d), b.min(c).min(d)))

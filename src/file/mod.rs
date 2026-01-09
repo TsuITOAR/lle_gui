@@ -112,16 +112,38 @@ impl FileFutures {
             Promise::new(async move {
                 #[cfg(not(target_arch = "wasm32"))]
                 {
-                    rfd::AsyncFileDialog::new()
-                        .add_filter("model", &[format!("{}.ron", S::extension())])
-                        .add_filter("all", &["*"])
-                        .pick_file()
-                        .await
+                    #[cfg(target_os = "macos")]
+                    {
+                        let ext = S::extension();
+                        let suffix = ext.rsplit('.').next().unwrap_or(&ext);
+                        let mut exts = vec![suffix.to_string()];
+                        if suffix != "ron" {
+                            exts.push("ron".to_string());
+                        }
+                        rfd::AsyncFileDialog::new()
+                            .add_filter("model", &exts)
+                            .pick_file()
+                            .await
+                    }
+                    #[cfg(not(target_os = "macos"))]
+                    {
+                        rfd::AsyncFileDialog::new()
+                            .add_filter("model", &[format!("{}.ron", S::extension())])
+                            .add_filter("all", &["*"])
+                            .pick_file()
+                            .await
+                    }
                 }
                 #[cfg(target_arch = "wasm32")]
                 {
+                    let ext = S::extension();
+                    let suffix = ext.rsplit('.').next().unwrap_or(&ext);
+                    let mut exts = vec![suffix.to_string()];
+                    if suffix != "ron" {
+                        exts.push("ron".to_string());
+                    }
                     rfd::AsyncFileDialog::new()
-                        .add_filter("model", &[format!("{}.ron", S::extension())])
+                        .add_filter("model", &exts)
                         .pick_file()
                         .await
                 }
@@ -136,16 +158,38 @@ impl FileFutures {
             Promise::new(async move {
                 #[cfg(not(target_arch = "wasm32"))]
                 {
-                    rfd::AsyncFileDialog::new()
-                        .add_filter("model", &[format!("{}.ron", S::extension())])
-                        .add_filter("all", &["*"])
-                        .save_file()
-                        .await
+                    #[cfg(target_os = "macos")]
+                    {
+                        let ext = S::extension();
+                        let suffix = ext.rsplit('.').next().unwrap_or(&ext);
+                        let mut exts = vec![suffix.to_string()];
+                        if suffix != "ron" {
+                            exts.push("ron".to_string());
+                        }
+                        rfd::AsyncFileDialog::new()
+                            .add_filter("model", &exts)
+                            .save_file()
+                            .await
+                    }
+                    #[cfg(not(target_os = "macos"))]
+                    {
+                        rfd::AsyncFileDialog::new()
+                            .add_filter("model", &[format!("{}.ron", S::extension())])
+                            .add_filter("all", &["*"])
+                            .save_file()
+                            .await
+                    }
                 }
                 #[cfg(target_arch = "wasm32")]
                 {
+                    let ext = S::extension();
+                    let suffix = ext.rsplit('.').next().unwrap_or(&ext);
+                    let mut exts = vec![suffix.to_string()];
+                    if suffix != "ron" {
+                        exts.push("ron".to_string());
+                    }
                     rfd::AsyncFileDialog::new()
-                        .add_filter("model", &[format!("{}.ron", S::extension())])
+                        .add_filter("model", &exts)
                         .save_file()
                         .await
                 }

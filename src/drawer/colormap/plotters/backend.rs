@@ -3,40 +3,19 @@
 //!
 //! Plotter backend for egui
 
-use std::error::Error as ErrorTrait;
 use std::f32::consts::FRAC_PI_2;
-use std::fmt::{Display, Formatter, Result as FmtResult};
 use std::ops::{Add, AddAssign, MulAssign, Sub, SubAssign};
 
-use egui::Rounding;
 use egui::{
     epaint::{PathShape, TextShape},
-    Align, Align2, Color32, FontFamily as EguiFontFamily, FontId, Pos2, Rect, Stroke, Ui,
+    Align, Align2, Color32, CornerRadius, FontFamily as EguiFontFamily, FontId, Pos2, Rect, Stroke,
+    StrokeKind, Ui,
 };
 use plotters_backend::{
     text_anchor::{HPos, Pos, VPos},
     BackendColor, BackendCoord, BackendStyle, BackendTextStyle, DrawingBackend, DrawingErrorKind,
     FontFamily as PlottersFontFamily,
 };
-
-#[derive(Debug, Clone, Copy)]
-/// Error to be returned by the backend. Since egui doesn't return any errors
-/// on any painter operations, this is a stub type.
-pub struct EguiBackendError;
-
-impl Display for EguiBackendError {
-    #[inline]
-    fn fmt(&self, _f: &mut Formatter<'_>) -> FmtResult {
-        Ok(())
-    }
-}
-
-impl ErrorTrait for EguiBackendError {
-    #[inline]
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        None
-    }
-}
 
 #[derive(Debug, Clone, Copy)]
 /// Struct used to convert between egui's Pos2 type and plotter's coordinate tuple.
@@ -319,19 +298,19 @@ impl DrawingBackend for EguiBackend<'_> {
                     min: p0.into(),
                     max: p1.into(),
                 },
-                Rounding::default(),
+                CornerRadius::default(),
                 color,
             );
         } else {
             let stroke = Stroke::new(style.stroke_width() as f32, color);
-            painter.rect(
+            painter.rect_stroke(
                 egui::Rect {
                     min: p0.into(),
                     max: p1.into(),
                 },
-                Rounding::default(),
-                Color32::TRANSPARENT,
+                CornerRadius::default(),
                 stroke,
+                StrokeKind::Outside,
             );
         }
 

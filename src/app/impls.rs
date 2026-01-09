@@ -92,116 +92,118 @@ where
             // cause display error of super and subscript in easy_mark
             //ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Extend);
 
-            attractive_head(
-                "Simulation parameters control",
-                ui.visuals().strong_text_color(),
-            )
-            .ui(ui);
+            egui::ScrollArea::vertical().show(ui, |ui| {
+                attractive_head(
+                    "Simulation parameters control",
+                    ui.visuals().strong_text_color(),
+                )
+                .ui(ui);
 
-            let slider_len = slider_len.get_or_insert_with(|| ui.spacing().slider_width);
-            if slider_len.is_sign_positive() {
-                ui.spacing_mut().slider_width = *slider_len;
-            }
+                let slider_len = slider_len.get_or_insert_with(|| ui.spacing().slider_width);
+                if slider_len.is_sign_positive() {
+                    ui.spacing_mut().slider_width = *slider_len;
+                }
 
-            core.controller.show_in_control_panel(ui);
+                core.controller.show_in_control_panel(ui);
 
-            ui.separator();
+                ui.separator();
 
-            let button_text = if *running { "⏸" } else { "⏵" };
-            ui.horizontal_wrapped(|ui| {
-                if ui
-                    .add(attractive_button(
-                        button_text,
-                        Some(ui.visuals().error_fg_color),
-                    ))
-                    .highlight()
-                    .on_hover_text("Start/Pause")
-                    .clicked()
-                {
-                    *running = !*running;
-                };
-                let step_button =
-                    attractive_button("⏩", None).sense(egui::Sense::click_and_drag());
-                step = step_button
-                    .ui(ui)
-                    .on_hover_text("Step")
-                    .is_pointer_button_down_on();
-                refresh = attractive_button("🔄", None)
-                    .ui(ui)
-                    .on_hover_text("Refresh the state to 0")
-                    .clicked();
-                reset = attractive_button("⏹", None)
-                    .ui(ui)
-                    .on_hover_text("Reset model")
-                    .clicked();
-                destruct = attractive_button("⏏", None)
-                    .ui(ui)
-                    .on_hover_text("Return to start window\nYou can set model dimension there")
-                    .clicked();
+                let button_text = if *running { "⏸" } else { "⏵" };
+                ui.horizontal_wrapped(|ui| {
+                    if ui
+                        .add(attractive_button(
+                            button_text,
+                            Some(ui.visuals().error_fg_color),
+                        ))
+                        .highlight()
+                        .on_hover_text("Start/Pause")
+                        .clicked()
+                    {
+                        *running = !*running;
+                    }
+                    let step_button =
+                        attractive_button("⏩", None).sense(egui::Sense::click_and_drag());
+                    step = step_button
+                        .ui(ui)
+                        .on_hover_text("Step")
+                        .is_pointer_button_down_on();
+                    refresh = attractive_button("🔄", None)
+                        .ui(ui)
+                        .on_hover_text("Refresh the state to 0")
+                        .clicked();
+                    reset = attractive_button("⏹", None)
+                        .ui(ui)
+                        .on_hover_text("Reset model")
+                        .clicked();
+                    destruct = attractive_button("⏏", None)
+                        .ui(ui)
+                        .on_hover_text("Return to start window\nYou can set model dimension there")
+                        .clicked();
+                });
+
+                // end of basic control
+                ui.separator();
+
+                attractive_head(
+                    "Advanced simulation control",
+                    ui.visuals().strong_text_color(),
+                )
+                .ui(ui);
+
+                core.random.show(ui, add_rand);
+
+                scout.show(core, ui);
+
+                // advanced simulation control
+                ui.separator();
+
+                attractive_head("Visualization control", ui.visuals().strong_text_color()).ui(ui);
+
+                views.show_controller(ui);
+
+                debugger::show_debugger(ui, debugger);
+
+                show_dispersion.show_controller(ui);
+
+                // visualize strategy
+                ui.separator();
+
+                attractive_head("Save/Load model", ui.visuals().strong_text_color()).ui(ui);
+
+                if let Some(true) = file_state.show_save_load(ui, core).notify_global() {
+                    views.adjust_to_state(core.simulator.states());
+                }
+
+                ui.separator();
+
+                attractive_head("Checkpoints", ui.visuals().strong_text_color()).ui(ui);
+
+                if check_points.show(ui, core) {
+                    views.adjust_to_state(core.simulator.states());
+                }
+                file_checkpoints
+                    .show_save_load(ui, check_points)
+                    .notify_global();
+
+                ui.separator();
+
+                ui.horizontal(|ui| {
+                    ui.label("Slider length");
+                    ui.add(DragValue::new(slider_len));
+                });
+
+                // information display
+                ui.separator();
+
+                egui::warn_if_debug_build(ui);
+
+                ui.hyperlink_to("GitHub repository", "https://github.com/TsuITOAR/lle_gui");
+                ui.separator();
+
+                views.show_fps(ui);
+
+                crate::util::show_profiler(profiler, ui);
             });
-
-            // end of basic control
-            ui.separator();
-
-            attractive_head(
-                "Advanced simulation control",
-                ui.visuals().strong_text_color(),
-            )
-            .ui(ui);
-
-            core.random.show(ui, add_rand);
-
-            scout.show(core, ui);
-
-            // advanced simulation control
-            ui.separator();
-
-            attractive_head("Visualization control", ui.visuals().strong_text_color()).ui(ui);
-
-            views.show_controller(ui);
-
-            debugger::show_debugger(ui, debugger);
-
-            show_dispersion.show_controller(ui);
-
-            // visualize strategy
-            ui.separator();
-
-            attractive_head("Save/Load model", ui.visuals().strong_text_color()).ui(ui);
-
-            if let Some(true) = file_state.show_save_load(ui, core).notify_global() {
-                views.adjust_to_state(core.simulator.states());
-            }
-
-            ui.separator();
-
-            attractive_head("Checkpoints", ui.visuals().strong_text_color()).ui(ui);
-
-            if check_points.show(ui, core) {
-                views.adjust_to_state(core.simulator.states());
-            }
-            file_checkpoints
-                .show_save_load(ui, check_points)
-                .notify_global();
-
-            ui.separator();
-
-            ui.horizontal(|ui| {
-                ui.label("Slider length");
-                ui.add(DragValue::new(slider_len));
-            });
-
-            // information display
-            ui.separator();
-
-            egui::warn_if_debug_build(ui);
-
-            ui.hyperlink_to("GitHub repository", "https://github.com/TsuITOAR/lle_gui");
-            ui.separator();
-
-            views.show_fps(ui);
-
-            crate::util::show_profiler(profiler, ui);
         });
         PlayControl {
             reset,

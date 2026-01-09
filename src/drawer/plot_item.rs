@@ -3,7 +3,7 @@ use crate::views::PlotElement;
 use super::plot_kind::PlotKind;
 
 pub(crate) struct PlotItem {
-    pub data: egui_plot::PlotPoints,
+    pub data: egui_plot::PlotPoints<'static>,
     pub desc: Option<String>,
     pub style: Style,
 }
@@ -28,11 +28,7 @@ impl From<PlotElement> for PlotItem {
 }
 
 impl PlotItem {
-    pub(crate) fn plot(
-        self,
-        plot_ui: &mut egui_plot::PlotUi,
-        kind: PlotKind,
-    ) -> &mut egui_plot::PlotUi {
+    pub(crate) fn plot(self, plot_ui: &mut egui_plot::PlotUi<'_>, kind: PlotKind) {
         match kind {
             PlotKind::Line => plot_line(self, plot_ui),
             PlotKind::Points => plot_points(self, plot_ui),
@@ -90,21 +86,20 @@ impl Style {
     }
 }
 
-fn plot_line(item: PlotItem, plot_ui: &mut egui_plot::PlotUi) -> &mut egui_plot::PlotUi {
+fn plot_line(item: PlotItem, plot_ui: &mut egui_plot::PlotUi<'_>) {
     let PlotItem {
         data: e,
         desc: d,
         style,
     } = item;
     if let Some(d) = d {
-        plot_ui.line(egui_plot::Line::new(e).name(d).width(style.width()));
+        plot_ui.line(egui_plot::Line::new(d, e).width(style.width()));
     } else {
-        plot_ui.line(egui_plot::Line::new(e).width(style.width()));
+        plot_ui.line(egui_plot::Line::new("", e).width(style.width()));
     }
-    plot_ui
 }
 
-fn plot_points(item: PlotItem, plot_ui: &mut egui_plot::PlotUi) -> &mut egui_plot::PlotUi {
+fn plot_points(item: PlotItem, plot_ui: &mut egui_plot::PlotUi<'_>) {
     let PlotItem {
         data: e,
         desc: d,
@@ -120,11 +115,11 @@ fn plot_points(item: PlotItem, plot_ui: &mut egui_plot::PlotUi) -> &mut egui_plo
             .map(|x| ([x[0].x, x[0].y], [x[1].x, x[1].y]))
             .unzip();
         Box::<[_]>::from([
-            egui_plot::Points::new(a).radius(width),
-            egui_plot::Points::new(b).radius(width),
+            egui_plot::Points::new("", a).radius(width),
+            egui_plot::Points::new("", b).radius(width),
         ])
     } else {
-        Box::from([egui_plot::Points::new(e).radius(width)])
+        Box::from([egui_plot::Points::new("", e).radius(width)])
     };
     for p in points {
         if let Some(ref d) = d {
@@ -133,5 +128,4 @@ fn plot_points(item: PlotItem, plot_ui: &mut egui_plot::PlotUi) -> &mut egui_plo
             plot_ui.points(p);
         }
     }
-    plot_ui
 }

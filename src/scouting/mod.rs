@@ -125,11 +125,10 @@ where
     }
 
     pub fn tick(&mut self, e: &Core<C, S>) {
-        if let Some(cores) = self.sub_cores.as_mut() {
-            if self.refresh.tick() {
+        if let Some(cores) = self.sub_cores.as_mut()
+            && self.refresh.tick() {
                 *cores = self.config.refresh(e);
             }
-        }
     }
 
     pub fn poll_scouters(&mut self, steps: u32, add_random: bool) -> Option<()> {
@@ -183,15 +182,15 @@ impl<C, S> SubCores<Core<C, S>>
 where
     C: Controller<S>,
     S: Simulator,
-    Core<C, S>: Send + Sync,
+    Core<C, S>: Send + Sync + 'static,
 {
     pub fn run_sub_cores(
         &self,
         steps: u32,
         add_random: bool,
-    ) -> impl FnOnce() -> Vec<<S as StoreState>::OwnedState>
+    ) -> impl FnOnce() -> Vec<<S as StoreState>::OwnedState> + Send + 'static
     where
-        <S as StoreState>::OwnedState: Send,
+        <S as StoreState>::OwnedState: Send + 'static,
     {
         let cores = self.cores.clone();
 

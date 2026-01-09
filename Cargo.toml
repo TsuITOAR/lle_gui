@@ -2,7 +2,7 @@
 name = "lle_gui"
 version = "0.1.0"
 authors = ["ITOAR <itoar@outlook.com>"]
-edition = "2021"
+edition = "2024"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -12,26 +12,27 @@ gpu = ["eframe/wgpu", "dep:wgpu"]
 plotters = ["dep:plotters", "plotters-backend"]
 
 [dependencies]
-eframe = { version = "^0.30", default-features = false, features = [
+eframe = { version = "^0.32", default-features = false, features = [
     "wayland",
     "web_screen_reader",
     "x11",
     "accesskit",         # Make egui compatible with screen readers. NOTE: adds a lot of dependencies.
     "default_fonts",     # Embed the default egui fonts.
-    "wgpu",              # Use the glow rendering backend. Alternative: "wgpu".
+    "wgpu",              # Use the wgpu rendering backend. Alternative: "glow".
     "persistence",       # Enable restoring app state when restarting the app.
 ] }
 
-egui = "^0.30"
-wgpu = { version = "^23", features = ["webgpu", "webgl"], optional = true }
-puffin_egui = { version = "^0.29", git = "https://github.com/tedsteen/puffin.git", rev = "3be326c" } #remove git after crates updated
+egui = "^0.32"
+wgpu = { version = "^25", features = ["metal", "webgpu", "webgl"], optional = true }
+naga = { version = "^28", features = ["termcolor"] }
+puffin_egui = { version = "^0.29", git = "https://github.com/tedsteen/puffin.git", rev = "c5276b9d5264af37a9c9fb2655990a3a0b720a0b" } #remove git after crates updated
 
-puffin = { version = "^0.19", git = "https://github.com/tedsteen/puffin.git", rev = "3be326c", features = [
+puffin = { version = "^0.19", git = "https://github.com/tedsteen/puffin.git", rev = "c5276b9d5264af37a9c9fb2655990a3a0b720a0b", features = [
     "web",
     "packing",
 ] } #remove git after crates updated
 
-egui_plot = "^0.30"
+egui_plot = "^0.33"
 
 lle = { git = "https://github.com/TsuITOAR/Lle.git", default-features = false, features = [
 ] }
@@ -50,17 +51,17 @@ plotters = { version = "^0.3", optional = true }
 plotters-backend = { version = "^0.3", optional = true }
 
 num-traits = "^0.2.19"
-iterator_ilp = "^2.1.2"
+iterator_ilp = "^3"
 colorous = "^1.0.14"
 bytemuck = "^1.19.0"
 rayon = "^1"
 rand_distr = { version = "^0.5", features = ["serde"] }
-egui-notify = "^0.18"
-rfd = "0.15.0"
+egui-notify = "^0.20.0"
+rfd = "0.17.0"
 static_assertions = "1.1.0"
 
 ui_traits = { path = "./ui_traits" }
-ron = "0.10"
+ron = "0.12"
 assert_approx_eq = "1"
 
 # native:

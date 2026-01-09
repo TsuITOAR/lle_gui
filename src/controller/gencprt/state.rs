@@ -253,7 +253,7 @@ impl<'a> Iterator for CouplingStateIterNegative<'a> {
 
     fn next(&mut self) -> Option<Self::Item> {
         let freq = -1i32 - self.state_a_n.cur as i32 - self.state_b_n.cur as i32;
-        if -freq >= self.len as i32 + 1 {
+        if -freq > self.len as i32 {
             return None;
         }
         let mut m = self.cp.m_original(freq);
@@ -339,7 +339,7 @@ impl<'a> Iterator for CouplingStateIterMutNegative<'a> {
 
     fn next(&mut self) -> Option<Self::Item> {
         let freq = -1i32 - self.state_a_n.cur as i32 - self.state_b_n.cur as i32;
-        if -freq >= self.len as i32 + 1 {
+        if -freq > self.len as i32 {
             return None;
         }
         let mut m = self.cp.m_original(freq);
@@ -423,7 +423,7 @@ impl<'a> Iterator for DecouplingStateIterNegative<'a> {
 
     fn next(&mut self) -> Option<Self::Item> {
         let freq = -1i32 - self.state_n.cur as i32;
-        if -freq >= self.len as i32 + 1 {
+        if -freq > self.len as i32 {
             return None;
         }
         let mut m = self.cp.m_original(freq);
