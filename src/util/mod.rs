@@ -119,10 +119,10 @@ pub fn warn_message(t: impl ToString, hover_text: impl ToString, ui: &mut egui::
 #[cfg(target_arch = "wasm32")]
 pub fn warn_single_thread(ui: &mut egui::Ui) {
     crate::util::warn_message(
-                    "⚠ Single thread mode ⚠",
-                    "Web doesn't support multi-threading, so the performance is bad.\n Try to run it natively to get better performance.",
-                    ui,
-                );
+        "⚠ Single thread mode ⚠",
+        "Web doesn't support multi-threading, so the performance is bad.\n Try to run it natively to get better performance.",
+        ui,
+    );
 }
 
 pub fn attractive_button(text: &str, color: impl Into<Option<egui::Color32>>) -> egui::Button<'_> {

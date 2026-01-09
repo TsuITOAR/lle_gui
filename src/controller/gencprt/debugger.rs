@@ -64,7 +64,7 @@ impl crate::app::Debugger<&'_ super::state::State> for Debugger {
             .collect();
         let (vis1, vis2): (Vec<_>, Vec<_>) = vis1
             .into_iter()
-            .map(|x| ((x.0, x.1 .0), (x.0, x.1 .1 as f64)))
+            .map(|x| ((x.0, x.1.0), (x.0, x.1.1 as f64)))
             .unzip();
         let legend = ["singularity", "m", "cp_angle"];
         [vis1, vis2, vis3]

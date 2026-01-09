@@ -7,14 +7,14 @@ use std::f32::consts::FRAC_PI_2;
 use std::ops::{Add, AddAssign, MulAssign, Sub, SubAssign};
 
 use egui::{
-    epaint::{PathShape, TextShape},
     Align, Align2, Color32, CornerRadius, FontFamily as EguiFontFamily, FontId, Pos2, Rect, Stroke,
     StrokeKind, Ui,
+    epaint::{PathShape, TextShape},
 };
 use plotters_backend::{
-    text_anchor::{HPos, Pos, VPos},
     BackendColor, BackendCoord, BackendStyle, BackendTextStyle, DrawingBackend, DrawingErrorKind,
     FontFamily as PlottersFontFamily,
+    text_anchor::{HPos, Pos, VPos},
 };
 
 #[derive(Debug, Clone, Copy)]

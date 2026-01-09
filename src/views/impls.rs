@@ -180,12 +180,7 @@ where
         self.views.record(data);
     }
 
-    fn push_elements_raw(
-        &mut self,
-        points: RawPlotData<P::OwnedState>,
-        on: ShowOn,
-        running: bool,
-    ) {
+    fn push_elements_raw(&mut self, points: RawPlotData<P::OwnedState>, on: ShowOn, running: bool) {
         self.views.push_elements_raw(points, on, running);
     }
 

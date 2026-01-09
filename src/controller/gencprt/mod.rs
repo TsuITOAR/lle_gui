@@ -1,10 +1,10 @@
 use std::f64::consts::TAU;
 
-use lle::{num_complex::Complex64, DiffOrder, LinearOpCached, NoneOp, StaticLinearOp};
+use lle::{DiffOrder, LinearOpCached, NoneOp, StaticLinearOp, num_complex::Complex64};
 use ops::PumpFreq;
 use state::CoupleInfo;
 
-use super::{cprt2::CoupleStrength, Controller, Property};
+use super::{Controller, Property, cprt2::CoupleStrength};
 
 pub use walkoff::WalkOff;
 

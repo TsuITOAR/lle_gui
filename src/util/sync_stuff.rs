@@ -1,4 +1,4 @@
-use lle::{num_complex::Complex64, LinearOp, NonLinearOp, NoneOp};
+use lle::{LinearOp, NonLinearOp, NoneOp, num_complex::Complex64};
 
 pub fn synchronize_properties<NL: NonLinearOp<f64>>(
     props: &crate::controller::LleController,

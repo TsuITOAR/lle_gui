@@ -1,8 +1,8 @@
 use lle::{
-    num_complex::Complex64, DiffOrder, Evolver, Freq, LinearOp, LinearOpCached, NoneOp,
-    StaticLinearOp, Step,
+    DiffOrder, Evolver, Freq, LinearOp, LinearOpCached, NoneOp, StaticLinearOp, Step,
+    num_complex::Complex64,
 };
-use num_traits::{zero, Zero};
+use num_traits::{Zero, zero};
 
 use super::{Controller, Property};
 
@@ -93,7 +93,6 @@ pub struct DisperLleController2 {
     pub(crate) disper: CosDispersionProperty2,
 }
 
-
 impl DisperLleController2 {
     pub fn linear_op(&self) -> impl StaticLinearOp<f64> {
         let basic_linear = self.basic.linear.get_value();
@@ -138,7 +137,6 @@ impl<NL: Default + lle::NonLinearOp<f64>> Controller<LleSolver<NL, Complex64>>
         engine.linear = self.linear_op().cached_linear_op(engine.state().len());
     }
 }
-
 
 #[cfg(test)]
 mod test {

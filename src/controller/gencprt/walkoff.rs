@@ -1,14 +1,14 @@
 use std::f64::consts::TAU;
 
-use lle::{num_complex::Complex64, ConstOp, DiffOrder, Evolver, StaticLinearOp, Step};
+use lle::{ConstOp, DiffOrder, Evolver, StaticLinearOp, Step, num_complex::Complex64};
 
 use crate::{
+    FftSource,
     controller::{Controller, SharedState, Simulator, StoreState},
     random::RandomNoise,
-    FftSource,
 };
 
-use super::{ops::PumpFreq, state::State, GenCprtController};
+use super::{GenCprtController, ops::PumpFreq, state::State};
 
 pub struct WalkOff<E> {
     pub cp: super::state::CoupleInfo,
@@ -17,11 +17,11 @@ pub struct WalkOff<E> {
 }
 
 impl<
-        L: lle::LinearOp<f64> + Send + Sync + 'static,
-        NL: lle::NonLinearOp<f64> + Send + Sync + 'static,
-        C: ConstOp<f64> + Send + Sync + 'static,
-        CF: ConstOp<f64> + Send + Sync + 'static,
-    > Evolver<f64> for WalkOff<lle::LleSolver<f64, State, L, NL, C, CF>>
+    L: lle::LinearOp<f64> + Send + Sync + 'static,
+    NL: lle::NonLinearOp<f64> + Send + Sync + 'static,
+    C: ConstOp<f64> + Send + Sync + 'static,
+    CF: ConstOp<f64> + Send + Sync + 'static,
+> Evolver<f64> for WalkOff<lle::LleSolver<f64, State, L, NL, C, CF>>
 {
     fn state(&self) -> &[lle::num_complex::Complex<f64>] {
         self.core.state()
@@ -162,13 +162,13 @@ impl<NL: Default + lle::NonLinearOp<f64>>
     }
 }
 impl<
-        'a,
-        S: FftSource,
-        L: lle::LinearOp<f64>,
-        NL: lle::NonLinearOp<f64>,
-        C: ConstOp<f64>,
-        CF: ConstOp<f64>,
-    > SharedState<'a> for WalkOff<lle::LleSolver<f64, S, L, NL, C, CF>>
+    'a,
+    S: FftSource,
+    L: lle::LinearOp<f64>,
+    NL: lle::NonLinearOp<f64>,
+    C: ConstOp<f64>,
+    CF: ConstOp<f64>,
+> SharedState<'a> for WalkOff<lle::LleSolver<f64, S, L, NL, C, CF>>
 {
     type SharedState = &'a S;
     fn states(&'a self) -> Self::SharedState {
@@ -180,12 +180,12 @@ impl<
 }
 
 impl<
-        S: FftSource + for<'a> serde::Deserialize<'a> + serde::Serialize,
-        L: lle::LinearOp<f64>,
-        NL: lle::NonLinearOp<f64>,
-        C: ConstOp<f64>,
-        CF: ConstOp<f64>,
-    > StoreState for WalkOff<lle::LleSolver<f64, S, L, NL, C, CF>>
+    S: FftSource + for<'a> serde::Deserialize<'a> + serde::Serialize,
+    L: lle::LinearOp<f64>,
+    NL: lle::NonLinearOp<f64>,
+    C: ConstOp<f64>,
+    CF: ConstOp<f64>,
+> StoreState for WalkOff<lle::LleSolver<f64, S, L, NL, C, CF>>
 {
     type OwnedState = S;
     fn get_owned_state(&self) -> Self::OwnedState {
@@ -208,11 +208,11 @@ impl<
 }
 
 impl<
-        L: lle::LinearOp<f64> + Send + Sync + 'static,
-        NL: lle::NonLinearOp<f64> + Send + Sync + 'static,
-        C: ConstOp<f64> + Send + Sync + 'static,
-        CF: ConstOp<f64> + Send + Sync + 'static,
-    > Simulator for WalkOff<lle::LleSolver<f64, State, L, NL, C, CF>>
+    L: lle::LinearOp<f64> + Send + Sync + 'static,
+    NL: lle::NonLinearOp<f64> + Send + Sync + 'static,
+    C: ConstOp<f64> + Send + Sync + 'static,
+    CF: ConstOp<f64> + Send + Sync + 'static,
+> Simulator for WalkOff<lle::LleSolver<f64, State, L, NL, C, CF>>
 {
     fn run(&mut self, steps: u32) {
         self.evolve_n(steps as _);

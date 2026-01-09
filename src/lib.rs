@@ -13,9 +13,9 @@ mod easy_mark;
 mod file;
 mod lle_util;
 mod notify;
+mod preview;
 mod property;
 mod random;
-mod preview;
 mod util;
 mod views;
 

@@ -16,7 +16,7 @@ use wasm::*;
 use crate::{
     app::{Core, CoreStorage},
     controller::{Controller, Simulator},
-    util::{try_poll, FutureHandler, Promise},
+    util::{FutureHandler, Promise, try_poll},
 };
 
 pub type FutureFileHandle = FutureHandler<Option<FileHandle>>;
@@ -36,11 +36,7 @@ pub struct FileFutures {
 impl std::fmt::Debug for FileFutures {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         fn is_some<T>(x: &Option<T>) -> &'static str {
-            if x.is_some() {
-                "Some(..)"
-            } else {
-                "None"
-            }
+            if x.is_some() { "Some(..)" } else { "None" }
         }
         #[cfg(not(target_arch = "wasm32"))]
         {

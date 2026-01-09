@@ -1,4 +1,4 @@
-use lle::{num_complex::Complex64, Freq, LinearOp, StaticLinearOp, Step};
+use lle::{Freq, LinearOp, StaticLinearOp, Step, num_complex::Complex64};
 
 use crate::controller::cprt2::CoupleStrength;
 

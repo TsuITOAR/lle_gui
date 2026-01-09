@@ -3,8 +3,8 @@ use iterator_ilp::IteratorILP;
 use super::Drawer;
 
 use crate::{
-    drawer::{DrawMat, Process},
     FftSource,
+    drawer::{DrawMat, Process},
 };
 
 impl DrawMat for Drawer {

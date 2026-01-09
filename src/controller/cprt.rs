@@ -1,10 +1,10 @@
 use std::f64::consts::{FRAC_PI_2, PI};
 
 use lle::{
-    num_complex::Complex64, DiffOrder, Evolver, Freq, LinearOp, LinearOpCached, NoneOp,
-    StaticLinearOp, Step,
+    DiffOrder, Evolver, Freq, LinearOp, LinearOpCached, NoneOp, StaticLinearOp, Step,
+    num_complex::Complex64,
 };
-use num_traits::{zero, Zero};
+use num_traits::{Zero, zero};
 
 use super::{Controller, Property};
 

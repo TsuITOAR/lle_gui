@@ -2,8 +2,8 @@ use crate::{
     checkpoint,
     controller::{Controller, Simulator},
     file::{self, FileManager},
-    random::RandomNoise,
     preview,
+    random::RandomNoise,
     views::Views,
 };
 

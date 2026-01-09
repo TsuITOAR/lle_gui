@@ -101,17 +101,19 @@ impl<S> CheckPoints<S> {
             if ui
                 .add_enabled(self.current.is_some(), egui::Button::new("load"))
                 .clicked()
-                && let Some(current) = self.current {
-                    self.restore(dst, current);
-                    changed = true;
-                }
+                && let Some(current) = self.current
+            {
+                self.restore(dst, current);
+                changed = true;
+            }
             if ui
                 .add_enabled(self.current.is_some(), egui::Button::new("delete"))
                 .clicked()
-                && let Some(current) = self.current {
-                    self.delete(current);
-                    self.current = None;
-                }
+                && let Some(current) = self.current
+            {
+                self.delete(current);
+                self.current = None;
+            }
         });
 
         if let Some(current) = self.current {

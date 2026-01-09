@@ -3,7 +3,7 @@ use crate::controller::gencprt::GenCprtController;
 use crate::controller::interleave_self_pump::InterleaveSelfPumpLleController;
 use crate::controller::pulse_pump::PulsePumpLleController;
 use crate::controller::self_pump::SelfPumpLleController;
-use crate::controller::{self, clle::CoupleLleController, LleController};
+use crate::controller::{self, LleController, clle::CoupleLleController};
 
 use super::*;
 

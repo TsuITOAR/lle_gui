@@ -3,7 +3,7 @@ use num_traits::FromPrimitive;
 
 use crate::property::custom_slider;
 
-use super::{custom_drag, Num};
+use super::{Num, custom_drag};
 
 #[derive(Debug, Clone, PartialEq, PartialOrd, serde::Deserialize, serde::Serialize)]
 pub(crate) struct ValueRange<T> {

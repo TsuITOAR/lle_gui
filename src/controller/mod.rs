@@ -15,10 +15,10 @@ pub mod interleave_self_pump;
 pub mod pulse_pump;
 pub mod self_pump;
 
-use lle::{num_complex::Complex64, ConstOp, Evolver, NoneOp, SPhaMod};
-use num_traits::{zero, Zero};
+use lle::{ConstOp, Evolver, NoneOp, SPhaMod, num_complex::Complex64};
+use num_traits::{Zero, zero};
 
-use crate::{property::Property, random::RandomNoise, views::PlotElement, FftSource};
+use crate::{FftSource, property::Property, random::RandomNoise, views::PlotElement};
 
 #[allow(unused)]
 pub type App = crate::app::GenApp<
@@ -133,13 +133,13 @@ impl Default for LleController {
 }
 
 impl<
-        'a,
-        S: FftSource,
-        L: lle::LinearOp<f64>,
-        NL: lle::NonLinearOp<f64>,
-        C: ConstOp<f64>,
-        CF: ConstOp<f64>,
-    > SharedState<'a> for lle::LleSolver<f64, S, L, NL, C, CF>
+    'a,
+    S: FftSource,
+    L: lle::LinearOp<f64>,
+    NL: lle::NonLinearOp<f64>,
+    C: ConstOp<f64>,
+    CF: ConstOp<f64>,
+> SharedState<'a> for lle::LleSolver<f64, S, L, NL, C, CF>
 {
     type SharedState = &'a S;
     fn states(&'a self) -> Self::SharedState {
@@ -151,12 +151,12 @@ impl<
 }
 
 impl<
-        S: FftSource + for<'a> serde::Deserialize<'a> + serde::Serialize,
-        L: lle::LinearOp<f64>,
-        NL: lle::NonLinearOp<f64>,
-        C: ConstOp<f64>,
-        CF: ConstOp<f64>,
-    > StoreState for lle::LleSolver<f64, S, L, NL, C, CF>
+    S: FftSource + for<'a> serde::Deserialize<'a> + serde::Serialize,
+    L: lle::LinearOp<f64>,
+    NL: lle::NonLinearOp<f64>,
+    C: ConstOp<f64>,
+    CF: ConstOp<f64>,
+> StoreState for lle::LleSolver<f64, S, L, NL, C, CF>
 {
     type OwnedState = S;
     fn get_owned_state(&self) -> Self::OwnedState {
@@ -179,12 +179,12 @@ impl<
 }
 
 impl<
-        S: FftSource + for<'a> serde::Deserialize<'a> + serde::Serialize,
-        L: lle::LinearOp<f64> + Send + Sync + 'static,
-        NL: lle::NonLinearOp<f64> + Send + Sync + 'static,
-        C: ConstOp<f64> + Send + Sync + 'static,
-        CF: ConstOp<f64> + Send + Sync + 'static,
-    > Simulator for lle::LleSolver<f64, S, L, NL, C, CF>
+    S: FftSource + for<'a> serde::Deserialize<'a> + serde::Serialize,
+    L: lle::LinearOp<f64> + Send + Sync + 'static,
+    NL: lle::NonLinearOp<f64> + Send + Sync + 'static,
+    C: ConstOp<f64> + Send + Sync + 'static,
+    CF: ConstOp<f64> + Send + Sync + 'static,
+> Simulator for lle::LleSolver<f64, S, L, NL, C, CF>
 where
     S::FftProcessor: Send + Sync,
 {

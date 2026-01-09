@@ -132,7 +132,7 @@ fn add_random_with_dist<D: rand::prelude::Distribution<f64>>(
     rng: &mut impl rand::Rng,
     dist: &D,
 ) {
-    state
-        .iter_mut()
-        .for_each(|x| *x += (Complex64::i() * rng.random::<f64>() * 2. * PI).exp() * dist.sample(rng));
+    state.iter_mut().for_each(|x| {
+        *x += (Complex64::i() * rng.random::<f64>() * 2. * PI).exp() * dist.sample(rng)
+    });
 }

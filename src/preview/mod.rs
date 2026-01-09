@@ -10,7 +10,7 @@ use ui_traits::ControllerUI;
 use crate::{
     app::Core,
     controller::{Controller, SharedState, Simulator, StoreState},
-    util::{try_poll, Promise},
+    util::{Promise, try_poll},
     views::{RawPlotData, ShowOn, State, Visualizer},
 };
 
@@ -126,9 +126,10 @@ where
 
     pub fn tick(&mut self, e: &Core<C, S>) {
         if let Some(cores) = self.sub_cores.as_mut()
-            && self.refresh.tick() {
-                *cores = self.config.refresh(e);
-            }
+            && self.refresh.tick()
+        {
+            *cores = self.config.refresh(e);
+        }
     }
 
     pub fn poll_previews(&mut self, steps: u32, add_random: bool) -> Option<()> {

@@ -1,5 +1,5 @@
-use lle::{num_complex::Complex64, DiffOrder, Freq, LinearOp, NoneOp, Step};
-use num_traits::{zero, Zero};
+use lle::{DiffOrder, Freq, LinearOp, NoneOp, Step, num_complex::Complex64};
+use num_traits::{Zero, zero};
 
 use super::{Controller, Property};
 

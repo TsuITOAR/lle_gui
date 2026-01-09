@@ -1,6 +1,6 @@
 mod core;
-mod impls;
 mod dispersion;
+mod impls;
 mod storage;
 
 pub use core::Core;

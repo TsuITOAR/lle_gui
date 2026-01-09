@@ -26,17 +26,17 @@ pub trait FftSource:
 }
 
 impl<
-        T: lle::FftSource<f64>
-            + AsMut<[Complex64]>
-            + AsRef<[Complex64]>
-            + Sync
-            + Clone
-            + 'static
-            + Debug
-            + Send
-            + Sync
-            + From<Vec<Complex64>>,
-    > FftSource for T
+    T: lle::FftSource<f64>
+        + AsMut<[Complex64]>
+        + AsRef<[Complex64]>
+        + Sync
+        + Clone
+        + 'static
+        + Debug
+        + Send
+        + Sync
+        + From<Vec<Complex64>>,
+> FftSource for T
 {
 }
 

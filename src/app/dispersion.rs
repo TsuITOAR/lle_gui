@@ -3,7 +3,6 @@ use crate::{
     views::{State, Views, Visualizer},
 };
 
-
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
 pub(crate) struct ShowDispersion {
     pub(crate) show: bool,

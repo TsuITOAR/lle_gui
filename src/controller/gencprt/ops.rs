@@ -1,6 +1,6 @@
 use std::f64::consts::TAU;
 
-use lle::{freq_at, num_complex::Complex64, Step};
+use lle::{Step, freq_at, num_complex::Complex64};
 use num_traits::Zero;
 
 use crate::controller::gencprt::{cprt_disper::spatial_basis_move, state::Mode};

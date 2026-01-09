@@ -4,7 +4,7 @@ use ui_traits::ControllerUI;
 
 use crate::drawer::PlotItem;
 
-use super::{chart::LleChart, FftSource, History, Process, SmartPlot};
+use super::{FftSource, History, Process, SmartPlot, chart::LleChart};
 
 #[cfg(feature = "gpu")]
 pub mod gpu;
@@ -197,7 +197,10 @@ impl<S: FftSource> LleChart<S> {
         &mut self,
         data: impl ExactSizeIterator<Item = f64>,
         running: bool,
-    ) -> (Option<egui_plot::PlotBounds>, egui_plot::PlotPoints<'static>) {
+    ) -> (
+        Option<egui_plot::PlotBounds>,
+        egui_plot::PlotPoints<'static>,
+    ) {
         let mut min = None;
         let mut max = None;
         let n = data.len();

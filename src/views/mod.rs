@@ -1,4 +1,4 @@
-use crate::{drawer::ViewField, FftSource};
+use crate::{FftSource, drawer::ViewField};
 use std::array::from_fn;
 
 mod traits;

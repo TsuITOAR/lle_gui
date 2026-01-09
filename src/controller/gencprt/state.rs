@@ -189,11 +189,7 @@ fn singular(freq: i32, cp: &CoupleInfo, force_pair_next: &mut bool) -> Option<i3
 }
 
 fn modify_force_pair_m(m: i32, freq: i32) -> i32 {
-    if freq < 0 {
-        m - 1
-    } else {
-        m
-    }
+    if freq < 0 { m - 1 } else { m }
 }
 
 #[derive(Debug, Clone)]
