@@ -54,6 +54,28 @@ impl DrawMat for Drawer {
     fn set_align_x_axis(&mut self, align: impl Into<Option<(f32, f32)>>) {
         self.axis_drawer.align_x_axis = align.into();
     }
+
+    fn set_y_label(&mut self, label: Option<String>) {
+        self.axis_drawer.y_label = label;
+    }
+    fn set_matrix(
+        &mut self,
+        width: usize,
+        height: usize,
+        data: &[f32],
+        z_range: Option<[f32; 2]>,
+    ) {
+        debug_assert_eq!(self.uniforms().width as usize, width);
+        self.set_height(height as u32);
+        let mut log = self.data();
+        if log.len() != data.len() {
+            log.resize(data.len(), 0.0);
+        }
+        log.copy_from_slice(&data);
+        let range = z_range.unwrap_or_else(|| search_max_min(&log).into());
+        drop(log);
+        self.set_z_range(range);
+    }
 }
 
 fn search_max_min(data: &[f32]) -> (f32, f32) {

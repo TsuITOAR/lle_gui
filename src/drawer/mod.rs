@@ -9,7 +9,7 @@ mod auto_bound;
 pub use auto_bound::SmartPlot;
 
 mod colormap;
-pub(crate) use colormap::{ColorMapDrawer, DrawMat};
+pub(crate) use colormap::{ColorMapDrawer, DrawMat, HistoryView};
 
 mod history;
 pub use history::History;
@@ -27,6 +27,8 @@ pub(crate) fn default_r_chart<S: FftSource>(index: usize) -> LleChart<S> {
         kind: PlotKind::Line,
         proc: Default::default(),
         smart_bound: Some(Default::default()),
+        history_view: Default::default(),
+        rf_fft_global_norm: true,
         show_history: false,
         drawer: None,
         additional: None,
@@ -39,6 +41,8 @@ pub(crate) fn default_f_chart<S: FftSource>(index: usize) -> LleChart<S> {
         kind: PlotKind::Line,
         proc: Process::new_freq_domain(),
         smart_bound: Some(Default::default()),
+        history_view: Default::default(),
+        rf_fft_global_norm: true,
         show_history: false,
         drawer: None,
         additional: None,

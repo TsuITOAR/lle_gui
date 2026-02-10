@@ -91,6 +91,8 @@ pub struct RawMapVisualizer<B = f64, Backend = ()> {
     x_desc: Option<String>,
     #[getset(set = "pub(crate)")]
     y_desc: Option<String>,
+    #[getset(set = "pub(crate)")]
+    y_label_shift: Option<i32>,
 }
 
 impl<B> Default for RawMapVisualizer<B> {
@@ -100,6 +102,7 @@ impl<B> Default for RawMapVisualizer<B> {
             caption: None,
             x_desc: None,
             y_desc: None,
+            y_label_shift: None,
             backend: PhantomData,
         }
     }
@@ -207,6 +210,9 @@ impl RawMapVisualizer<f64> {
             .y_label_style(text_style)
             .disable_x_mesh()
             .disable_y_mesh();
+        if let Some(shift) = self.y_label_shift {
+            mesh_map.y_label_formatter(&move |y| format!("{}", *y as i32 + shift));
+        }
         if let Some(ref s) = self.x_desc {
             mesh_map.x_desc(s);
         }
@@ -379,6 +385,29 @@ impl DrawMat for ColorMapVisualizer {
     }
     fn set_max_log(&mut self, max_log: NonZeroUsize) {
         self.max_log = Some(max_log);
+    }
+
+    fn set_y_label(&mut self, label: Option<String>) {
+        self.raw.set_y_desc(label);
+    }
+
+    fn set_y_tick_shift(&mut self, shift: i32) {
+        self.raw.set_y_label_shift(Some(shift));
+    }
+
+    fn set_matrix(
+        &mut self,
+        _width: usize,
+        height: usize,
+        data: Vec<f32>,
+        z_range: Option<[f32; 2]>,
+    ) {
+        self.max_log = NonZeroUsize::new(height);
+        self.matrix = data.into_iter().map(|v| v as f64).collect();
+        let range = z_range.unwrap_or([0.0, 1.0]);
+        self.raw
+            .set_color_range(DrawRange::Static(range[0] as f64..range[1] as f64));
+        self.raw.color_range.make_range_legal();
     }
 }
 

@@ -75,13 +75,13 @@ impl AxisDrawer {
             Pos2::new(min.x + y_axis_width, max.y - x_axis_height),
         );
 
-        // 计算剩余的 Rect
+        // Compute the remaining rect
         let remaining_rect = Rect::from_min_max(
             Pos2::new(rect.min.x + y_axis_width, rect.min.y),
             Pos2::new(rect.max.x, rect.max.y - x_axis_height),
         );
 
-        // 返回剩余的 Rect
+        // Return the remaining rect
         (remaining_rect, x_axis_rect, y_axis_rect)
     }
 
@@ -119,7 +119,7 @@ impl AxisDrawer {
             .clone()
             .unwrap_or_else(|| text_style[&TextStyle::Body].clone());
 
-        // 根据 ui 的样式设置颜色
+        // Pick colors based on the UI style
         let visuals = ui.visuals();
         let axis_color = visuals.text_color();
         let axis_stroke = stroke.unwrap_or_else(|| Stroke::new(1.0, visuals.text_color()));
@@ -129,14 +129,14 @@ impl AxisDrawer {
             axis_stroke,
         );
 
-        // 绘制 Y 轴
+        // Draw Y axis
 
         ui.painter().line_segment(
             [y_axis_rect.right_bottom(), y_axis_rect.right_top()],
             axis_stroke,
         );
 
-        // 绘制 X 轴刻度和刻度标签
+        // Draw X-axis ticks and labels
         const MIN_X_TICK_LABEL_HEIGHT: f32 = 5.0;
 
         for x in Self::calculate_tick_pos(x_range, base) {
@@ -148,7 +148,7 @@ impl AxisDrawer {
             ui.painter()
                 .line_segment([tick_start, tick_end], axis_stroke);
 
-            // 绘制刻度标签
+            // Draw tick label
             let tick_label_pos = Pos2::new(
                 x_pos,
                 x_axis_rect.top() + (tick_length + 1.0).max(MIN_X_TICK_LABEL_HEIGHT),
@@ -163,7 +163,7 @@ impl AxisDrawer {
         }
 
         const MIN_Y_TICK_LABEL_WIDTH: f32 = 5.0;
-        // 绘制 Y 轴刻度和刻度标签
+        // Draw Y-axis ticks and labels
 
         for y in Self::calculate_tick_pos(y_range, base) {
             let y_pos = y_axis_rect.bottom()
@@ -174,7 +174,7 @@ impl AxisDrawer {
             ui.painter()
                 .line_segment([tick_start, tick_end], axis_stroke);
 
-            // 绘制刻度标签
+            // Draw tick label
             let tick_label_pos = Pos2::new(
                 y_axis_rect.right() - (tick_length + 1.0).max(MIN_Y_TICK_LABEL_WIDTH),
                 y_pos,
@@ -188,7 +188,7 @@ impl AxisDrawer {
             );
         }
         if let Some(x_label) = x_label {
-            // 绘制 X 轴标签
+            // Draw X-axis label
             let x_label_pos = x_axis_rect.center_bottom();
             ui.painter().text(
                 x_label_pos,
@@ -200,7 +200,7 @@ impl AxisDrawer {
         }
 
         if let Some(y_label) = y_label {
-            // 绘制 Y 轴标签
+            // Draw Y-axis label
             let y_label_pos = y_axis_rect.left_center();
             ui.painter().text(
                 y_label_pos,
@@ -216,8 +216,8 @@ impl AxisDrawer {
         let range_span = range.end() - range.start();
         let order = (range_span.log(base as f32) * 0.9).floor();
         let interval = (base as f32).powf(order);
-        let start_ind = (range.start() / interval).ceil() as u32;
-        (start_ind..)
+        let start_ind = (range.start() / interval).ceil() as i32;
+        std::iter::successors(Some(start_ind), |i| Some(i + 1))
             .map(move |i| i as f32 * interval)
             .take_while(move |&x| x <= *range.end())
     }

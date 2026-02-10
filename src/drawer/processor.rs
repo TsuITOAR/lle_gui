@@ -154,6 +154,18 @@ impl<S: FftSource> Process<S> {
         }
         ret
     }
+    pub fn proc_complex(&mut self, data: &S, running: bool) -> Vec<Complex64> {
+        let mut ret = self.core.proc_raw_complex(data);
+        if let Some(last) = self.delta.get_and_update(data, running) {
+            let last = self.core.proc_raw_complex(last);
+            ret = ret
+                .into_iter()
+                .zip(last)
+                .map(|(now, last)| now - last)
+                .collect();
+        }
+        ret
+    }
     /* pub fn proc_by_ref(&self, data: &[Complex64]) -> Vec<f64> {
         let mut data = data.to_owned();
         if let Some(mut fft) = self.fft.as_ref().cloned() {
@@ -207,6 +219,21 @@ impl<S: FftSource> ProcessCore<S> {
                 .map(|x| T::from_f64(x).unwrap_or_else(T::zero))
                 .collect()
         }
+    }
+
+    fn proc_raw_complex(&mut self, data: &S) -> Vec<Complex64> {
+        let ProcessCore { fft, .. } = self;
+        let mut data = data.to_owned();
+        let data = if let Some((f, _)) = fft.as_mut().map(|x| x.get_fft(data.fft_len())) {
+            data.fft_process_forward(f);
+            let data_slice = data.as_mut();
+            let split_pos = data_slice.len().div_ceil(2);
+            let (pos_freq, neg_freq) = data_slice.split_at_mut(split_pos);
+            neg_freq.iter().chain(pos_freq.iter()).copied().collect()
+        } else {
+            data.as_ref().to_owned()
+        };
+        data
     }
 
     /* fn proc_f32_by_ref(&self, data: &S) -> Vec<f32> {
@@ -318,9 +345,9 @@ impl<S: lle::FftSource<f64>> Default for FftProcess<S> {
 impl<S: lle::FftSource<f64>> FftProcess<S> {
     pub(crate) fn get_fft(&mut self, len: usize) -> &mut (S::FftProcessor, usize) {
         if self.target_len().is_some_and(|x| x != len) {
-            crate::notify::TOASTS
-                .lock()
-                .warning("Unmatched FftProcess length, reinitializing");
+            // crate::notify::TOASTS
+            //     .lock()
+            //     .warning("Unmatched FftProcess length, reinitializing");
             self.s = None;
         }
         self.s.get_or_insert_with(|| {

@@ -5,6 +5,10 @@ use ui_traits::ControllerUI;
 use crate::drawer::PlotItem;
 
 use super::{FftSource, History, Process, SmartPlot, chart::LleChart};
+use lle::{
+    FftSource as LleFftSource,
+    num_complex::{Complex64, ComplexFloat},
+};
 
 #[cfg(feature = "gpu")]
 pub mod gpu;
@@ -27,6 +31,73 @@ pub(crate) trait DrawMat {
     fn max_log(&self) -> Option<NonZeroUsize>;
     fn set_max_log(&mut self, len: NonZeroUsize);
     fn set_align_x_axis(&mut self, _align: impl Into<Option<(f32, f32)>>) {}
+    fn set_y_label(&mut self, _label: Option<String>) {}
+    fn set_y_tick_shift(&mut self, _shift: i32) {}
+    fn sync_labels(&mut self, view: &crate::drawer::HistoryView) {
+        let (label, shift) = match view {
+            crate::drawer::HistoryView::Raw => ("Record index", 0),
+            crate::drawer::HistoryView::RfFft { .. } => {
+                let half = self.max_log().map(|x| x.get()).unwrap_or(0) as i32 / 2;
+                ("RF index", -half)
+            }
+        };
+        self.set_y_label(Some(label.to_string()));
+        self.set_y_tick_shift(shift);
+    }
+    fn set_matrix(&mut self, width: usize, height: usize, data: &[f32], z_range: Option<[f32; 2]>);
+}
+
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
+pub(crate) enum HistoryView {
+    Raw,
+    RfFft {
+        #[serde(skip)]
+        #[serde(default)]
+        fft_cache: Vec<crate::drawer::processor::FftProcess<Vec<Complex64>>>,
+        buffer: Vec<f32>,
+    },
+}
+
+impl Default for HistoryView {
+    fn default() -> Self {
+        Self::Raw
+    }
+}
+
+impl PartialEq for HistoryView {
+    fn eq(&self, other: &Self) -> bool {
+        matches!(
+            (self, other),
+            (HistoryView::Raw, HistoryView::Raw)
+                | (HistoryView::RfFft { .. }, HistoryView::RfFft { .. })
+        )
+    }
+}
+
+impl HistoryView {
+    fn ensure_rf(&mut self) {
+        if !matches!(self, HistoryView::RfFft { .. }) {
+            *self = HistoryView::RfFft {
+                fft_cache: Vec::new(),
+                buffer: Vec::new(),
+            };
+        }
+    }
+
+    fn rf_cache_mut(
+        &mut self,
+    ) -> Option<(
+        &mut Vec<crate::drawer::processor::FftProcess<Vec<Complex64>>>,
+        &mut Vec<f32>,
+    )> {
+        match self {
+            HistoryView::RfFft {
+                fft_cache: cache,
+                buffer: buf,
+            } => Some((cache, buf)),
+            _ => None,
+        }
+    }
 }
 
 impl<S: FftSource> LleChart<S> {
@@ -51,8 +122,13 @@ impl<S: FftSource> LleChart<S> {
         if r.inner.changed() && !self.show_history {
             self.drawer = None;
         }
-        if let Some(ref mut drawer) = self.drawer {
-            let mut v = drawer.max_log().map(|x| x.get()).unwrap_or_default();
+
+        if self.show_history {
+            let mut v = self
+                .drawer
+                .as_ref()
+                .and_then(|d| d.max_log().map(|x| x.get()))
+                .unwrap_or_default();
             if ui
                 .horizontal(|ui| {
                     ui.label("Record length: ");
@@ -66,7 +142,46 @@ impl<S: FftSource> LleChart<S> {
                 .changed()
             {
                 let new = NonZeroUsize::new(v);
-                drawer.set_max_log(new.unwrap());
+                if let Some(len) = new
+                    && let Some(ref mut drawer) = self.drawer
+                {
+                    drawer.set_max_log(len);
+                }
+            }
+            let mut changed = false;
+            if self.proc.core.fft.is_some() {
+                ui.horizontal(|ui| {
+                    ui.label("History view:");
+                    if ui
+                        .selectable_value(&mut self.history_view, HistoryView::Raw, "Time")
+                        .changed()
+                    {
+                        self.history_view = HistoryView::Raw;
+                        changed = true;
+                    }
+                    if ui
+                        .selectable_value(
+                            &mut self.history_view,
+                            HistoryView::RfFft {
+                                fft_cache: Vec::new(),
+                                buffer: Vec::new(),
+                            },
+                            "RF FFT",
+                        )
+                        .changed()
+                    {
+                        self.history_view.ensure_rf();
+                        changed = true;
+                    }
+                });
+                if let Some(ref mut drawer) = self.drawer
+                    && changed
+                {
+                    drawer.sync_labels(&self.history_view);
+                }
+                if matches!(self.history_view, HistoryView::RfFft { .. }) {
+                    ui.toggle_value(&mut self.rf_fft_global_norm, "Global normalize");
+                }
             }
         }
     }
@@ -100,7 +215,8 @@ impl<S: FftSource> LleChart<S> {
 
                 match (chart0.show_history, history.get_data_size()) {
                     (true, Some((history_data, chunk_size))) => {
-                        let fetch = running || chart0.drawer.is_none();
+                        let created = chart0.drawer.is_none();
+                        let fetch = running || created;
                         let r = {
                             #[cfg(not(feature = "gpu"))]
                             {
@@ -112,14 +228,38 @@ impl<S: FftSource> LleChart<S> {
                                     ColorMapDrawer::new(
                                         &chart0.name,
                                         chunk_size as _,
-                                        100,
+                                        128,
                                         render_state,
                                     )
                                 })
                             }
                         };
+                        if created {
+                            let shift = match chart0.history_view {
+                                HistoryView::Raw => 0,
+                                HistoryView::RfFft { .. } => {
+                                    let half = r.max_log().map(|x| x.get()).unwrap_or(0) as i32 / 2;
+                                    -half
+                                }
+                            };
+                            r.set_y_tick_shift(shift);
+                        }
                         if fetch {
-                            r.fetch(history_data, &mut chart0.proc, chunk_size);
+                            if chart0.proc.core.fft.is_some()
+                                && let Some((cache, buffer)) = chart0.history_view.rf_cache_mut()
+                            {
+                                fetch_rf_fft(
+                                    r,
+                                    history_data,
+                                    &mut chart0.proc,
+                                    chunk_size,
+                                    chart0.rf_fft_global_norm,
+                                    cache,
+                                    buffer,
+                                );
+                            } else {
+                                r.fetch(history_data, &mut chart0.proc, chunk_size);
+                            }
                         }
                     }
                     #[cfg(debug_assertions)]
@@ -268,5 +408,125 @@ fn smarter_bound_controller(smart_bound: &mut Option<SmartPlot<f64>>, ui: &mut e
                 smart.adapt.1, smart.adapt.2
             ));
         });
+    }
+}
+
+fn fetch_rf_fft<S: FftSource, D: DrawMat>(
+    drawer: &mut D,
+    history_data: &[S],
+    proc: &mut Process<S>,
+    chunk_size: usize,
+    global_norm: bool,
+    cache: &mut Vec<crate::drawer::processor::FftProcess<Vec<Complex64>>>,
+    buffer: &mut Vec<f32>,
+) where
+    S::FftProcessor: Sync,
+{
+    let max_log = drawer
+        .max_log()
+        .map(|x| x.get())
+        .unwrap_or(history_data.len());
+    let mut time_len = history_data.len().min(max_log);
+    if time_len < 2 {
+        return;
+    }
+    if time_len % 2 == 1 {
+        time_len -= 1;
+    }
+    if time_len < 2 {
+        return;
+    }
+
+    let start = history_data.len().saturating_sub(time_len);
+    let history_slice = &history_data[start..];
+
+    let mut time_matrix = vec![Complex64::new(0.0, 0.0); time_len * chunk_size];
+    for (t, d) in history_slice.iter().enumerate() {
+        let row = proc.proc_complex(d, true);
+        if row.len() != chunk_size {
+            return;
+        }
+        for (bin, v) in row.into_iter().enumerate() {
+            time_matrix[bin * time_len + t] = v;
+        }
+    }
+    buffer.resize(time_len * chunk_size, 0.0);
+    let out: &mut [f32] = buffer.as_mut();
+    let split_pos = time_len.div_ceil(2);
+    let db_scale = proc.core.db_scale;
+
+    use rayon::prelude::*;
+    if cache.len() != chunk_size {
+        cache.resize_with(chunk_size, Default::default);
+    }
+    let results: Vec<(usize, Vec<f32>, f32, f32)> = time_matrix
+        .par_chunks_exact_mut(time_len)
+        .zip(cache.par_iter_mut())
+        .enumerate()
+        .map(|(bin, (chunk, fft))| {
+            let (f, _) = fft.get_fft(time_len);
+            chunk.fft_process_forward(f);
+
+            let (pos, neg) = chunk.split_at(split_pos);
+            let mut col_min = f32::INFINITY;
+            let mut col_max = f32::NEG_INFINITY;
+            let mut col = Vec::with_capacity(time_len);
+            for c in neg.iter().chain(pos) {
+                let mut v = c.abs() as f32;
+                if db_scale {
+                    v = if v > 0.0 {
+                        20.0 * v.log10()
+                    } else {
+                        f32::NEG_INFINITY
+                    };
+                }
+                if v.is_finite() {
+                    col_min = col_min.min(v);
+                    col_max = col_max.max(v);
+                }
+                col.push(v);
+            }
+            (bin, col, col_min, col_max)
+        })
+        .collect();
+
+    let (mut min, mut max) = (f32::INFINITY, f32::NEG_INFINITY);
+    if global_norm {
+        for (_, _, col_min, col_max) in &results {
+            if col_min.is_finite() && col_max.is_finite() {
+                min = min.min(*col_min);
+                max = max.max(*col_max);
+            }
+        }
+    }
+
+    for (bin, mut col, col_min, col_max) in results {
+        if !global_norm {
+            let span = col_max - col_min;
+            if span.is_finite() && span > 0.0 {
+                for v in &mut col {
+                    if v.is_finite() {
+                        *v = (*v - col_min) / span;
+                    }
+                }
+            } else {
+                for v in &mut col {
+                    *v = 0.0;
+                }
+            }
+        }
+        for (rf_idx, v) in col.into_iter().enumerate() {
+            out[rf_idx * chunk_size + bin] = v;
+        }
+    }
+
+    if global_norm {
+        if !min.is_finite() || !max.is_finite() || min >= max {
+            min = 0.0;
+            max = 1.0;
+        }
+        drawer.set_matrix(chunk_size, time_len, &out, Some([min, max]));
+    } else {
+        drawer.set_matrix(chunk_size, time_len, &out, Some([0.0, 1.0]));
     }
 }

@@ -18,6 +18,10 @@ pub struct LleChart<S: FftSource = Vec<Complex64>> {
     pub(crate) proc: Process<S>,
     #[serde(default)]
     pub(crate) smart_bound: Option<SmartPlot<f64>>,
+    #[serde(default)]
+    pub(crate) history_view: HistoryView,
+    #[serde(default)]
+    pub(crate) rf_fft_global_norm: bool,
     #[serde(skip)]
     pub(crate) show_history: bool,
     #[serde(skip)]
@@ -52,6 +56,8 @@ impl<S: FftSource> Clone for LleChart<S> {
             kind: self.kind,
             proc: self.proc.clone(),
             smart_bound: self.smart_bound.clone(),
+            history_view: self.history_view.clone(),
+            rf_fft_global_norm: self.rf_fft_global_norm,
             show_history: self.show_history,
             drawer: None,
             additional: None,
@@ -66,6 +72,8 @@ impl<S: FftSource + Debug> Debug for LleChart<S> {
             .field("kind", &self.kind)
             .field("proc", &self.proc)
             .field("smart_plot", &self.smart_bound)
+            .field("history_view", &self.history_view)
+            .field("rf_fft_global_norm", &self.rf_fft_global_norm)
             .field("show_history", &self.drawer)
             .field("additional", &self.additional.is_some())
             .finish()
