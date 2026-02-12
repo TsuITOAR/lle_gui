@@ -59,8 +59,7 @@ pub(crate) trait DrawMat {
     fn set_matrix(&mut self, width: usize, height: usize, data: &[f32], z_range: Option<[f32; 2]>);
 }
 
-#[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
-#[derive(Default)]
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize, Default)]
 pub(crate) enum HistoryView {
     #[default]
     Raw,
@@ -71,7 +70,6 @@ pub(crate) enum HistoryView {
         buffer: Vec<f32>,
     },
 }
-
 
 impl PartialEq for HistoryView {
     fn eq(&self, other: &Self) -> bool {
@@ -93,12 +91,7 @@ impl HistoryView {
         }
     }
 
-    fn rf_cache_mut(
-        &mut self,
-    ) -> Option<(
-        &mut Vec<crate::drawer::processor::FftProcess<Vec<Complex64>>>,
-        &mut Vec<f32>,
-    )> {
+    fn rf_cache_mut(&mut self) -> Option<RfCache<'_>> {
         match self {
             HistoryView::RfFft {
                 fft_cache: cache,
@@ -108,6 +101,11 @@ impl HistoryView {
         }
     }
 }
+
+type RfCache<'a> = (
+    &'a mut Vec<crate::drawer::processor::FftProcess<Vec<Complex64>>>,
+    &'a mut Vec<f32>,
+);
 
 impl<S: FftSource> LleChart<S> {
     pub(crate) fn adjust_to_state(&mut self, data: &S) {
