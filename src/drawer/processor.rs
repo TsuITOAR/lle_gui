@@ -224,7 +224,7 @@ impl<S: FftSource> ProcessCore<S> {
     fn proc_raw_complex(&mut self, data: &S) -> Vec<Complex64> {
         let ProcessCore { fft, .. } = self;
         let mut data = data.to_owned();
-        
+
         if let Some((f, _)) = fft.as_mut().map(|x| x.get_fft(data.fft_len())) {
             data.fft_process_forward(f);
             let data_slice = data.as_mut();

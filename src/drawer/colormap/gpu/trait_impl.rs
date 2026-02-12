@@ -55,14 +55,11 @@ impl DrawMat for Drawer {
         S::FftProcessor: Sync,
     {
         puffin_egui::puffin::profile_function!();
-        if global_norm {
-            return false;
-        }
         let max_log = self
             .max_log()
             .map(|x| x.get())
             .unwrap_or(history_data.len());
-        let mut time_len = history_data.len().min(max_log);
+        let mut time_len = max_log;
         if time_len < 2 {
             return true;
         }
@@ -84,7 +81,13 @@ impl DrawMat for Drawer {
                 rf_input[bin * time_len + t] = [v.re as f32, v.im as f32];
             }
         }
-        self.set_rf_fft_input(chunk_size, time_len, &rf_input, proc.core.db_scale);
+        self.set_rf_fft_input(
+            chunk_size,
+            time_len,
+            &rf_input,
+            proc.core.db_scale,
+            global_norm,
+        );
         true
     }
 

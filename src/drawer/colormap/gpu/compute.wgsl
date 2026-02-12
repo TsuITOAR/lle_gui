@@ -4,6 +4,7 @@ struct Uniforms {
     z_range: vec2<f32>,
     compute_mode: u32,
     rf_db_scale: u32,
+    rf_global_norm: u32,
     _padding: vec2<u32>,
 };
 
@@ -43,6 +44,35 @@ fn main_rf_stage1(
     @builtin(workgroup_id) workgroup_id: vec3<u32>,
 ) {
     compute_rf_fft_stage1(global_id, local_id, workgroup_id);
+}
+
+@compute @workgroup_size(1, 1, 1)
+fn main_rf_reduce_global() {
+    if uniforms.width == 0u {
+        return;
+    }
+    var global_min = 1e30;
+    var global_max = -1e30;
+    for (var bin = 0u; bin < uniforms.width; bin = bin + 1u) {
+        let mm = rf_bin_minmax[bin];
+        if is_finite_f32(mm.x) {
+            global_min = min(global_min, mm.x);
+        }
+        if is_finite_f32(mm.y) {
+            global_max = max(global_max, mm.y);
+        }
+    }
+    if !is_finite_f32(global_min) {
+        global_min = 0.0;
+    }
+    if !is_finite_f32(global_max) {
+        global_max = 1.0;
+    }
+    if global_min >= global_max {
+        global_min = 0.0;
+        global_max = 1.0;
+    }
+    rf_bin_minmax[0] = vec2<f32>(global_min, global_max);
 }
 
 @compute @workgroup_size(8, 8, 1)
@@ -118,10 +148,18 @@ fn compute_rf_fft_stage2(global_id: vec3<u32>) {
     let rf_idx = global_id.y;
     let out_index = rf_idx * uniforms.width + bin;
     var v = rf_values[out_index];
-    let mm = rf_bin_minmax[bin];
-    let span = mm.y - mm.x;
-    if is_finite_f32(v) && is_finite_f32(span) && span > 0.0 {
-        v = (v - mm.x) / span;
+    let mm = select(rf_bin_minmax[bin], rf_bin_minmax[0], uniforms.rf_global_norm != 0u);
+    var mm_min = mm.x;
+    var mm_max = mm.y;
+    if !is_finite_f32(mm_min) {
+        mm_min = 0.0;
+    }
+    if !is_finite_f32(mm_max) {
+        mm_max = 1.0;
+    }
+    let span = mm_max - mm_min;
+    if is_finite_f32(v) && span > 0.0 {
+        v = (v - mm_min) / span;
     } else {
         v = 0.0;
     }

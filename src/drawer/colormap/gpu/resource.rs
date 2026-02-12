@@ -7,6 +7,7 @@ pub struct RenderResources {
     pub(crate) compute_pipeline_layout: wgpu::PipelineLayout,
     pub(crate) compute_pipeline_raw: wgpu::ComputePipeline,
     pub(crate) compute_pipeline_rf_stage1: wgpu::ComputePipeline,
+    pub(crate) compute_pipeline_rf_reduce_global: wgpu::ComputePipeline,
     pub(crate) compute_pipeline_rf_stage2: wgpu::ComputePipeline,
     pub(crate) compute_shader: wgpu::ShaderModule,
     pub(crate) raw_data_buffer: wgpu::Buffer,
@@ -91,6 +92,7 @@ impl RenderResources {
                 self.compute_bind_group,
                 self.compute_pipeline_raw,
                 self.compute_pipeline_rf_stage1,
+                self.compute_pipeline_rf_reduce_global,
                 self.compute_pipeline_rf_stage2,
                 self.fft_cfg,
             ) = RenderResources::get_compute_pipelines(
@@ -163,6 +165,15 @@ impl RenderResources {
                 let stage1_dispatch_x = self.uniforms.width.div_ceil(self.fft_cfg.wg_bins.max(1));
                 cpass.dispatch_workgroups(stage1_dispatch_x, 1, 1);
             }
+            if self.uniforms.rf_global_norm != 0 {
+                let mut cpass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
+                    label: Some("rf fft global reduce"),
+                    timestamp_writes: None,
+                });
+                cpass.set_pipeline(&self.compute_pipeline_rf_reduce_global);
+                cpass.set_bind_group(0, &self.compute_bind_group, &[]);
+                cpass.dispatch_workgroups(1, 1, 1);
+            }
             {
                 let mut cpass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
                     label: Some("rf fft stage2"),
@@ -204,7 +215,7 @@ impl RenderResources {
         rpass.set_pipeline(&self.render_pipeline);
         rpass.set_bind_group(0, &self.render_bind_group, &[]);
         rpass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
-        rpass.draw(0..3, 0..1); // 绘制三角形
+        rpass.draw(0..3, 0..1); // paint triangles
     }
 }
 
@@ -225,6 +236,7 @@ impl RenderResources {
         shader: &wgpu::ShaderModule,
     ) -> (
         wgpu::BindGroup,
+        wgpu::ComputePipeline,
         wgpu::ComputePipeline,
         wgpu::ComputePipeline,
         wgpu::ComputePipeline,
@@ -331,6 +343,18 @@ impl RenderResources {
                 },
                 cache: None,
             });
+        let compute_pipeline_rf_reduce_global =
+            device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
+                label: Some("Compute Pipeline RF Global Reduce"),
+                layout: Some(pipeline_layout),
+                module: shader,
+                entry_point: Some("main_rf_reduce_global"),
+                compilation_options: wgpu::PipelineCompilationOptions {
+                    constants: &fft_override_constants,
+                    ..Default::default()
+                },
+                cache: None,
+            });
         let compute_pipeline_rf_stage2 =
             device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
                 label: Some("Compute Pipeline RF Stage2"),
@@ -343,11 +367,11 @@ impl RenderResources {
                 },
                 cache: None,
             });
-
         (
             compute_bind_group,
             compute_pipeline_raw,
             compute_pipeline_rf_stage1,
+            compute_pipeline_rf_reduce_global,
             compute_pipeline_rf_stage2,
             cfg,
         )

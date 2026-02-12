@@ -32,7 +32,8 @@ pub struct Uniforms {
     pub z_range: [f32; 2],
     pub compute_mode: u32,
     pub rf_db_scale: u32,
-    pub _padding: [u32; 2],
+    pub rf_global_norm: u32,
+    pub _padding: [u32; 3],
 }
 
 pub(crate) type RawDataFormat = f32;
@@ -77,7 +78,8 @@ impl Drawer {
             z_range: [0.0, 1.0],
             compute_mode: 0,
             rf_db_scale: 0,
-            _padding: [0; 2],
+            rf_global_norm: 0,
+            _padding: [0; 3],
         };
         let texture_format = render_state.target_format;
         let (
@@ -220,6 +222,7 @@ impl Drawer {
             compute_bind_group,
             compute_pipeline_raw,
             compute_pipeline_rf_stage1,
+            compute_pipeline_rf_reduce_global,
             compute_pipeline_rf_stage2,
             fft_cfg,
         ) = RenderResources::get_compute_pipelines(
@@ -319,6 +322,7 @@ impl Drawer {
             compute_pipeline_layout,
             compute_pipeline_raw,
             compute_pipeline_rf_stage1,
+            compute_pipeline_rf_reduce_global,
             compute_pipeline_rf_stage2,
             compute_shader,
             raw_data_buffer,
@@ -420,6 +424,7 @@ impl Drawer {
 
     pub(crate) fn set_raw_mode(&mut self) {
         self.uniforms.compute_mode = 0;
+        self.uniforms.rf_global_norm = 0;
     }
 
     pub(crate) fn set_rf_fft_input(
@@ -428,11 +433,13 @@ impl Drawer {
         height: usize,
         data: &[RfInputFormat],
         db_scale: bool,
+        global_norm: bool,
     ) {
         debug_assert_eq!(self.uniforms().width as usize, width);
         self.set_height(height as u32);
         self.uniforms.compute_mode = 1;
         self.uniforms.rf_db_scale = u32::from(db_scale);
+        self.uniforms.rf_global_norm = u32::from(global_norm);
         self.uniforms.z_range = [0.0, 1.0];
         let mut rf = self.rf_input();
         if rf.len() != data.len() {
@@ -563,7 +570,8 @@ mod tests {
                 z_range: [0.0, 1.0],
                 compute_mode: 1,
                 rf_db_scale: 1,
-                _padding: [0; 2],
+                rf_global_norm: 1,
+                _padding: [0; 3],
             };
             let uniform_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
                 label: Some("test uniform"),
@@ -675,7 +683,7 @@ mod tests {
             let (raw_data, rf_input, rf_fft_state, rf_values, rf_minmax, cache, _texture) =
                 RenderResources::get_buffers(&device, wgpu::TextureFormat::Rgba8Unorm, 8, 8);
 
-            let (_bind_group, _raw, _stage1, _stage2, _fft_cfg) =
+            let (_bind_group, _raw, _stage1, _reduce, _stage2, _fft_cfg) =
                 RenderResources::get_compute_pipelines(
                     &device,
                     &raw_data,

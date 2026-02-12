@@ -235,7 +235,7 @@ impl<S: FftSource> LleChart<S> {
                                     ColorMapDrawer::new(
                                         &chart0.name,
                                         chunk_size as _,
-                                        128,
+                                        64,
                                         render_state,
                                     )
                                 })
@@ -436,17 +436,17 @@ fn fetch_rf_fft<S: FftSource, D: DrawMat>(
 ) where
     S::FftProcessor: Sync,
 {
+    puffin_egui::puffin::profile_function!();
     let max_log = drawer
         .max_log()
         .map(|x| x.get())
         .unwrap_or(history_data.len());
-    let mut time_len = history_data.len().min(max_log);
+    let mut time_len = max_log;
     if time_len < 2 {
         return;
     }
-    if time_len % 2 == 1 {
-        time_len -= 1;
-    }
+    // Keep RF FFT window radix-2 for consistent GPU/CPU behavior.
+    time_len = 1usize << (usize::BITS - 1 - time_len.leading_zeros());
     if time_len < 2 {
         return;
     }
