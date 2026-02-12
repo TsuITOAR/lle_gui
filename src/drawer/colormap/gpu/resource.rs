@@ -11,11 +11,13 @@ pub struct RenderResources {
     pub(crate) compute_shader: wgpu::ShaderModule,
     pub(crate) raw_data_buffer: wgpu::Buffer,
     pub(crate) rf_input_buffer: wgpu::Buffer,
+    pub(crate) rf_fft_state_buffer: wgpu::Buffer,
     pub(crate) rf_value_buffer: wgpu::Buffer,
     pub(crate) rf_minmax_buffer: wgpu::Buffer,
     pub(crate) cache_buffer: wgpu::Buffer,
     pub(crate) compute_bind_group_layout: wgpu::BindGroupLayout,
     pub(crate) compute_bind_group: wgpu::BindGroup,
+    pub(crate) fft_cfg: FftRuntimeConfig,
     // render stuff
     pub(crate) render_pipeline_layout: wgpu::PipelineLayout,
     pub(crate) render_pipeline: wgpu::RenderPipeline,
@@ -30,6 +32,38 @@ pub struct RenderResources {
     pub(crate) render_bind_group: wgpu::BindGroup,
 }
 
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct FftRuntimeConfig {
+    pub(crate) wg_x: u32,
+    pub(crate) wg_bins: u32,
+    pub(crate) shared_max_n: u32,
+}
+
+fn floor_pow2(v: u32) -> u32 {
+    if v <= 1 {
+        1
+    } else {
+        1 << (31 - v.leading_zeros())
+    }
+}
+
+fn fft_runtime_config(limits: &wgpu::Limits) -> FftRuntimeConfig {
+    let max_inv = limits.max_compute_invocations_per_workgroup.max(1);
+    let max_x = limits.max_compute_workgroup_size_x.max(1);
+    let max_y = limits.max_compute_workgroup_size_y.max(1);
+    let wg_x = 64u32.min(max_x).min(max_inv).max(1);
+    let wg_bins = 4u32.min(max_y).min((max_inv / wg_x).max(1)).max(1);
+    let bytes_per_complex = size_of::<RfInputFormat>() as u32;
+    let storage_budget = limits.max_compute_workgroup_storage_size;
+    let max_n_by_storage = (storage_budget / (wg_bins * bytes_per_complex)).max(2);
+    let shared_max_n = floor_pow2(max_n_by_storage).max(2);
+    FftRuntimeConfig {
+        wg_x,
+        wg_bins,
+        shared_max_n,
+    }
+}
+
 impl RenderResources {
     pub fn update_uniforms(
         &mut self,
@@ -41,6 +75,7 @@ impl RenderResources {
             (
                 self.raw_data_buffer,
                 self.rf_input_buffer,
+                self.rf_fft_state_buffer,
                 self.rf_value_buffer,
                 self.rf_minmax_buffer,
                 self.cache_buffer,
@@ -57,10 +92,12 @@ impl RenderResources {
                 self.compute_pipeline_raw,
                 self.compute_pipeline_rf_stage1,
                 self.compute_pipeline_rf_stage2,
+                self.fft_cfg,
             ) = RenderResources::get_compute_pipelines(
                 device,
                 &self.raw_data_buffer,
                 &self.rf_input_buffer,
+                &self.rf_fft_state_buffer,
                 &self.rf_value_buffer,
                 &self.rf_minmax_buffer,
                 &self.cache_buffer,
@@ -123,7 +160,8 @@ impl RenderResources {
                 });
                 cpass.set_pipeline(&self.compute_pipeline_rf_stage1);
                 cpass.set_bind_group(0, &self.compute_bind_group, &[]);
-                cpass.dispatch_workgroups(dispatch_x, 1, 1);
+                let stage1_dispatch_x = self.uniforms.width.div_ceil(self.fft_cfg.wg_bins.max(1));
+                cpass.dispatch_workgroups(stage1_dispatch_x, 1, 1);
             }
             {
                 let mut cpass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
@@ -176,6 +214,7 @@ impl RenderResources {
         device: &wgpu::Device,
         raw_data: &wgpu::Buffer,
         rf_input: &wgpu::Buffer,
+        rf_fft_state: &wgpu::Buffer,
         rf_values: &wgpu::Buffer,
         rf_minmax: &wgpu::Buffer,
         cache: &wgpu::Buffer,
@@ -189,7 +228,14 @@ impl RenderResources {
         wgpu::ComputePipeline,
         wgpu::ComputePipeline,
         wgpu::ComputePipeline,
+        FftRuntimeConfig,
     ) {
+        let cfg = fft_runtime_config(&device.limits());
+        let fft_override_constants = [
+            ("FFT_WG_X", cfg.wg_x as f64),
+            ("FFT_WG_BINS", cfg.wg_bins as f64),
+            ("FFT_SHARED_MAX_N", cfg.shared_max_n as f64),
+        ];
         let compute_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             layout: bind_group_layout,
             entries: &[
@@ -212,7 +258,7 @@ impl RenderResources {
                 wgpu::BindGroupEntry {
                     binding: 2,
                     resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
-                        buffer: rf_values,
+                        buffer: rf_fft_state,
                         offset: 0,
                         size: None,
                     }),
@@ -220,7 +266,7 @@ impl RenderResources {
                 wgpu::BindGroupEntry {
                     binding: 3,
                     resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
-                        buffer: rf_minmax,
+                        buffer: rf_values,
                         offset: 0,
                         size: None,
                     }),
@@ -228,7 +274,7 @@ impl RenderResources {
                 wgpu::BindGroupEntry {
                     binding: 4,
                     resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
-                        buffer: cache,
+                        buffer: rf_minmax,
                         offset: 0,
                         size: None,
                     }),
@@ -236,13 +282,21 @@ impl RenderResources {
                 wgpu::BindGroupEntry {
                     binding: 5,
                     resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
-                        buffer: uniform,
+                        buffer: cache,
                         offset: 0,
                         size: None,
                     }),
                 },
                 wgpu::BindGroupEntry {
                     binding: 6,
+                    resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
+                        buffer: uniform,
+                        offset: 0,
+                        size: None,
+                    }),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 7,
                     resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
                         buffer: color_map,
                         offset: 0,
@@ -259,7 +313,10 @@ impl RenderResources {
                 layout: Some(pipeline_layout),
                 module: shader,
                 entry_point: Some("main_raw"),
-                compilation_options: wgpu::PipelineCompilationOptions::default(),
+                compilation_options: wgpu::PipelineCompilationOptions {
+                    constants: &fft_override_constants,
+                    ..Default::default()
+                },
                 cache: None,
             });
         let compute_pipeline_rf_stage1 =
@@ -268,7 +325,10 @@ impl RenderResources {
                 layout: Some(pipeline_layout),
                 module: shader,
                 entry_point: Some("main_rf_stage1"),
-                compilation_options: wgpu::PipelineCompilationOptions::default(),
+                compilation_options: wgpu::PipelineCompilationOptions {
+                    constants: &fft_override_constants,
+                    ..Default::default()
+                },
                 cache: None,
             });
         let compute_pipeline_rf_stage2 =
@@ -277,7 +337,10 @@ impl RenderResources {
                 layout: Some(pipeline_layout),
                 module: shader,
                 entry_point: Some("main_rf_stage2"),
-                compilation_options: wgpu::PipelineCompilationOptions::default(),
+                compilation_options: wgpu::PipelineCompilationOptions {
+                    constants: &fft_override_constants,
+                    ..Default::default()
+                },
                 cache: None,
             });
 
@@ -286,6 +349,7 @@ impl RenderResources {
             compute_pipeline_raw,
             compute_pipeline_rf_stage1,
             compute_pipeline_rf_stage2,
+            cfg,
         )
     }
 
@@ -299,7 +363,7 @@ impl RenderResources {
         pipeline_layout: &wgpu::PipelineLayout,
         shader: &wgpu::ShaderModule,
     ) -> (wgpu::BindGroup, wgpu::RenderPipeline) {
-        // 创建渲染管道
+        // create render pipeline
         let render_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: Some("Render Pipeline"),
             layout: Some(pipeline_layout),
@@ -326,7 +390,7 @@ impl RenderResources {
             cache: None,
         });
 
-        // 创建绑定组
+        // create bind group
         let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("Texture Bind Group"),
             layout: bind_group_layout,
@@ -355,6 +419,7 @@ impl RenderResources {
         wgpu::Buffer,
         wgpu::Buffer,
         wgpu::Buffer,
+        wgpu::Buffer,
         wgpu::Texture,
     ) {
         let raw_data_buffer = device.create_buffer(&wgpu::BufferDescriptor {
@@ -372,6 +437,12 @@ impl RenderResources {
         let rf_value_buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("RF Value Buffer"),
             size: (width * height) as u64 * size_of::<f32>() as u64,
+            usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+        let rf_fft_state_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("RF FFT State Buffer"),
+            size: (width * height) as u64 * size_of::<RfInputFormat>() as u64,
             usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
@@ -406,6 +477,7 @@ impl RenderResources {
         (
             raw_data_buffer,
             rf_input_buffer,
+            rf_fft_state_buffer,
             rf_value_buffer,
             rf_minmax_buffer,
             cache_buffer,

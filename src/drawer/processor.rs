@@ -224,7 +224,8 @@ impl<S: FftSource> ProcessCore<S> {
     fn proc_raw_complex(&mut self, data: &S) -> Vec<Complex64> {
         let ProcessCore { fft, .. } = self;
         let mut data = data.to_owned();
-        let data = if let Some((f, _)) = fft.as_mut().map(|x| x.get_fft(data.fft_len())) {
+        
+        if let Some((f, _)) = fft.as_mut().map(|x| x.get_fft(data.fft_len())) {
             data.fft_process_forward(f);
             let data_slice = data.as_mut();
             let split_pos = data_slice.len().div_ceil(2);
@@ -232,8 +233,7 @@ impl<S: FftSource> ProcessCore<S> {
             neg_freq.iter().chain(pos_freq.iter()).copied().collect()
         } else {
             data.as_ref().to_owned()
-        };
-        data
+        }
     }
 
     /* fn proc_f32_by_ref(&self, data: &S) -> Vec<f32> {

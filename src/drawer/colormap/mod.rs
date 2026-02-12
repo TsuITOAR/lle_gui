@@ -60,7 +60,9 @@ pub(crate) trait DrawMat {
 }
 
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
+#[derive(Default)]
 pub(crate) enum HistoryView {
+    #[default]
     Raw,
     RfFft {
         #[serde(skip)]
@@ -70,11 +72,6 @@ pub(crate) enum HistoryView {
     },
 }
 
-impl Default for HistoryView {
-    fn default() -> Self {
-        Self::Raw
-    }
-}
 
 impl PartialEq for HistoryView {
     fn eq(&self, other: &Self) -> bool {
@@ -529,9 +526,7 @@ fn fetch_rf_fft<S: FftSource, D: DrawMat>(
                     }
                 }
             } else {
-                for v in &mut col {
-                    *v = 0.0;
-                }
+                col.fill(0.0);
             }
         }
         for (rf_idx, v) in col.into_iter().enumerate() {
@@ -544,8 +539,8 @@ fn fetch_rf_fft<S: FftSource, D: DrawMat>(
             min = 0.0;
             max = 1.0;
         }
-        drawer.set_matrix(chunk_size, time_len, &out, Some([min, max]));
+        drawer.set_matrix(chunk_size, time_len, out, Some([min, max]));
     } else {
-        drawer.set_matrix(chunk_size, time_len, &out, Some([0.0, 1.0]));
+        drawer.set_matrix(chunk_size, time_len, out, Some([0.0, 1.0]));
     }
 }

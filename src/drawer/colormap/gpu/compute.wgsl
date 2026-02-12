@@ -14,18 +14,21 @@ var<storage, read> raw_data: array<f32>;
 var<storage, read> rf_input: array<vec2<f32>>;
 
 @group(0) @binding(2)
-var<storage, read_write> rf_values: array<f32>;
+var<storage, read_write> rf_fft_state: array<vec2<f32>>;
 
 @group(0) @binding(3)
-var<storage, read_write> rf_bin_minmax: array<vec2<f32>>;
+var<storage, read_write> rf_values: array<f32>;
 
 @group(0) @binding(4)
-var<storage, read_write> cache_data: array<u32>;
+var<storage, read_write> rf_bin_minmax: array<vec2<f32>>;
 
 @group(0) @binding(5)
-var<uniform> uniforms: Uniforms;
+var<storage, read_write> cache_data: array<u32>;
 
 @group(0) @binding(6)
+var<uniform> uniforms: Uniforms;
+
+@group(0) @binding(7)
 var<storage, read> colormap: array<u32>;
 
 @compute @workgroup_size(8, 8, 1)
@@ -33,9 +36,13 @@ fn main_raw(@builtin(global_invocation_id) global_id: vec3<u32>) {
     compute_raw(global_id);
 }
 
-@compute @workgroup_size(8, 8, 1)
-fn main_rf_stage1(@builtin(global_invocation_id) global_id: vec3<u32>) {
-    compute_rf_fft_stage1(global_id);
+@compute @workgroup_size(FFT_WG_X, FFT_WG_BINS, 1)
+fn main_rf_stage1(
+    @builtin(global_invocation_id) global_id: vec3<u32>,
+    @builtin(local_invocation_id) local_id: vec3<u32>,
+    @builtin(workgroup_id) workgroup_id: vec3<u32>,
+) {
+    compute_rf_fft_stage1(global_id, local_id, workgroup_id);
 }
 
 @compute @workgroup_size(8, 8, 1)
@@ -53,68 +60,54 @@ fn compute_raw(global_id: vec3<u32>) {
     cache_data[index] = sample_colormap(value);
 }
 
-fn complex_mul(a: vec2<f32>, b: vec2<f32>) -> vec2<f32> {
-    return vec2<f32>(
-        a.x * b.x - a.y * b.y,
-        a.x * b.y + a.y * b.x
-    );
-}
-
-fn is_finite_f32(v: f32) -> bool {
-    // NaN fails self-equality; Inf exceeds finite f32 max magnitude.
-    return v == v && abs(v) <= 3.4028235e38;
-}
-
-fn fft_impl(bin: u32, n: u32, k: u32) -> f32 {
-    let pi = 3.141592653589793;
-    var sum = vec2<f32>(0.0, 0.0);
-    for (var t = 0u; t < n; t = t + 1u) {
-        let sample = rf_input[bin * n + t];
-        let angle = -2.0 * pi * f32(k * t) / f32(n);
-        let twiddle = vec2<f32>(cos(angle), sin(angle));
-        sum = sum + complex_mul(sample, twiddle);
-    }
-    var v = length(sum);
-    if uniforms.rf_db_scale != 0u {
-        if v > 0.0 {
-            v = 20.0 * log(v) / log(10.0);
-        } else {
-            v = -1e30;
-        }
-    }
-    return v;
-}
-
-fn compute_rf_fft_stage1(global_id: vec3<u32>) {
-    if global_id.x >= uniforms.width || global_id.y != 0u {
-        return;
-    }
-    let bin = global_id.x;
+fn compute_rf_fft_stage1(
+    _global_id: vec3<u32>,
+    local_id: vec3<u32>,
+    workgroup_id: vec3<u32>,
+) {
+    let bin = workgroup_id.x * FFT_WG_BINS + local_id.y;
     let n = uniforms.height;
-    if n < 2u {
-        return;
+    let is_active = bin < uniforms.width && n >= 2u;
+
+    let use_shared = n <= FFT_SHARED_MAX_N;
+    if use_shared {
+        fft_impl_shared(bin, n, local_id.x, local_id.y, is_active);
+    } else {
+        fft_impl_storage(bin, n, local_id.x, is_active);
     }
 
-    let split_pos = (n + 1u) / 2u;
-    var col_min = 1e30;
-    var col_max = -1e30;
-
-    // First pass: get local min/max for this bin.
-    for (var rf_idx = 0u; rf_idx < n; rf_idx = rf_idx + 1u) {
-        let k = (rf_idx + split_pos) % n;
-        let v = fft_impl(bin, n, k);
-        let out_index = rf_idx * uniforms.width + bin;
-        rf_values[out_index] = v;
-        if is_finite_f32(v) {
-            col_min = min(col_min, v);
-            col_max = max(col_max, v);
+    if is_active && local_id.x == 0u {
+        let split_pos = (n + 1u) / 2u;
+        var col_min = 1e30;
+        var col_max = -1e30;
+        for (var rf_idx = 0u; rf_idx < n; rf_idx = rf_idx + 1u) {
+            let k = (rf_idx + split_pos) % n;
+            var fft_value = vec2<f32>(0.0, 0.0);
+            if use_shared {
+                fft_value = wg_fft[local_id.y * FFT_SHARED_MAX_N + k];
+            } else {
+                fft_value = rf_fft_state[k * uniforms.width + bin];
+            }
+            let v = magnitude_with_db(fft_value, uniforms.rf_db_scale);
+            let out_index = rf_idx * uniforms.width + bin;
+            rf_values[out_index] = v;
+            if is_finite_f32(v) {
+                col_min = min(col_min, v);
+                col_max = max(col_max, v);
+            }
         }
+        if col_min >= col_max{
+            col_min = 0.0;
+            col_max = 1.0;
+
+        }
+        else if !is_finite_f32(col_min) {
+            col_min = 0.0;
+        }else if  !is_finite_f32(col_max) {
+            col_max = 1.0;
+        }
+        rf_bin_minmax[bin] = vec2<f32>(col_min, col_max);
     }
-    if !is_finite_f32(col_min) || !is_finite_f32(col_max) || col_min >= col_max {
-        col_min = 0.0;
-        col_max = 1.0;
-    }
-    rf_bin_minmax[bin] = vec2<f32>(col_min, col_max);
 }
 
 fn compute_rf_fft_stage2(global_id: vec3<u32>) {

@@ -66,9 +66,8 @@ impl DrawMat for Drawer {
         if time_len < 2 {
             return true;
         }
-        if time_len % 2 == 1 {
-            time_len -= 1;
-        }
+        // Shader FFT is radix-2 only; use the largest power-of-two history window.
+        time_len = 1usize << (usize::BITS - 1 - time_len.leading_zeros());
         if time_len < 2 {
             return true;
         }
@@ -112,7 +111,7 @@ impl DrawMat for Drawer {
         if log.len() != data.len() {
             log.resize(data.len(), 0.0);
         }
-        log.copy_from_slice(&data);
+        log.copy_from_slice(data);
         let range = z_range.unwrap_or_else(|| search_max_min(&log).into());
         drop(log);
         self.set_z_range(range);

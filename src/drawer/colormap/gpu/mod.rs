@@ -16,6 +16,14 @@ use resource::RenderResources;
 mod axis;
 mod trait_impl;
 
+fn compute_shader_source() -> String {
+    format!(
+        "{}\n{}",
+        include_str!("fft.wgsl"),
+        include_str!("compute.wgsl")
+    )
+}
+
 #[repr(C)]
 #[derive(Debug, Copy, Clone, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct Uniforms {
@@ -75,6 +83,7 @@ impl Drawer {
         let (
             raw_data_buffer,
             rf_input_buffer,
+            rf_fft_state_buffer,
             rf_value_buffer,
             rf_minmax_buffer,
             cache_buffer,
@@ -100,7 +109,7 @@ impl Drawer {
         // Create a compute shader module
         let compute_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("Compute Shader"),
-            source: wgpu::ShaderSource::Wgsl(include_str!("compute.wgsl").into()),
+            source: wgpu::ShaderSource::Wgsl(compute_shader_source().into()),
         });
 
         // Create a bind group for the compute pipeline
@@ -141,7 +150,7 @@ impl Drawer {
                         },
                         count: None,
                     },
-                    // RF min/max buffer
+                    // RF value buffer
                     wgpu::BindGroupLayoutEntry {
                         binding: 3,
                         visibility: wgpu::ShaderStages::COMPUTE,
@@ -152,7 +161,7 @@ impl Drawer {
                         },
                         count: None,
                     },
-                    // Cache data buffer
+                    // RF min/max buffer
                     wgpu::BindGroupLayoutEntry {
                         binding: 4,
                         visibility: wgpu::ShaderStages::COMPUTE,
@@ -163,9 +172,20 @@ impl Drawer {
                         },
                         count: None,
                     },
-                    // Uniform buffer
+                    // Cache data buffer
                     wgpu::BindGroupLayoutEntry {
                         binding: 5,
+                        visibility: wgpu::ShaderStages::COMPUTE,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Storage { read_only: false },
+                            has_dynamic_offset: false,
+                            min_binding_size: None,
+                        },
+                        count: None,
+                    },
+                    // Uniform buffer
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 6,
                         visibility: wgpu::ShaderStages::COMPUTE,
                         ty: wgpu::BindingType::Buffer {
                             ty: wgpu::BufferBindingType::Uniform,
@@ -176,7 +196,7 @@ impl Drawer {
                     },
                     // Colormap buffer
                     wgpu::BindGroupLayoutEntry {
-                        binding: 6,
+                        binding: 7,
                         visibility: wgpu::ShaderStages::COMPUTE,
                         ty: wgpu::BindingType::Buffer {
                             ty: wgpu::BufferBindingType::Storage { read_only: true },
@@ -201,10 +221,12 @@ impl Drawer {
             compute_pipeline_raw,
             compute_pipeline_rf_stage1,
             compute_pipeline_rf_stage2,
+            fft_cfg,
         ) = RenderResources::get_compute_pipelines(
             device,
             &raw_data_buffer,
             &rf_input_buffer,
+            &rf_fft_state_buffer,
             &rf_value_buffer,
             &rf_minmax_buffer,
             &cache_buffer,
@@ -301,11 +323,13 @@ impl Drawer {
             compute_shader,
             raw_data_buffer,
             rf_input_buffer,
+            rf_fft_state_buffer,
             rf_value_buffer,
             rf_minmax_buffer,
             cache_buffer,
             compute_bind_group_layout,
             compute_bind_group,
+            fft_cfg,
             render_pipeline_layout,
             render_pipeline,
             render_shader,
@@ -554,7 +578,7 @@ mod tests {
             });
             let compute_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
                 label: Some("Compute Shader"),
-                source: wgpu::ShaderSource::Wgsl(include_str!("compute.wgsl").into()),
+                source: wgpu::ShaderSource::Wgsl(compute_shader_source().into()),
             });
             let compute_bind_group_layout =
                 device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
@@ -594,7 +618,7 @@ mod tests {
                             binding: 3,
                             visibility: wgpu::ShaderStages::COMPUTE,
                             ty: wgpu::BindingType::Buffer {
-                                ty: wgpu::BufferBindingType::Uniform,
+                                ty: wgpu::BufferBindingType::Storage { read_only: false },
                                 has_dynamic_offset: false,
                                 min_binding_size: None,
                             },
@@ -602,6 +626,36 @@ mod tests {
                         },
                         wgpu::BindGroupLayoutEntry {
                             binding: 4,
+                            visibility: wgpu::ShaderStages::COMPUTE,
+                            ty: wgpu::BindingType::Buffer {
+                                ty: wgpu::BufferBindingType::Storage { read_only: false },
+                                has_dynamic_offset: false,
+                                min_binding_size: None,
+                            },
+                            count: None,
+                        },
+                        wgpu::BindGroupLayoutEntry {
+                            binding: 5,
+                            visibility: wgpu::ShaderStages::COMPUTE,
+                            ty: wgpu::BindingType::Buffer {
+                                ty: wgpu::BufferBindingType::Storage { read_only: false },
+                                has_dynamic_offset: false,
+                                min_binding_size: None,
+                            },
+                            count: None,
+                        },
+                        wgpu::BindGroupLayoutEntry {
+                            binding: 6,
+                            visibility: wgpu::ShaderStages::COMPUTE,
+                            ty: wgpu::BindingType::Buffer {
+                                ty: wgpu::BufferBindingType::Uniform,
+                                has_dynamic_offset: false,
+                                min_binding_size: None,
+                            },
+                            count: None,
+                        },
+                        wgpu::BindGroupLayoutEntry {
+                            binding: 7,
                             visibility: wgpu::ShaderStages::COMPUTE,
                             ty: wgpu::BindingType::Buffer {
                                 ty: wgpu::BufferBindingType::Storage { read_only: true },
@@ -618,22 +672,24 @@ mod tests {
                     bind_group_layouts: &[&compute_bind_group_layout],
                     push_constant_ranges: &[],
                 });
-            let (raw_data, rf_input, rf_values, rf_minmax, cache, _texture) =
+            let (raw_data, rf_input, rf_fft_state, rf_values, rf_minmax, cache, _texture) =
                 RenderResources::get_buffers(&device, wgpu::TextureFormat::Rgba8Unorm, 8, 8);
 
-            let (_bind_group, _raw, _stage1, _stage2) = RenderResources::get_compute_pipelines(
-                &device,
-                &raw_data,
-                &rf_input,
-                &rf_values,
-                &rf_minmax,
-                &cache,
-                &uniform_buffer,
-                &colormap_buffer,
-                &compute_bind_group_layout,
-                &compute_pipeline_layout,
-                &compute_shader,
-            );
+            let (_bind_group, _raw, _stage1, _stage2, _fft_cfg) =
+                RenderResources::get_compute_pipelines(
+                    &device,
+                    &raw_data,
+                    &rf_input,
+                    &rf_fft_state,
+                    &rf_values,
+                    &rf_minmax,
+                    &cache,
+                    &uniform_buffer,
+                    &colormap_buffer,
+                    &compute_bind_group_layout,
+                    &compute_pipeline_layout,
+                    &compute_shader,
+                );
         });
     }
 }
