@@ -5,14 +5,17 @@ struct Uniforms {
     compute_mode: u32,
     rf_db_scale: u32,
     rf_global_norm: u32,
+    raw_component: u32,
+    raw_db_scale: u32,
+    raw_gpu_range: u32,
     _padding: vec2<u32>,
 };
 
 @group(0) @binding(0)
-var<storage, read> raw_data: array<f32>;
+var<storage, read> raw_data: array<vec2<f32>>;
 
 @group(0) @binding(1)
-var<storage, read> rf_input: array<vec2<f32>>;
+var<storage, read_write> rf_input: array<vec2<f32>>;
 
 @group(0) @binding(2)
 var<storage, read_write> rf_fft_state: array<vec2<f32>>;
@@ -32,11 +35,25 @@ var<uniform> uniforms: Uniforms;
 @group(0) @binding(7)
 var<storage, read> colormap: array<u32>;
 
+// Entry point for raw colormap rendering.
 @compute @workgroup_size(8, 8, 1)
 fn main_raw(@builtin(global_invocation_id) global_id: vec3<u32>) {
     compute_raw(global_id);
 }
 
+// Entry point for global min/max reduction in raw mode.
+@compute @workgroup_size(1, 1, 1)
+fn main_raw_reduce() {
+    compute_raw_reduce();
+}
+
+// Entry point for transposing RF input into bin-major layout.
+@compute @workgroup_size(8, 8, 1)
+fn main_rf_transpose(@builtin(global_invocation_id) global_id: vec3<u32>) {
+    compute_rf_transpose(global_id);
+}
+
+// Entry point for per-bin history FFT + per-bin min/max.
 @compute @workgroup_size(FFT_WG_X, FFT_WG_BINS, 1)
 fn main_rf_stage1(
     @builtin(global_invocation_id) global_id: vec3<u32>,
@@ -46,6 +63,7 @@ fn main_rf_stage1(
     compute_rf_fft_stage1(global_id, local_id, workgroup_id);
 }
 
+// Entry point for optional global min/max reduction across bins.
 @compute @workgroup_size(1, 1, 1)
 fn main_rf_reduce_global() {
     if uniforms.width == 0u {
@@ -75,21 +93,80 @@ fn main_rf_reduce_global() {
     rf_bin_minmax[0] = vec2<f32>(global_min, global_max);
 }
 
+// Entry point for RF normalization and colormap mapping.
 @compute @workgroup_size(8, 8, 1)
 fn main_rf_stage2(@builtin(global_invocation_id) global_id: vec3<u32>) {
     compute_rf_fft_stage2(global_id);
 }
 
+// Converts raw complex input into scalar values and maps them to colormap indices.
 fn compute_raw(global_id: vec3<u32>) {
     if global_id.x >= uniforms.width || global_id.y >= uniforms.height {
         return;
     }
     let index = global_id.x + global_id.y * uniforms.width;
-    let denom = max(uniforms.z_range[1] - uniforms.z_range[0], 1e-12);
-    let value = (raw_data[index] - uniforms.z_range[0]) / denom;
+    var mm = select(uniforms.z_range, rf_bin_minmax[0], uniforms.raw_gpu_range != 0u);
+    if !is_finite_f32(mm.x) {
+        mm.x = 0.0;
+    }
+    if !is_finite_f32(mm.y) {
+        mm.y = 1.0;
+    }
+    if mm.x >= mm.y {
+        mm = vec2<f32>(0.0, 1.0);
+    }
+    let denom = max(mm.y - mm.x, 1e-12);
+    var src = raw_data[index];
+    var value = 0.0;
+    if uniforms.raw_component == 0u {
+        value = src.x;
+    } else if uniforms.raw_component == 1u {
+        value = src.y;
+    } else if uniforms.raw_component == 2u {
+        value = length(src);
+    } else {
+        value = atan2(src.y, src.x);
+    }
+    if uniforms.raw_db_scale != 0u {
+        value = 20.0 * log(value) / log(10.0);
+    }
+    value = (value - mm.x) / denom;
     cache_data[index] = sample_colormap(value);
 }
 
+// Computes global min/max for raw mode and stores result for normalization.
+fn compute_raw_reduce() {
+    var raw_min = 1e30;
+    var raw_max = -1e30;
+    let total = uniforms.width * uniforms.height;
+    for (var i = 0u; i < total; i = i + 1u) {
+        let src = raw_data[i];
+        var value = 0.0;
+        if uniforms.raw_component == 0u {
+            value = src.x;
+        } else if uniforms.raw_component == 1u {
+            value = src.y;
+        } else if uniforms.raw_component == 2u {
+            value = length(src);
+        } else {
+            value = atan2(src.y, src.x);
+        }
+        if uniforms.raw_db_scale != 0u {
+            value = 20.0 * log(value) / log(10.0);
+        }
+        if is_finite_f32(value) {
+            raw_min = min(raw_min, value);
+            raw_max = max(raw_max, value);
+        }
+    }
+    if !is_finite_f32(raw_min) || !is_finite_f32(raw_max) || raw_min >= raw_max {
+        raw_min = 0.0;
+        raw_max = 1.0;
+    }
+    rf_bin_minmax[0] = vec2<f32>(raw_min, raw_max);
+}
+
+// Runs history-axis FFT for each bin and computes per-bin output min/max.
 fn compute_rf_fft_stage1(
     _global_id: vec3<u32>,
     local_id: vec3<u32>,
@@ -116,7 +193,7 @@ fn compute_rf_fft_stage1(
             if use_shared {
                 fft_value = wg_fft[local_id.y * FFT_SHARED_MAX_N + k];
             } else {
-                fft_value = rf_fft_state[k * uniforms.width + bin];
+                fft_value = rf_input[k * uniforms.width + bin];
             }
             let v = magnitude_with_db(fft_value, uniforms.rf_db_scale);
             let out_index = rf_idx * uniforms.width + bin;
@@ -140,6 +217,17 @@ fn compute_rf_fft_stage1(
     }
 }
 
+// Transposes RF input from time-major to bin-major memory layout.
+fn compute_rf_transpose(global_id: vec3<u32>) {
+    if global_id.x >= uniforms.width || global_id.y >= uniforms.height {
+        return;
+    }
+    let bin = global_id.x;
+    let t = global_id.y;
+    rf_fft_state[bin * uniforms.height + t] = rf_input[t * uniforms.width + bin];
+}
+
+// Applies RF normalization (per-bin or global) and writes final colors.
 fn compute_rf_fft_stage2(global_id: vec3<u32>) {
     if global_id.x >= uniforms.width || global_id.y >= uniforms.height {
         return;
@@ -167,6 +255,7 @@ fn compute_rf_fft_stage2(global_id: vec3<u32>) {
 }
 
 
+// Samples the packed u32 colormap by normalized scalar input.
 fn sample_colormap(value: f32) -> u32 {
     let colormap_size = arrayLength(&colormap);
     let value_clamped = clamp(value, 0.0, 1.0);

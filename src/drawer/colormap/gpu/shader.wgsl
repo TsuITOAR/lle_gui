@@ -8,7 +8,7 @@ struct VertexOutput {
     @builtin(position) clip_position: vec4<f32>,
     @location(0) tex_coords: vec2<f32>,
 };
-// 顶点着色器主函数
+// Vertex shader: pass fullscreen triangle position and derived UV.
 @vertex
 fn vs_main(model: VertexInput) -> VertexOutput {
     var out: VertexOutput;
@@ -24,7 +24,7 @@ var t_diffuse: texture_2d<f32>;
 var s_diffuse: sampler;
 
 
-// 片段着色器主函数
+// Fragment shader: sample rendered compute texture.
 @fragment
 fn fs_main(@location(0) tex_coords: vec2<f32>) -> @location(0) vec4<f32> {
     return textureSample(t_diffuse, s_diffuse, tex_coords);

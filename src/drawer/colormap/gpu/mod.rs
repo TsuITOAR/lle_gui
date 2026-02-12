@@ -15,10 +15,12 @@ use resource::RenderResources;
 
 mod axis;
 mod trait_impl;
+use crate::drawer::processor::Component;
 
 fn compute_shader_source() -> String {
     format!(
-        "{}\n{}",
+        "{}\n{}\n{}",
+        include_str!("utils.wgsl"),
         include_str!("fft.wgsl"),
         include_str!("compute.wgsl")
     )
@@ -33,14 +35,25 @@ pub struct Uniforms {
     pub compute_mode: u32,
     pub rf_db_scale: u32,
     pub rf_global_norm: u32,
-    pub _padding: [u32; 3],
+    pub raw_component: u32,
+    pub raw_db_scale: u32,
+    pub raw_gpu_range: u32,
+    pub _padding: [u32; 2],
 }
 
-pub(crate) type RawDataFormat = f32;
+pub(crate) type RawDataFormat = [f32; 2];
 pub(crate) type RfInputFormat = [f32; 2];
 pub(crate) type TextureFormat = u32;
 
 type ResourceStore = std::collections::BTreeMap<u64, RenderResources>;
+
+#[derive(Debug, Default, Clone)]
+struct RfGpuInputCache {
+    start: usize,
+    history_len: usize,
+    time_len: usize,
+    data: Vec<RfInputFormat>,
+}
 
 #[derive(Clone)]
 pub struct Drawer {
@@ -52,6 +65,7 @@ pub struct Drawer {
     uniforms: Uniforms,
     data: Arc<Mutex<Vec<RawDataFormat>>>,
     rf_input: Arc<Mutex<Vec<RfInputFormat>>>,
+    rf_gpu_cache: Arc<Mutex<RfGpuInputCache>>,
     current_row: u32,
     axis_drawer: axis::AxisDrawer,
 }
@@ -62,6 +76,7 @@ impl std::fmt::Debug for Drawer {
             .field("uniforms", &self.uniforms)
             .field("data", &self.data.lock())
             .field("rf_input", &self.rf_input.lock())
+            .field("rf_gpu_cache", &self.rf_gpu_cache.lock())
             .field("current_row", &self.current_row)
             .field("axis_drawer", &self.axis_drawer)
             .finish()
@@ -79,7 +94,10 @@ impl Drawer {
             compute_mode: 0,
             rf_db_scale: 0,
             rf_global_norm: 0,
-            _padding: [0; 3],
+            raw_component: 2,
+            raw_db_scale: 0,
+            raw_gpu_range: 0,
+            _padding: [0; 2],
         };
         let texture_format = render_state.target_format;
         let (
@@ -135,7 +153,7 @@ impl Drawer {
                         binding: 1,
                         visibility: wgpu::ShaderStages::COMPUTE,
                         ty: wgpu::BindingType::Buffer {
-                            ty: wgpu::BufferBindingType::Storage { read_only: true },
+                            ty: wgpu::BufferBindingType::Storage { read_only: false },
                             has_dynamic_offset: false,
                             min_binding_size: None,
                         },
@@ -220,7 +238,9 @@ impl Drawer {
 
         let (
             compute_bind_group,
+            compute_pipeline_raw_reduce,
             compute_pipeline_raw,
+            compute_pipeline_rf_transpose,
             compute_pipeline_rf_stage1,
             compute_pipeline_rf_reduce_global,
             compute_pipeline_rf_stage2,
@@ -314,13 +334,15 @@ impl Drawer {
             &render_shader,
         );
 
-        let data = vec![0.0; (uniforms.width * uniforms.height) as usize];
+        let data = vec![[0.0, 0.0]; (uniforms.width * uniforms.height) as usize];
         let rf_input = vec![[0.0, 0.0]; (uniforms.width * uniforms.height) as usize];
 
         let resource = RenderResources {
             uniforms,
             compute_pipeline_layout,
+            compute_pipeline_raw_reduce,
             compute_pipeline_raw,
+            compute_pipeline_rf_transpose,
             compute_pipeline_rf_stage1,
             compute_pipeline_rf_reduce_global,
             compute_pipeline_rf_stage2,
@@ -371,6 +393,7 @@ impl Drawer {
             uniforms,
             data: Arc::new(Mutex::new(data)),
             rf_input: Arc::new(Mutex::new(rf_input)),
+            rf_gpu_cache: Arc::new(Mutex::new(RfGpuInputCache::default())),
             current_row: 0,
             axis_drawer,
         }
@@ -410,8 +433,10 @@ impl Drawer {
         }
         self.uniforms.height = height;
         self.axis_drawer.y_range = 0.0f32..=(height - 1) as f32;
-        self.data()
-            .resize((self.uniforms().height * self.uniforms().width) as _, 0.0);
+        self.data().resize(
+            (self.uniforms().height * self.uniforms().width) as _,
+            [0.0, 0.0],
+        );
         self.rf_input().resize(
             (self.uniforms().height * self.uniforms().width) as _,
             [0.0, 0.0],
@@ -422,9 +447,12 @@ impl Drawer {
         self.uniforms.z_range = range;
     }
 
-    pub(crate) fn set_raw_mode(&mut self) {
+    pub(crate) fn set_raw_mode(&mut self, component: Component, db_scale: bool, gpu_range: bool) {
         self.uniforms.compute_mode = 0;
         self.uniforms.rf_global_norm = 0;
+        self.uniforms.raw_component = component as u32;
+        self.uniforms.raw_db_scale = u32::from(db_scale);
+        self.uniforms.raw_gpu_range = u32::from(gpu_range);
     }
 
     pub(crate) fn set_rf_fft_input(
@@ -571,7 +599,10 @@ mod tests {
                 compute_mode: 1,
                 rf_db_scale: 1,
                 rf_global_norm: 1,
-                _padding: [0; 3],
+                raw_component: 2,
+                raw_db_scale: 0,
+                raw_gpu_range: 0,
+                _padding: [0; 2],
             };
             let uniform_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
                 label: Some("test uniform"),
@@ -606,7 +637,7 @@ mod tests {
                             binding: 1,
                             visibility: wgpu::ShaderStages::COMPUTE,
                             ty: wgpu::BindingType::Buffer {
-                                ty: wgpu::BufferBindingType::Storage { read_only: true },
+                                ty: wgpu::BufferBindingType::Storage { read_only: false },
                                 has_dynamic_offset: false,
                                 min_binding_size: None,
                             },
@@ -683,7 +714,7 @@ mod tests {
             let (raw_data, rf_input, rf_fft_state, rf_values, rf_minmax, cache, _texture) =
                 RenderResources::get_buffers(&device, wgpu::TextureFormat::Rgba8Unorm, 8, 8);
 
-            let (_bind_group, _raw, _stage1, _reduce, _stage2, _fft_cfg) =
+            let (_bind_group, _raw_reduce, _raw, _transpose, _stage1, _reduce, _stage2, _fft_cfg) =
                 RenderResources::get_compute_pipelines(
                     &device,
                     &raw_data,

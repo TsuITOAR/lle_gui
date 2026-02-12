@@ -5,7 +5,9 @@ pub struct RenderResources {
     pub(crate) uniforms: Uniforms,
     // compute stuff
     pub(crate) compute_pipeline_layout: wgpu::PipelineLayout,
+    pub(crate) compute_pipeline_raw_reduce: wgpu::ComputePipeline,
     pub(crate) compute_pipeline_raw: wgpu::ComputePipeline,
+    pub(crate) compute_pipeline_rf_transpose: wgpu::ComputePipeline,
     pub(crate) compute_pipeline_rf_stage1: wgpu::ComputePipeline,
     pub(crate) compute_pipeline_rf_reduce_global: wgpu::ComputePipeline,
     pub(crate) compute_pipeline_rf_stage2: wgpu::ComputePipeline,
@@ -90,7 +92,9 @@ impl RenderResources {
 
             (
                 self.compute_bind_group,
+                self.compute_pipeline_raw_reduce,
                 self.compute_pipeline_raw,
+                self.compute_pipeline_rf_transpose,
                 self.compute_pipeline_rf_stage1,
                 self.compute_pipeline_rf_reduce_global,
                 self.compute_pipeline_rf_stage2,
@@ -147,6 +151,15 @@ impl RenderResources {
         let dispatch_x = self.uniforms.width.div_ceil(WORKGROUP_SIZE.0 as u32);
         let dispatch_y = self.uniforms.height.div_ceil(WORKGROUP_SIZE.1 as u32);
         if self.uniforms.compute_mode == 0 {
+            if self.uniforms.raw_gpu_range != 0 {
+                let mut cpass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
+                    label: Some("raw reduce"),
+                    timestamp_writes: None,
+                });
+                cpass.set_pipeline(&self.compute_pipeline_raw_reduce);
+                cpass.set_bind_group(0, &self.compute_bind_group, &[]);
+                cpass.dispatch_workgroups(1, 1, 1);
+            }
             let mut cpass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
                 label: Some("raw colormap compute"),
                 timestamp_writes: None,
@@ -155,6 +168,15 @@ impl RenderResources {
             cpass.set_bind_group(0, &self.compute_bind_group, &[]);
             cpass.dispatch_workgroups(dispatch_x, dispatch_y, 1);
         } else {
+            {
+                let mut cpass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
+                    label: Some("rf transpose"),
+                    timestamp_writes: None,
+                });
+                cpass.set_pipeline(&self.compute_pipeline_rf_transpose);
+                cpass.set_bind_group(0, &self.compute_bind_group, &[]);
+                cpass.dispatch_workgroups(dispatch_x, dispatch_y, 1);
+            }
             {
                 let mut cpass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
                     label: Some("rf fft stage1"),
@@ -240,6 +262,8 @@ impl RenderResources {
         wgpu::ComputePipeline,
         wgpu::ComputePipeline,
         wgpu::ComputePipeline,
+        wgpu::ComputePipeline,
+        wgpu::ComputePipeline,
         FftRuntimeConfig,
     ) {
         let cfg = fft_runtime_config(&device.limits());
@@ -319,12 +343,36 @@ impl RenderResources {
             label: Some("Compute Bind Group"),
         });
 
+        let compute_pipeline_raw_reduce =
+            device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
+                label: Some("Compute Pipeline Raw Reduce"),
+                layout: Some(pipeline_layout),
+                module: shader,
+                entry_point: Some("main_raw_reduce"),
+                compilation_options: wgpu::PipelineCompilationOptions {
+                    constants: &fft_override_constants,
+                    ..Default::default()
+                },
+                cache: None,
+            });
         let compute_pipeline_raw =
             device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
                 label: Some("Compute Pipeline"),
                 layout: Some(pipeline_layout),
                 module: shader,
                 entry_point: Some("main_raw"),
+                compilation_options: wgpu::PipelineCompilationOptions {
+                    constants: &fft_override_constants,
+                    ..Default::default()
+                },
+                cache: None,
+            });
+        let compute_pipeline_rf_transpose =
+            device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
+                label: Some("Compute Pipeline RF Transpose"),
+                layout: Some(pipeline_layout),
+                module: shader,
+                entry_point: Some("main_rf_transpose"),
                 compilation_options: wgpu::PipelineCompilationOptions {
                     constants: &fft_override_constants,
                     ..Default::default()
@@ -369,7 +417,9 @@ impl RenderResources {
             });
         (
             compute_bind_group,
+            compute_pipeline_raw_reduce,
             compute_pipeline_raw,
+            compute_pipeline_rf_transpose,
             compute_pipeline_rf_stage1,
             compute_pipeline_rf_reduce_global,
             compute_pipeline_rf_stage2,
