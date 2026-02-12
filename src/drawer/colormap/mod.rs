@@ -33,6 +33,18 @@ pub(crate) trait DrawMat {
     fn set_align_x_axis(&mut self, _align: impl Into<Option<(f32, f32)>>) {}
     fn set_y_label(&mut self, _label: Option<String>) {}
     fn set_y_tick_shift(&mut self, _shift: i32) {}
+    fn fetch_rf_fft_gpu<S: FftSource>(
+        &mut self,
+        _history_data: &[S],
+        _proc: &mut Process<S>,
+        _chunk_size: usize,
+        _global_norm: bool,
+    ) -> bool
+    where
+        S::FftProcessor: Sync,
+    {
+        false
+    }
     fn sync_labels(&mut self, view: &crate::drawer::HistoryView) {
         let (label, shift) = match view {
             crate::drawer::HistoryView::Raw => ("Record index", 0),
@@ -248,15 +260,22 @@ impl<S: FftSource> LleChart<S> {
                             if chart0.proc.core.fft.is_some()
                                 && let Some((cache, buffer)) = chart0.history_view.rf_cache_mut()
                             {
-                                fetch_rf_fft(
-                                    r,
+                                if !r.fetch_rf_fft_gpu(
                                     history_data,
                                     &mut chart0.proc,
                                     chunk_size,
                                     chart0.rf_fft_global_norm,
-                                    cache,
-                                    buffer,
-                                );
+                                ) {
+                                    fetch_rf_fft(
+                                        r,
+                                        history_data,
+                                        &mut chart0.proc,
+                                        chunk_size,
+                                        chart0.rf_fft_global_norm,
+                                        cache,
+                                        buffer,
+                                    );
+                                }
                             } else {
                                 r.fetch(history_data, &mut chart0.proc, chunk_size);
                             }

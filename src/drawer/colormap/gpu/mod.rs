@@ -22,9 +22,13 @@ pub struct Uniforms {
     pub width: u32,
     pub height: u32,
     pub z_range: [f32; 2],
+    pub compute_mode: u32,
+    pub rf_db_scale: u32,
+    pub _padding: [u32; 2],
 }
 
 pub(crate) type RawDataFormat = f32;
+pub(crate) type RfInputFormat = [f32; 2];
 pub(crate) type TextureFormat = u32;
 
 type ResourceStore = std::collections::BTreeMap<u64, RenderResources>;
@@ -38,6 +42,7 @@ pub struct Drawer {
     name_hash: u64,
     uniforms: Uniforms,
     data: Arc<Mutex<Vec<RawDataFormat>>>,
+    rf_input: Arc<Mutex<Vec<RfInputFormat>>>,
     current_row: u32,
     axis_drawer: axis::AxisDrawer,
 }
@@ -47,6 +52,7 @@ impl std::fmt::Debug for Drawer {
         f.debug_struct("Drawer")
             .field("uniforms", &self.uniforms)
             .field("data", &self.data.lock())
+            .field("rf_input", &self.rf_input.lock())
             .field("current_row", &self.current_row)
             .field("axis_drawer", &self.axis_drawer)
             .finish()
@@ -61,10 +67,19 @@ impl Drawer {
             width,
             height,
             z_range: [0.0, 1.0],
+            compute_mode: 0,
+            rf_db_scale: 0,
+            _padding: [0; 2],
         };
         let texture_format = render_state.target_format;
-        let (raw_data_buffer, cache_buffer, texture) =
-            RenderResources::get_buffers(device, texture_format, uniforms.width, uniforms.height);
+        let (
+            raw_data_buffer,
+            rf_input_buffer,
+            rf_value_buffer,
+            rf_minmax_buffer,
+            cache_buffer,
+            texture,
+        ) = RenderResources::get_buffers(device, texture_format, uniforms.width, uniforms.height);
 
         // Create a uniform buffer for min-max values
         let uniform_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -104,9 +119,42 @@ impl Drawer {
                         },
                         count: None,
                     },
-                    // Cache data buffer
+                    // RF FFT input (complex) buffer
                     wgpu::BindGroupLayoutEntry {
                         binding: 1,
+                        visibility: wgpu::ShaderStages::COMPUTE,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Storage { read_only: true },
+                            has_dynamic_offset: false,
+                            min_binding_size: None,
+                        },
+                        count: None,
+                    },
+                    // Cache data buffer
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 2,
+                        visibility: wgpu::ShaderStages::COMPUTE,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Storage { read_only: false },
+                            has_dynamic_offset: false,
+                            min_binding_size: None,
+                        },
+                        count: None,
+                    },
+                    // RF min/max buffer
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 3,
+                        visibility: wgpu::ShaderStages::COMPUTE,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Storage { read_only: false },
+                            has_dynamic_offset: false,
+                            min_binding_size: None,
+                        },
+                        count: None,
+                    },
+                    // Cache data buffer
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 4,
                         visibility: wgpu::ShaderStages::COMPUTE,
                         ty: wgpu::BindingType::Buffer {
                             ty: wgpu::BufferBindingType::Storage { read_only: false },
@@ -117,7 +165,7 @@ impl Drawer {
                     },
                     // Uniform buffer
                     wgpu::BindGroupLayoutEntry {
-                        binding: 2,
+                        binding: 5,
                         visibility: wgpu::ShaderStages::COMPUTE,
                         ty: wgpu::BindingType::Buffer {
                             ty: wgpu::BufferBindingType::Uniform,
@@ -128,7 +176,7 @@ impl Drawer {
                     },
                     // Colormap buffer
                     wgpu::BindGroupLayoutEntry {
-                        binding: 3,
+                        binding: 6,
                         visibility: wgpu::ShaderStages::COMPUTE,
                         ty: wgpu::BindingType::Buffer {
                             ty: wgpu::BufferBindingType::Storage { read_only: true },
@@ -148,9 +196,17 @@ impl Drawer {
                 push_constant_ranges: &[],
             });
 
-        let (compute_bind_group, compute_pipeline) = RenderResources::get_compute_pipeline(
+        let (
+            compute_bind_group,
+            compute_pipeline_raw,
+            compute_pipeline_rf_stage1,
+            compute_pipeline_rf_stage2,
+        ) = RenderResources::get_compute_pipelines(
             device,
             &raw_data_buffer,
+            &rf_input_buffer,
+            &rf_value_buffer,
+            &rf_minmax_buffer,
             &cache_buffer,
             &uniform_buffer,
             &colormap_buffer,
@@ -234,13 +290,19 @@ impl Drawer {
         );
 
         let data = vec![0.0; (uniforms.width * uniforms.height) as usize];
+        let rf_input = vec![[0.0, 0.0]; (uniforms.width * uniforms.height) as usize];
 
         let resource = RenderResources {
             uniforms,
             compute_pipeline_layout,
-            compute_pipeline,
+            compute_pipeline_raw,
+            compute_pipeline_rf_stage1,
+            compute_pipeline_rf_stage2,
             compute_shader,
             raw_data_buffer,
+            rf_input_buffer,
+            rf_value_buffer,
+            rf_minmax_buffer,
             cache_buffer,
             compute_bind_group_layout,
             compute_bind_group,
@@ -280,6 +342,7 @@ impl Drawer {
             name_hash,
             uniforms,
             data: Arc::new(Mutex::new(data)),
+            rf_input: Arc::new(Mutex::new(rf_input)),
             current_row: 0,
             axis_drawer,
         }
@@ -305,6 +368,10 @@ impl Drawer {
         self.data.lock()
     }
 
+    pub(crate) fn rf_input(&self) -> egui::mutex::MutexGuard<'_, Vec<RfInputFormat>> {
+        self.rf_input.lock()
+    }
+
     pub(crate) fn uniforms(&self) -> Uniforms {
         self.uniforms
     }
@@ -317,10 +384,37 @@ impl Drawer {
         self.axis_drawer.y_range = 0.0f32..=(height - 1) as f32;
         self.data()
             .resize((self.uniforms().height * self.uniforms().width) as _, 0.0);
+        self.rf_input().resize(
+            (self.uniforms().height * self.uniforms().width) as _,
+            [0.0, 0.0],
+        );
     }
 
     pub(crate) fn set_z_range(&mut self, range: [f32; 2]) {
         self.uniforms.z_range = range;
+    }
+
+    pub(crate) fn set_raw_mode(&mut self) {
+        self.uniforms.compute_mode = 0;
+    }
+
+    pub(crate) fn set_rf_fft_input(
+        &mut self,
+        width: usize,
+        height: usize,
+        data: &[RfInputFormat],
+        db_scale: bool,
+    ) {
+        debug_assert_eq!(self.uniforms().width as usize, width);
+        self.set_height(height as u32);
+        self.uniforms.compute_mode = 1;
+        self.uniforms.rf_db_scale = u32::from(db_scale);
+        self.uniforms.z_range = [0.0, 1.0];
+        let mut rf = self.rf_input();
+        if rf.len() != data.len() {
+            rf.resize(data.len(), [0.0, 0.0]);
+        }
+        rf.copy_from_slice(data);
     }
 }
 
@@ -377,7 +471,15 @@ impl egui_wgpu::CallbackTrait for Drawer {
             .unwrap();
         resource.update_uniforms(device, queue, self.uniforms);
 
-        resource.update_raw_buffer(device, queue, bytemuck::cast_slice(&self.data.lock()));
+        match self.uniforms.compute_mode {
+            0 => resource.update_raw_buffer(device, queue, bytemuck::cast_slice(&self.data.lock())),
+            1 => resource.update_rf_input_buffer(
+                device,
+                queue,
+                bytemuck::cast_slice(&self.rf_input.lock()),
+            ),
+            _ => {}
+        }
         resource.compute_texture(egui_encoder);
         resource.refresh_texture(egui_encoder);
         Vec::new()
@@ -396,5 +498,142 @@ impl egui_wgpu::CallbackTrait for Drawer {
             .get(&self.name_hash)
             .unwrap();
         resource.paint(render_pass);
+    }
+}
+
+#[cfg(all(test, feature = "gpu", not(target_arch = "wasm32")))]
+mod tests {
+    use super::*;
+    use eframe::wgpu;
+    use eframe::wgpu::util::DeviceExt;
+
+    #[test]
+    fn compute_pipeline_setup_is_valid() {
+        let runtime = tokio::runtime::Runtime::new().expect("create tokio runtime");
+        runtime.block_on(async {
+            let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor::default());
+            let adapter = match instance
+                .request_adapter(&wgpu::RequestAdapterOptions::default())
+                .await
+            {
+                Ok(adapter) => adapter,
+                Err(err) => {
+                    eprintln!("skip gpu setup test: request_adapter failed: {err}");
+                    return;
+                }
+            };
+            let (device, _queue) = match adapter
+                .request_device(&wgpu::DeviceDescriptor::default())
+                .await
+            {
+                Ok(ok) => ok,
+                Err(err) => {
+                    eprintln!("skip gpu setup test: request_device failed: {err}");
+                    return;
+                }
+            };
+
+            let uniforms = Uniforms {
+                width: 8,
+                height: 8,
+                z_range: [0.0, 1.0],
+                compute_mode: 1,
+                rf_db_scale: 1,
+                _padding: [0; 2],
+            };
+            let uniform_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("test uniform"),
+                contents: bytemuck::cast_slice(&[uniforms]),
+                usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            });
+            let colormap = colormap::get_colormap::<256>(COLORMAP, wgpu::TextureFormat::Rgba8Unorm);
+            let colormap_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("test colormap"),
+                contents: bytemuck::cast_slice(&colormap),
+                usage: wgpu::BufferUsages::STORAGE,
+            });
+            let compute_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+                label: Some("Compute Shader"),
+                source: wgpu::ShaderSource::Wgsl(include_str!("compute.wgsl").into()),
+            });
+            let compute_bind_group_layout =
+                device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                    label: Some("Compute Bind Group Layout"),
+                    entries: &[
+                        wgpu::BindGroupLayoutEntry {
+                            binding: 0,
+                            visibility: wgpu::ShaderStages::COMPUTE,
+                            ty: wgpu::BindingType::Buffer {
+                                ty: wgpu::BufferBindingType::Storage { read_only: true },
+                                has_dynamic_offset: false,
+                                min_binding_size: None,
+                            },
+                            count: None,
+                        },
+                        wgpu::BindGroupLayoutEntry {
+                            binding: 1,
+                            visibility: wgpu::ShaderStages::COMPUTE,
+                            ty: wgpu::BindingType::Buffer {
+                                ty: wgpu::BufferBindingType::Storage { read_only: true },
+                                has_dynamic_offset: false,
+                                min_binding_size: None,
+                            },
+                            count: None,
+                        },
+                        wgpu::BindGroupLayoutEntry {
+                            binding: 2,
+                            visibility: wgpu::ShaderStages::COMPUTE,
+                            ty: wgpu::BindingType::Buffer {
+                                ty: wgpu::BufferBindingType::Storage { read_only: false },
+                                has_dynamic_offset: false,
+                                min_binding_size: None,
+                            },
+                            count: None,
+                        },
+                        wgpu::BindGroupLayoutEntry {
+                            binding: 3,
+                            visibility: wgpu::ShaderStages::COMPUTE,
+                            ty: wgpu::BindingType::Buffer {
+                                ty: wgpu::BufferBindingType::Uniform,
+                                has_dynamic_offset: false,
+                                min_binding_size: None,
+                            },
+                            count: None,
+                        },
+                        wgpu::BindGroupLayoutEntry {
+                            binding: 4,
+                            visibility: wgpu::ShaderStages::COMPUTE,
+                            ty: wgpu::BindingType::Buffer {
+                                ty: wgpu::BufferBindingType::Storage { read_only: true },
+                                has_dynamic_offset: false,
+                                min_binding_size: None,
+                            },
+                            count: None,
+                        },
+                    ],
+                });
+            let compute_pipeline_layout =
+                device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                    label: Some("Compute Pipeline Layout"),
+                    bind_group_layouts: &[&compute_bind_group_layout],
+                    push_constant_ranges: &[],
+                });
+            let (raw_data, rf_input, rf_values, rf_minmax, cache, _texture) =
+                RenderResources::get_buffers(&device, wgpu::TextureFormat::Rgba8Unorm, 8, 8);
+
+            let (_bind_group, _raw, _stage1, _stage2) = RenderResources::get_compute_pipelines(
+                &device,
+                &raw_data,
+                &rf_input,
+                &rf_values,
+                &rf_minmax,
+                &cache,
+                &uniform_buffer,
+                &colormap_buffer,
+                &compute_bind_group_layout,
+                &compute_pipeline_layout,
+                &compute_shader,
+            );
+        });
     }
 }

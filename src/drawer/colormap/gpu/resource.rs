@@ -5,9 +5,14 @@ pub struct RenderResources {
     pub(crate) uniforms: Uniforms,
     // compute stuff
     pub(crate) compute_pipeline_layout: wgpu::PipelineLayout,
-    pub(crate) compute_pipeline: wgpu::ComputePipeline,
+    pub(crate) compute_pipeline_raw: wgpu::ComputePipeline,
+    pub(crate) compute_pipeline_rf_stage1: wgpu::ComputePipeline,
+    pub(crate) compute_pipeline_rf_stage2: wgpu::ComputePipeline,
     pub(crate) compute_shader: wgpu::ShaderModule,
     pub(crate) raw_data_buffer: wgpu::Buffer,
+    pub(crate) rf_input_buffer: wgpu::Buffer,
+    pub(crate) rf_value_buffer: wgpu::Buffer,
+    pub(crate) rf_minmax_buffer: wgpu::Buffer,
     pub(crate) cache_buffer: wgpu::Buffer,
     pub(crate) compute_bind_group_layout: wgpu::BindGroupLayout,
     pub(crate) compute_bind_group: wgpu::BindGroup,
@@ -33,24 +38,38 @@ impl RenderResources {
         uniforms: Uniforms,
     ) {
         if self.uniforms.width != uniforms.width || self.uniforms.height != uniforms.height {
-            (self.raw_data_buffer, self.cache_buffer, self.texture) = RenderResources::get_buffers(
+            (
+                self.raw_data_buffer,
+                self.rf_input_buffer,
+                self.rf_value_buffer,
+                self.rf_minmax_buffer,
+                self.cache_buffer,
+                self.texture,
+            ) = RenderResources::get_buffers(
                 device,
                 self.texture_format,
                 uniforms.width,
                 uniforms.height,
             );
 
-            (self.compute_bind_group, self.compute_pipeline) =
-                RenderResources::get_compute_pipeline(
-                    device,
-                    &self.raw_data_buffer,
-                    &self.cache_buffer,
-                    &self.uniform_buffer,
-                    &self._colormap_buffer,
-                    &self.compute_bind_group_layout,
-                    &self.compute_pipeline_layout,
-                    &self.compute_shader,
-                );
+            (
+                self.compute_bind_group,
+                self.compute_pipeline_raw,
+                self.compute_pipeline_rf_stage1,
+                self.compute_pipeline_rf_stage2,
+            ) = RenderResources::get_compute_pipelines(
+                device,
+                &self.raw_data_buffer,
+                &self.rf_input_buffer,
+                &self.rf_value_buffer,
+                &self.rf_minmax_buffer,
+                &self.cache_buffer,
+                &self.uniform_buffer,
+                &self._colormap_buffer,
+                &self.compute_bind_group_layout,
+                &self.compute_pipeline_layout,
+                &self.compute_shader,
+            );
 
             let texture_view = self
                 .texture
@@ -78,22 +97,43 @@ impl RenderResources {
         queue.write_buffer(&self.raw_data_buffer, 0, data);
     }
 
+    pub fn update_rf_input_buffer(&self, _device: &wgpu::Device, queue: &wgpu::Queue, data: &[u8]) {
+        queue.write_buffer(&self.rf_input_buffer, 0, data);
+    }
+
     /// results stored at a cache buffer, copy to texture by calling [Self::refresh_texture]
     pub fn compute_texture(&self, encoder: &mut wgpu::CommandEncoder) {
         encoder.push_debug_group("compute texture");
-        {
-            // compute pass
+        const WORKGROUP_SIZE: (u8, u8, u8) = (8, 8, 1);
+        let dispatch_x = self.uniforms.width.div_ceil(WORKGROUP_SIZE.0 as u32);
+        let dispatch_y = self.uniforms.height.div_ceil(WORKGROUP_SIZE.1 as u32);
+        if self.uniforms.compute_mode == 0 {
             let mut cpass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
-                label: None,
+                label: Some("raw colormap compute"),
                 timestamp_writes: None,
             });
-            cpass.set_pipeline(&self.compute_pipeline);
+            cpass.set_pipeline(&self.compute_pipeline_raw);
             cpass.set_bind_group(0, &self.compute_bind_group, &[]);
-            const WORKGROUP_SIZE: (u8, u8, u8) = (8, 8, 1);
-            let dispatch_x = self.uniforms.width.div_ceil(WORKGROUP_SIZE.0 as u32);
-            let dispatch_y = self.uniforms.height.div_ceil(WORKGROUP_SIZE.1 as u32);
-            let dispatch_z = 1;
-            cpass.dispatch_workgroups(dispatch_x, dispatch_y, dispatch_z);
+            cpass.dispatch_workgroups(dispatch_x, dispatch_y, 1);
+        } else {
+            {
+                let mut cpass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
+                    label: Some("rf fft stage1"),
+                    timestamp_writes: None,
+                });
+                cpass.set_pipeline(&self.compute_pipeline_rf_stage1);
+                cpass.set_bind_group(0, &self.compute_bind_group, &[]);
+                cpass.dispatch_workgroups(dispatch_x, 1, 1);
+            }
+            {
+                let mut cpass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
+                    label: Some("rf fft stage2"),
+                    timestamp_writes: None,
+                });
+                cpass.set_pipeline(&self.compute_pipeline_rf_stage2);
+                cpass.set_bind_group(0, &self.compute_bind_group, &[]);
+                cpass.dispatch_workgroups(dispatch_x, dispatch_y, 1);
+            }
         }
         encoder.pop_debug_group();
     }
@@ -132,16 +172,24 @@ impl RenderResources {
 
 impl RenderResources {
     #[allow(clippy::too_many_arguments)]
-    pub(crate) fn get_compute_pipeline(
+    pub(crate) fn get_compute_pipelines(
         device: &wgpu::Device,
         raw_data: &wgpu::Buffer,
+        rf_input: &wgpu::Buffer,
+        rf_values: &wgpu::Buffer,
+        rf_minmax: &wgpu::Buffer,
         cache: &wgpu::Buffer,
         uniform: &wgpu::Buffer,
         color_map: &wgpu::Buffer,
         bind_group_layout: &wgpu::BindGroupLayout,
         pipeline_layout: &wgpu::PipelineLayout,
         shader: &wgpu::ShaderModule,
-    ) -> (wgpu::BindGroup, wgpu::ComputePipeline) {
+    ) -> (
+        wgpu::BindGroup,
+        wgpu::ComputePipeline,
+        wgpu::ComputePipeline,
+        wgpu::ComputePipeline,
+    ) {
         let compute_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             layout: bind_group_layout,
             entries: &[
@@ -156,7 +204,7 @@ impl RenderResources {
                 wgpu::BindGroupEntry {
                     binding: 1,
                     resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
-                        buffer: cache,
+                        buffer: rf_input,
                         offset: 0,
                         size: None,
                     }),
@@ -164,13 +212,37 @@ impl RenderResources {
                 wgpu::BindGroupEntry {
                     binding: 2,
                     resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
-                        buffer: uniform,
+                        buffer: rf_values,
                         offset: 0,
                         size: None,
                     }),
                 },
                 wgpu::BindGroupEntry {
                     binding: 3,
+                    resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
+                        buffer: rf_minmax,
+                        offset: 0,
+                        size: None,
+                    }),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 4,
+                    resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
+                        buffer: cache,
+                        offset: 0,
+                        size: None,
+                    }),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 5,
+                    resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
+                        buffer: uniform,
+                        offset: 0,
+                        size: None,
+                    }),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 6,
                     resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
                         buffer: color_map,
                         offset: 0,
@@ -181,16 +253,40 @@ impl RenderResources {
             label: Some("Compute Bind Group"),
         });
 
-        let compute_pipeline = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
-            label: Some("Compute Pipeline"),
-            layout: Some(pipeline_layout),
-            module: shader,
-            entry_point: Some("main"),
-            compilation_options: wgpu::PipelineCompilationOptions::default(),
-            cache: None,
-        });
+        let compute_pipeline_raw =
+            device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
+                label: Some("Compute Pipeline"),
+                layout: Some(pipeline_layout),
+                module: shader,
+                entry_point: Some("main_raw"),
+                compilation_options: wgpu::PipelineCompilationOptions::default(),
+                cache: None,
+            });
+        let compute_pipeline_rf_stage1 =
+            device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
+                label: Some("Compute Pipeline RF Stage1"),
+                layout: Some(pipeline_layout),
+                module: shader,
+                entry_point: Some("main_rf_stage1"),
+                compilation_options: wgpu::PipelineCompilationOptions::default(),
+                cache: None,
+            });
+        let compute_pipeline_rf_stage2 =
+            device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
+                label: Some("Compute Pipeline RF Stage2"),
+                layout: Some(pipeline_layout),
+                module: shader,
+                entry_point: Some("main_rf_stage2"),
+                compilation_options: wgpu::PipelineCompilationOptions::default(),
+                cache: None,
+            });
 
-        (compute_bind_group, compute_pipeline)
+        (
+            compute_bind_group,
+            compute_pipeline_raw,
+            compute_pipeline_rf_stage1,
+            compute_pipeline_rf_stage2,
+        )
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -253,10 +349,35 @@ impl RenderResources {
         format: wgpu::TextureFormat,
         width: u32,
         height: u32,
-    ) -> (wgpu::Buffer, wgpu::Buffer, wgpu::Texture) {
+    ) -> (
+        wgpu::Buffer,
+        wgpu::Buffer,
+        wgpu::Buffer,
+        wgpu::Buffer,
+        wgpu::Buffer,
+        wgpu::Texture,
+    ) {
         let raw_data_buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("Raw Data Buffer"),
             size: (width * height) as u64 * size_of::<RawDataFormat>() as u64,
+            usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+        let rf_input_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("RF Input Buffer"),
+            size: (width * height) as u64 * size_of::<RfInputFormat>() as u64,
+            usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+        let rf_value_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("RF Value Buffer"),
+            size: (width * height) as u64 * size_of::<f32>() as u64,
+            usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+        let rf_minmax_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("RF MinMax Buffer"),
+            size: width as u64 * size_of::<[f32; 2]>() as u64,
             usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
@@ -282,6 +403,13 @@ impl RenderResources {
             usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
             view_formats: &[],
         });
-        (raw_data_buffer, cache_buffer, texture)
+        (
+            raw_data_buffer,
+            rf_input_buffer,
+            rf_value_buffer,
+            rf_minmax_buffer,
+            cache_buffer,
+            texture,
+        )
     }
 }

@@ -19,6 +19,7 @@ impl DrawMat for Drawer {
         S::FftProcessor: Sync,
     {
         puffin_egui::puffin::profile_function!();
+        self.set_raw_mode();
         let mut log = self.data();
         let max_log = self.max_log().unwrap().get();
         use rayon::prelude::*;
@@ -43,6 +44,51 @@ impl DrawMat for Drawer {
         self.set_z_range([min, max]);
     }
 
+    fn fetch_rf_fft_gpu<S: FftSource>(
+        &mut self,
+        history_data: &[S],
+        proc: &mut Process<S>,
+        chunk_size: usize,
+        global_norm: bool,
+    ) -> bool
+    where
+        S::FftProcessor: Sync,
+    {
+        puffin_egui::puffin::profile_function!();
+        if global_norm {
+            return false;
+        }
+        let max_log = self
+            .max_log()
+            .map(|x| x.get())
+            .unwrap_or(history_data.len());
+        let mut time_len = history_data.len().min(max_log);
+        if time_len < 2 {
+            return true;
+        }
+        if time_len % 2 == 1 {
+            time_len -= 1;
+        }
+        if time_len < 2 {
+            return true;
+        }
+
+        let start = history_data.len().saturating_sub(time_len);
+        let history_slice = &history_data[start..];
+        let mut rf_input = vec![[0.0f32, 0.0f32]; time_len * chunk_size];
+        for (t, d) in history_slice.iter().enumerate() {
+            let row = proc.proc_complex(d, true);
+            if row.len() != chunk_size {
+                return false;
+            }
+            for (bin, v) in row.into_iter().enumerate() {
+                rf_input[bin * time_len + t] = [v.re as f32, v.im as f32];
+            }
+        }
+        self.set_rf_fft_input(chunk_size, time_len, &rf_input, proc.core.db_scale);
+        true
+    }
+
     fn max_log(&self) -> Option<std::num::NonZero<usize>> {
         std::num::NonZero::new(self.uniforms().height as usize)
     }
@@ -58,13 +104,8 @@ impl DrawMat for Drawer {
     fn set_y_label(&mut self, label: Option<String>) {
         self.axis_drawer.y_label = label;
     }
-    fn set_matrix(
-        &mut self,
-        width: usize,
-        height: usize,
-        data: &[f32],
-        z_range: Option<[f32; 2]>,
-    ) {
+    fn set_matrix(&mut self, width: usize, height: usize, data: &[f32], z_range: Option<[f32; 2]>) {
+        self.set_raw_mode();
         debug_assert_eq!(self.uniforms().width as usize, width);
         self.set_height(height as u32);
         let mut log = self.data();
