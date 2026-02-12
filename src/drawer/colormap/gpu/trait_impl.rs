@@ -106,6 +106,11 @@ impl DrawMat for Drawer {
     fn set_y_label(&mut self, label: Option<String>) {
         self.axis_drawer.y_label = label;
     }
+
+    fn set_y_tick_shift(&mut self, shift: i32) {
+        self.axis_drawer.y_tick_shift = shift;
+    }
+
     fn set_matrix(&mut self, width: usize, height: usize, data: &[f32], z_range: Option<[f32; 2]>) {
         self.set_raw_mode();
         debug_assert_eq!(self.uniforms().width as usize, width);

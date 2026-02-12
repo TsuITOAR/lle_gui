@@ -46,14 +46,14 @@ pub(crate) trait DrawMat {
         false
     }
     fn sync_labels(&mut self, view: &crate::drawer::HistoryView) {
-        let (label, shift) = match view {
-            crate::drawer::HistoryView::Raw => ("Record index", 0),
+        let shift = match view {
+            crate::drawer::HistoryView::Raw => 0,
             crate::drawer::HistoryView::RfFft { .. } => {
                 let half = self.max_log().map(|x| x.get()).unwrap_or(0) as i32 / 2;
-                ("RF index", -half)
+                -half
             }
         };
-        self.set_y_label(Some(label.to_string()));
+        self.set_y_label(None);
         self.set_y_tick_shift(shift);
     }
     fn set_matrix(&mut self, width: usize, height: usize, data: &[f32], z_range: Option<[f32; 2]>);

@@ -16,6 +16,7 @@ pub struct AxisDrawer {
     pub stroke: Option<Stroke>,
     pub x_range: RangeInclusive<f32>,
     pub y_range: RangeInclusive<f32>,
+    pub y_tick_shift: i32,
     pub tick_interval_base: u8,
     pub align_x_axis: Option<(f32, f32)>,
 }
@@ -33,6 +34,7 @@ impl Default for AxisDrawer {
             stroke: None,
             x_range: 0.0f32..=100.0,
             y_range: 0.0f32..=100.0,
+            y_tick_shift: 0,
             tick_interval_base: 10,
             align_x_axis: None,
         }
@@ -95,6 +97,7 @@ impl AxisDrawer {
             stroke,
             x_range,
             y_range,
+            y_tick_shift,
             tick_interval_base: base,
             ..
         } = self;
@@ -163,9 +166,8 @@ impl AxisDrawer {
         }
 
         const MIN_Y_TICK_LABEL_WIDTH: f32 = 5.0;
-        // Draw Y-axis ticks and labels
-
-        for y in Self::calculate_tick_pos(y_range, base) {
+        // Draw Y-axis ticks and labels in shifted-label space.
+        for y in Self::calculate_tick_pos_shifted(y_range, base, *y_tick_shift as f32) {
             let y_pos = y_axis_rect.bottom()
                 - (y - self.y_range.start()) / (self.y_range.end() - self.y_range.start())
                     * y_axis_rect.height();
@@ -182,7 +184,7 @@ impl AxisDrawer {
             ui.painter().text(
                 tick_label_pos,
                 Align2::RIGHT_CENTER,
-                format!("{y}"),
+                format!("{}", y + *y_tick_shift as f32),
                 tick_label_font.clone(),
                 axis_color,
             );
@@ -220,5 +222,15 @@ impl AxisDrawer {
         std::iter::successors(Some(start_ind), |i| Some(i + 1))
             .map(move |i| i as f32 * interval)
             .take_while(move |&x| x <= *range.end())
+    }
+
+    fn calculate_tick_pos_shifted(
+        range: RangeInclusive<f32>,
+        base: u8,
+        shift: f32,
+    ) -> impl Iterator<Item = f32> {
+        let shifted_start = *range.start() + shift;
+        let shifted_end = *range.end() + shift;
+        Self::calculate_tick_pos(shifted_start..=shifted_end, base).map(move |v| v - shift)
     }
 }
