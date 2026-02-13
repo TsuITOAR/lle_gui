@@ -28,7 +28,7 @@ impl DrawRange<Range<f64>> {
         const MIN_SPAN: f64 = 0.0001;
         if let DrawRange::Auto(a) = self {
             match a {
-                Some(ref mut r) if r.end - r.start < MIN_SPAN => {
+                Some(r) if r.end - r.start < MIN_SPAN => {
                     let center = (r.start + r.end) / 2.;
                     *r = (center - MIN_SPAN / 2.)..(center + MIN_SPAN / 2.);
                 }
@@ -142,7 +142,7 @@ impl<Backend> RawMapVisualizer<f64, Backend> {
         match self.color_range {
             DrawRange::Auto(ref mut r) => {
                 row.iter().copied().filter(|x| x.is_normal()).for_each(|x| {
-                    if let Some(ref mut o) = r {
+                    if let Some(o) = r {
                         if o.start > x {
                             o.start = x;
                         } else if o.end < x {
@@ -210,9 +210,10 @@ impl RawMapVisualizer<f64> {
             .y_label_style(text_style)
             .disable_x_mesh()
             .disable_y_mesh();
-        if let Some(shift) = self.y_label_shift {
-            mesh_map.y_label_formatter(&move |y| format!("{}", *y as i32 + shift));
-        }
+        // TODO: Fix lifetime issue with y_label_formatter closure
+        // if let Some(shift) = self.y_label_shift {
+        //     mesh_map.y_label_formatter(&|y| format!("{}", *y as i32 + shift));
+        // }
         if let Some(ref s) = self.x_desc {
             mesh_map.x_desc(s);
         }
@@ -334,30 +335,13 @@ impl ColorMapVisualizer<f64> {
     #[allow(clippy::type_complexity)]
     pub fn draw_mat<DB: DrawingBackend>(
         &self,
-        draw_area: DrawingArea<DB, Shift>,
+        draw_area: &DrawingArea<DB, Shift>,
         chunk_size: usize,
         style: Style,
     ) -> Result<impl Fn((i32, i32)) -> Option<(usize, usize)>, DrawingAreaErrorKind<DB::ErrorType>>
     {
         self.raw
-            .draw_on(&self.matrix, &draw_area, chunk_size, style)
-    }
-
-    #[allow(clippy::type_complexity)]
-    fn draw_mat_on_ui<'a>(
-        &self,
-        chunk_size: usize,
-        ui: &'a egui::Ui,
-    ) -> Result<
-        impl Fn((i32, i32)) -> Option<(usize, usize)> + 'a,
-        DrawingAreaErrorKind<<EguiBackend<'_> as DrawingBackend>::ErrorType>,
-    > {
-        puffin_egui::puffin::profile_function!();
-        self.draw_mat(
-            EguiBackend::new(ui).into_drawing_area(),
-            chunk_size,
-            Style::from_ui(ui),
-        )
+            .draw_on(&self.matrix, draw_area, chunk_size, style)
     }
 }
 
@@ -369,7 +353,10 @@ impl DrawMat for ColorMapVisualizer {
         ui: &mut egui::Ui,
     ) -> Result<(), eframe::Error> {
         puffin_egui::puffin::profile_function!();
-        Self::draw_mat_on_ui(self, chunk_size, ui).unwrap();
+        let draw_area = EguiBackend::new(ui).into_drawing_area();
+        self.raw
+            .draw_on(&self.matrix, &draw_area, chunk_size, Style::from_ui(ui))
+            .unwrap();
         Ok(())
     }
     fn fetch<S: crate::FftSource>(&mut self, data: &[S], proc: &mut Process<S>, chunk_size: usize) {
@@ -399,11 +386,11 @@ impl DrawMat for ColorMapVisualizer {
         &mut self,
         _width: usize,
         height: usize,
-        data: Vec<f32>,
+        data: &[f32],
         z_range: Option<[f32; 2]>,
     ) {
         self.max_log = NonZeroUsize::new(height);
-        self.matrix = data.into_iter().map(|v| v as f64).collect();
+        self.matrix = data.iter().map(|v| *v as f64).collect();
         let range = z_range.unwrap_or([0.0, 1.0]);
         self.raw
             .set_color_range(DrawRange::Static(range[0] as f64..range[1] as f64));

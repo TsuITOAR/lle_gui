@@ -17,6 +17,7 @@ jobs:
           profile: minimal
           toolchain: nightly
           override: true
+      - run: sudo apt-get install libfontconfig-dev
       - uses: actions-rs/cargo@v1
         with:
           command: check
