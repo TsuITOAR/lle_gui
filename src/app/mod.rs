@@ -103,6 +103,7 @@ where
     D: for<'a> Debugger<<S as SharedState<'a>>::SharedState> + Default,
 {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        puffin_egui::puffin::profile_function!();
         self.show_toasts(ctx);
         self.start_profiler();
         self.check_initialization(ctx);

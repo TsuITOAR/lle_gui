@@ -64,6 +64,7 @@ where
     }
 
     pub(crate) fn control_panel(&mut self, ctx: &egui::Context) -> PlayControl {
+        puffin_egui::puffin::profile_scope!("control panel");
         let Self {
             core,
             running,
@@ -87,8 +88,6 @@ where
         } = PlayControl::default();
 
         egui::SidePanel::left("control_panel").show(ctx, |ui| {
-            puffin_egui::puffin::profile_scope!("control panel");
-
             // cause display error of super and subscript in easy_mark
             //ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Extend);
 
@@ -215,6 +214,7 @@ where
 
     // if return true, require repaint and visualize refresh
     pub(crate) fn run_simulation(&mut self, play_control: PlayControl) -> bool {
+        puffin_egui::puffin::profile_function!();
         let PlayControl {
             reset,
             destruct,
@@ -284,6 +284,7 @@ where
         visual_refresh: bool,
         running: bool,
     ) {
+        puffin_egui::puffin::profile_function!();
         let Self {
             core,
             views,

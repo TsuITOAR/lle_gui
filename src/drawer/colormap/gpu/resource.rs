@@ -5,10 +5,12 @@ pub struct RenderResources {
     pub(crate) uniforms: Uniforms,
     // compute stuff
     pub(crate) compute_pipeline_layout: wgpu::PipelineLayout,
-    pub(crate) compute_pipeline_raw_reduce: wgpu::ComputePipeline,
+    pub(crate) compute_pipeline_raw_reduce_stage1: wgpu::ComputePipeline,
+    pub(crate) compute_pipeline_raw_reduce_stage2: wgpu::ComputePipeline,
     pub(crate) compute_pipeline_raw: wgpu::ComputePipeline,
     pub(crate) compute_pipeline_rf_transpose: wgpu::ComputePipeline,
     pub(crate) compute_pipeline_rf_stage1: wgpu::ComputePipeline,
+    pub(crate) compute_pipeline_rf_stage1_no_fft: wgpu::ComputePipeline,
     pub(crate) compute_pipeline_rf_reduce_global: wgpu::ComputePipeline,
     pub(crate) compute_pipeline_rf_stage2: wgpu::ComputePipeline,
     pub(crate) compute_shader: wgpu::ShaderModule,
@@ -92,10 +94,12 @@ impl RenderResources {
 
             (
                 self.compute_bind_group,
-                self.compute_pipeline_raw_reduce,
+                self.compute_pipeline_raw_reduce_stage1,
+                self.compute_pipeline_raw_reduce_stage2,
                 self.compute_pipeline_raw,
                 self.compute_pipeline_rf_transpose,
                 self.compute_pipeline_rf_stage1,
+                self.compute_pipeline_rf_stage1_no_fft,
                 self.compute_pipeline_rf_reduce_global,
                 self.compute_pipeline_rf_stage2,
                 self.fft_cfg,
@@ -151,22 +155,36 @@ impl RenderResources {
         let dispatch_x = self.uniforms.width.div_ceil(WORKGROUP_SIZE.0 as u32);
         let dispatch_y = self.uniforms.height.div_ceil(WORKGROUP_SIZE.1 as u32);
         if self.uniforms.compute_mode == 0 {
-            if self.uniforms.raw_gpu_range != 0 {
+            let total = self.uniforms.width.saturating_mul(self.uniforms.height);
+            let raw_reduce_wg = 64u32;
+            let partial_count = total.div_ceil(raw_reduce_wg);
+            {
                 let mut cpass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
-                    label: Some("raw reduce"),
+                    label: Some("raw reduce stage1"),
                     timestamp_writes: None,
                 });
-                cpass.set_pipeline(&self.compute_pipeline_raw_reduce);
+                cpass.set_pipeline(&self.compute_pipeline_raw_reduce_stage1);
+                cpass.set_bind_group(0, &self.compute_bind_group, &[]);
+                cpass.dispatch_workgroups(partial_count.max(1), 1, 1);
+            }
+            {
+                let mut cpass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
+                    label: Some("raw reduce stage2"),
+                    timestamp_writes: None,
+                });
+                cpass.set_pipeline(&self.compute_pipeline_raw_reduce_stage2);
                 cpass.set_bind_group(0, &self.compute_bind_group, &[]);
                 cpass.dispatch_workgroups(1, 1, 1);
             }
-            let mut cpass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
-                label: Some("raw colormap compute"),
-                timestamp_writes: None,
-            });
-            cpass.set_pipeline(&self.compute_pipeline_raw);
-            cpass.set_bind_group(0, &self.compute_bind_group, &[]);
-            cpass.dispatch_workgroups(dispatch_x, dispatch_y, 1);
+            {
+                let mut cpass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
+                    label: Some("raw colormap compute"),
+                    timestamp_writes: None,
+                });
+                cpass.set_pipeline(&self.compute_pipeline_raw);
+                cpass.set_bind_group(0, &self.compute_bind_group, &[]);
+                cpass.dispatch_workgroups(dispatch_x, dispatch_y, 1);
+            }
         } else {
             {
                 let mut cpass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
@@ -182,7 +200,11 @@ impl RenderResources {
                     label: Some("rf fft stage1"),
                     timestamp_writes: None,
                 });
-                cpass.set_pipeline(&self.compute_pipeline_rf_stage1);
+                if self.uniforms.rf_history_fft != 0 {
+                    cpass.set_pipeline(&self.compute_pipeline_rf_stage1);
+                } else {
+                    cpass.set_pipeline(&self.compute_pipeline_rf_stage1_no_fft);
+                }
                 cpass.set_bind_group(0, &self.compute_bind_group, &[]);
                 let stage1_dispatch_x = self.uniforms.width.div_ceil(self.fft_cfg.wg_bins.max(1));
                 cpass.dispatch_workgroups(stage1_dispatch_x, 1, 1);
@@ -258,6 +280,8 @@ impl RenderResources {
         shader: &wgpu::ShaderModule,
     ) -> (
         wgpu::BindGroup,
+        wgpu::ComputePipeline,
+        wgpu::ComputePipeline,
         wgpu::ComputePipeline,
         wgpu::ComputePipeline,
         wgpu::ComputePipeline,
@@ -343,12 +367,24 @@ impl RenderResources {
             label: Some("Compute Bind Group"),
         });
 
-        let compute_pipeline_raw_reduce =
+        let compute_pipeline_raw_reduce_stage1 =
             device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
-                label: Some("Compute Pipeline Raw Reduce"),
+                label: Some("Compute Pipeline Raw Reduce Stage1"),
                 layout: Some(pipeline_layout),
                 module: shader,
-                entry_point: Some("main_raw_reduce"),
+                entry_point: Some("main_raw_reduce_stage1"),
+                compilation_options: wgpu::PipelineCompilationOptions {
+                    constants: &fft_override_constants,
+                    ..Default::default()
+                },
+                cache: None,
+            });
+        let compute_pipeline_raw_reduce_stage2 =
+            device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
+                label: Some("Compute Pipeline Raw Reduce Stage2"),
+                layout: Some(pipeline_layout),
+                module: shader,
+                entry_point: Some("main_raw_reduce_stage2"),
                 compilation_options: wgpu::PipelineCompilationOptions {
                     constants: &fft_override_constants,
                     ..Default::default()
@@ -391,6 +427,18 @@ impl RenderResources {
                 },
                 cache: None,
             });
+        let compute_pipeline_rf_stage1_no_fft =
+            device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
+                label: Some("Compute Pipeline RF Stage1 No FFT"),
+                layout: Some(pipeline_layout),
+                module: shader,
+                entry_point: Some("main_rf_stage1_no_fft"),
+                compilation_options: wgpu::PipelineCompilationOptions {
+                    constants: &fft_override_constants,
+                    ..Default::default()
+                },
+                cache: None,
+            });
         let compute_pipeline_rf_reduce_global =
             device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
                 label: Some("Compute Pipeline RF Global Reduce"),
@@ -417,10 +465,12 @@ impl RenderResources {
             });
         (
             compute_bind_group,
-            compute_pipeline_raw_reduce,
+            compute_pipeline_raw_reduce_stage1,
+            compute_pipeline_raw_reduce_stage2,
             compute_pipeline_raw,
             compute_pipeline_rf_transpose,
             compute_pipeline_rf_stage1,
+            compute_pipeline_rf_stage1_no_fft,
             compute_pipeline_rf_reduce_global,
             compute_pipeline_rf_stage2,
             cfg,
