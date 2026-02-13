@@ -17,6 +17,10 @@ jobs:
           profile: minimal
           toolchain: nightly
           override: true
+      - name: Install Linux system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y pkg-config libfontconfig1-dev
       - uses: actions-rs/cargo@v1
         with:
           command: check
