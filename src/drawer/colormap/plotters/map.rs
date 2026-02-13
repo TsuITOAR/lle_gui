@@ -210,7 +210,10 @@ impl RawMapVisualizer<f64> {
             .y_label_style(text_style)
             .disable_x_mesh()
             .disable_y_mesh();
-        // TODO: Fix lifetime issue with y_label_formatter closure
+        // TODO(lifetime): Fix lifetime issue with y_label_formatter closure.
+        // The closure needs to be stored or have a longer lifetime than the current scope.
+        // This feature was previously not working correctly and caused compilation errors.
+        // For now, y-axis labels will not be shifted, but the shift value is still stored.
         // if let Some(shift) = self.y_label_shift {
         //     mesh_map.y_label_formatter(&|y| format!("{}", *y as i32 + shift));
         // }
