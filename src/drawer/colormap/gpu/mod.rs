@@ -428,19 +428,20 @@ impl Drawer {
     }
 
     pub(crate) fn set_height(&mut self, height: u32) {
-        if height <= 1 {
+        self.set_size(self.uniforms.width, height);
+    }
+
+    pub(crate) fn set_size(&mut self, width: u32, height: u32) {
+        if width <= 1 || height <= 1 {
             return;
         }
+        self.uniforms.width = width;
         self.uniforms.height = height;
+        self.axis_drawer.x_range = 0.0f32..=(width - 1) as f32;
         self.axis_drawer.y_range = 0.0f32..=(height - 1) as f32;
-        self.data().resize(
-            (self.uniforms().height * self.uniforms().width) as _,
-            [0.0, 0.0],
-        );
-        self.rf_input().resize(
-            (self.uniforms().height * self.uniforms().width) as _,
-            [0.0, 0.0],
-        );
+        let len = (self.uniforms().height * self.uniforms().width) as usize;
+        self.data().resize(len, [0.0, 0.0]);
+        self.rf_input().resize(len, [0.0, 0.0]);
     }
 
     pub(crate) fn set_z_range(&mut self, range: [f32; 2]) {
@@ -463,8 +464,7 @@ impl Drawer {
         db_scale: bool,
         global_norm: bool,
     ) {
-        debug_assert_eq!(self.uniforms().width as usize, width);
-        self.set_height(height as u32);
+        self.set_size(width as u32, height as u32);
         self.uniforms.compute_mode = 1;
         self.uniforms.rf_db_scale = u32::from(db_scale);
         self.uniforms.rf_global_norm = u32::from(global_norm);

@@ -28,7 +28,7 @@ impl DrawRange<Range<f64>> {
         const MIN_SPAN: f64 = 0.0001;
         if let DrawRange::Auto(a) = self {
             match a {
-                Some(ref mut r) if r.end - r.start < MIN_SPAN => {
+                Some(r) if r.end - r.start < MIN_SPAN => {
                     let center = (r.start + r.end) / 2.;
                     *r = (center - MIN_SPAN / 2.)..(center + MIN_SPAN / 2.);
                 }
@@ -142,7 +142,7 @@ impl<Backend> RawMapVisualizer<f64, Backend> {
         match self.color_range {
             DrawRange::Auto(ref mut r) => {
                 row.iter().copied().filter(|x| x.is_normal()).for_each(|x| {
-                    if let Some(ref mut o) = r {
+                    if let Some(o) = r {
                         if o.start > x {
                             o.start = x;
                         } else if o.end < x {
@@ -167,7 +167,7 @@ impl RawMapVisualizer<f64> {
     pub fn draw_on<DB: DrawingBackend>(
         &self,
         matrix: &[f64],
-        draw_area: &DrawingArea<DB, Shift>,
+        draw_area: DrawingArea<DB, Shift>,
         chunk_size: usize,
         style: Style,
     ) -> Result<impl Fn((i32, i32)) -> Option<(usize, usize)>, DrawingAreaErrorKind<DB::ErrorType>>
@@ -193,10 +193,10 @@ impl RawMapVisualizer<f64> {
         let text_style = style.text_style();
         builder_map
             //.margin_right(2.percent_width().in_pixels(draw_area))
-            .margin_top(2.percent_height().in_pixels(draw_area))
-            .margin_bottom(2.percent_height().in_pixels(draw_area))
-            .y_label_area_size(5.percent_width().in_pixels(draw_area))
-            .x_label_area_size(5.percent_height().in_pixels(draw_area));
+            .margin_top(2.percent_height().in_pixels(&draw_area))
+            .margin_bottom(2.percent_height().in_pixels(&draw_area))
+            .y_label_area_size(5.percent_width().in_pixels(&draw_area))
+            .x_label_area_size(5.percent_height().in_pixels(&draw_area));
         if let Some(ref s) = self.caption {
             builder_map.caption(s, style.caption_style());
         }
@@ -210,8 +210,10 @@ impl RawMapVisualizer<f64> {
             .y_label_style(text_style)
             .disable_x_mesh()
             .disable_y_mesh();
+        let y_label_formatter;
         if let Some(shift) = self.y_label_shift {
-            mesh_map.y_label_formatter(&move |y| format!("{}", *y as i32 + shift));
+            y_label_formatter = move |y: &usize| format!("{}", *y as i32 + shift);
+            mesh_map.y_label_formatter(&y_label_formatter);
         }
         if let Some(ref s) = self.x_desc {
             mesh_map.x_desc(s);
@@ -219,12 +221,6 @@ impl RawMapVisualizer<f64> {
         if let Some(ref s) = self.y_desc {
             mesh_map.y_desc(s);
         }
-        /* if let Some(ref f) = self.x_label_formatter {
-            mesh_map.x_label_formatter(f);
-        }
-        if let Some(ref f) = self.y_label_formatter {
-            mesh_map.y_label_formatter(f);
-        } */
         mesh_map.draw()?;
         draw_map(&mut chart_map, matrix.chunks(chunk_size), map_range.clone());
 
@@ -339,25 +335,7 @@ impl ColorMapVisualizer<f64> {
         style: Style,
     ) -> Result<impl Fn((i32, i32)) -> Option<(usize, usize)>, DrawingAreaErrorKind<DB::ErrorType>>
     {
-        self.raw
-            .draw_on(&self.matrix, &draw_area, chunk_size, style)
-    }
-
-    #[allow(clippy::type_complexity)]
-    fn draw_mat_on_ui<'a>(
-        &self,
-        chunk_size: usize,
-        ui: &'a egui::Ui,
-    ) -> Result<
-        impl Fn((i32, i32)) -> Option<(usize, usize)> + 'a,
-        DrawingAreaErrorKind<<EguiBackend<'_> as DrawingBackend>::ErrorType>,
-    > {
-        puffin_egui::puffin::profile_function!();
-        self.draw_mat(
-            EguiBackend::new(ui).into_drawing_area(),
-            chunk_size,
-            Style::from_ui(ui),
-        )
+        self.raw.draw_on(&self.matrix, draw_area, chunk_size, style)
     }
 }
 
@@ -369,7 +347,12 @@ impl DrawMat for ColorMapVisualizer {
         ui: &mut egui::Ui,
     ) -> Result<(), eframe::Error> {
         puffin_egui::puffin::profile_function!();
-        Self::draw_mat_on_ui(self, chunk_size, ui).unwrap();
+        self.draw_mat(
+            EguiBackend::new(ui).into_drawing_area(),
+            chunk_size,
+            Style::from_ui(ui),
+        )
+        .unwrap();
         Ok(())
     }
     fn fetch<S: crate::FftSource>(&mut self, data: &[S], proc: &mut Process<S>, chunk_size: usize) {
@@ -387,9 +370,9 @@ impl DrawMat for ColorMapVisualizer {
         self.max_log = Some(max_log);
     }
 
-    fn set_y_label(&mut self, label: Option<String>) {
-        self.raw.set_y_desc(label);
-    }
+    // fn set_y_label(&mut self, label: Option<String>) {
+    //     self.raw.set_y_desc(label);
+    // }
 
     fn set_y_tick_shift(&mut self, shift: i32) {
         self.raw.set_y_label_shift(Some(shift));
@@ -399,11 +382,11 @@ impl DrawMat for ColorMapVisualizer {
         &mut self,
         _width: usize,
         height: usize,
-        data: Vec<f32>,
+        data: &[f32],
         z_range: Option<[f32; 2]>,
     ) {
         self.max_log = NonZeroUsize::new(height);
-        self.matrix = data.into_iter().map(|v| v as f64).collect();
+        self.matrix = data.iter().map(|&v| v as f64).collect();
         let range = z_range.unwrap_or([0.0, 1.0]);
         self.raw
             .set_color_range(DrawRange::Static(range[0] as f64..range[1] as f64));

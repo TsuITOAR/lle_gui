@@ -31,7 +31,7 @@ pub(crate) trait DrawMat {
     fn max_log(&self) -> Option<NonZeroUsize>;
     fn set_max_log(&mut self, len: NonZeroUsize);
     fn set_align_x_axis(&mut self, _align: impl Into<Option<(f32, f32)>>) {}
-    fn set_y_label(&mut self, _label: Option<String>) {}
+    // fn set_y_label(&mut self, _label: Option<String>) {}
     fn set_y_tick_shift(&mut self, _shift: i32) {}
     fn fetch_rf_fft_gpu<S: FftSource>(
         &mut self,
@@ -53,7 +53,6 @@ pub(crate) trait DrawMat {
                 -half
             }
         };
-        self.set_y_label(None);
         self.set_y_tick_shift(shift);
     }
     fn set_matrix(&mut self, width: usize, height: usize, data: &[f32], z_range: Option<[f32; 2]>);

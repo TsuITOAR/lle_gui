@@ -18,6 +18,8 @@ impl DrawMat for Drawer {
     {
         puffin_egui::puffin::profile_function!();
         self.set_raw_mode(proc.core.component, proc.core.db_scale, true);
+        let cur_h = self.uniforms().height.max(2);
+        self.set_size(chunk_size as u32, cur_h);
         let mut raw = self.data();
         let max_log = self.max_log().unwrap().get();
         use rayon::prelude::*;
@@ -102,9 +104,9 @@ impl DrawMat for Drawer {
         self.axis_drawer.align_x_axis = align.into();
     }
 
-    fn set_y_label(&mut self, label: Option<String>) {
-        self.axis_drawer.y_label = label;
-    }
+    // fn set_y_label(&mut self, label: Option<String>) {
+    //     self.axis_drawer.y_label = label;
+    // }
 
     fn set_y_tick_shift(&mut self, shift: i32) {
         self.axis_drawer.y_tick_shift = shift;
@@ -112,8 +114,7 @@ impl DrawMat for Drawer {
 
     fn set_matrix(&mut self, width: usize, height: usize, data: &[f32], z_range: Option<[f32; 2]>) {
         self.set_raw_mode(Component::Real, false, z_range.is_none());
-        debug_assert_eq!(self.uniforms().width as usize, width);
-        self.set_height(height as u32);
+        self.set_size(width as u32, height as u32);
         let mut raw = self.data();
         if raw.len() != data.len() {
             raw.resize(data.len(), [0.0, 0.0]);
