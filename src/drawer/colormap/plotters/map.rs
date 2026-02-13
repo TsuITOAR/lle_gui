@@ -340,8 +340,7 @@ impl ColorMapVisualizer<f64> {
         style: Style,
     ) -> Result<impl Fn((i32, i32)) -> Option<(usize, usize)>, DrawingAreaErrorKind<DB::ErrorType>>
     {
-        self.raw
-            .draw_on(&self.matrix, draw_area, chunk_size, style)
+        self.raw.draw_on(&self.matrix, draw_area, chunk_size, style)
     }
 }
 
