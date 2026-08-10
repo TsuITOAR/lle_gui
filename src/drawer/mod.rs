@@ -23,7 +23,7 @@ use self::chart::LleChart;
 
 pub(crate) fn default_r_chart<S: FftSource>(index: usize) -> LleChart<S> {
     LleChart {
-        name: format! {"real domain {index}"},
+        name: format!("real domain {index}"),
         kind: PlotKind::Line,
         proc: Default::default(),
         smart_bound: Some(Default::default()),
@@ -37,7 +37,7 @@ pub(crate) fn default_r_chart<S: FftSource>(index: usize) -> LleChart<S> {
 
 pub(crate) fn default_f_chart<S: FftSource>(index: usize) -> LleChart<S> {
     LleChart {
-        name: format! {"freq domain {index}"},
+        name: format!("freq domain {index}"),
         kind: PlotKind::Line,
         proc: Process::new_freq_domain(),
         smart_bound: Some(Default::default()),

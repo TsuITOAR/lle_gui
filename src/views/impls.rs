@@ -34,13 +34,13 @@ where
     ViewField<FS>: Visualizer<S>,
 {
     fn adjust_to_state(&mut self, data: [S; L]) {
-        for (view, data) in self.views.iter_mut().zip(data.into_iter()) {
+        for (view, data) in self.views.iter_mut().zip(data) {
             view.adjust_to_state(data);
         }
     }
 
     fn record(&mut self, data: [S; L]) {
-        for (view, data) in self.views.iter_mut().zip(data.into_iter()) {
+        for (view, data) in self.views.iter_mut().zip(data) {
             view.record(data);
         }
     }

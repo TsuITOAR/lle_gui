@@ -1,9 +1,6 @@
 #![warn(clippy::all, rust_2018_idioms)]
 #![feature(unboxed_closures)]
-#![feature(fn_traits)]
 #![feature(hasher_prefixfree_extras)]
-#![feature(type_alias_impl_trait)]
-#![feature(iter_array_chunks)]
 
 mod checkpoint;
 mod config;

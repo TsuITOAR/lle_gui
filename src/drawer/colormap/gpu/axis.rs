@@ -125,7 +125,7 @@ impl AxisDrawer {
         // Pick colors based on the UI style
         let visuals = ui.visuals();
         let axis_color = visuals.text_color();
-        let axis_stroke = stroke.unwrap_or_else(|| Stroke::new(1.0, visuals.text_color()));
+        let axis_stroke = stroke.unwrap_or_else(|| Stroke::new(1.0_f32, visuals.text_color()));
 
         ui.painter().line_segment(
             [x_axis_rect.left_top(), x_axis_rect.right_top()],

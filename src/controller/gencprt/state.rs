@@ -588,8 +588,6 @@ impl<'a> Iterator for MySliceIterMutRev<'a> {
 
 #[cfg(test)]
 mod test {
-    use core::f64;
-
     use super::super::TEST_DATA;
     use crate::controller::cprt2::CoupleStrength;
 

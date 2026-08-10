@@ -51,7 +51,6 @@ plotters = { version = "^0.3", optional = true }
 plotters-backend = { version = "^0.3", optional = true }
 
 num-traits = "^0.2.19"
-iterator_ilp = "^3"
 colorous = "^1.0.14"
 bytemuck = "^1.19.0"
 rayon = "^1"

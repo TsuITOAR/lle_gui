@@ -111,7 +111,9 @@ fn plot_points(item: PlotItem, plot_ui: &mut egui_plot::PlotUi<'_>) {
     let points = if style.interleave {
         let (a, b): (Vec<_>, Vec<_>) = e
             .points()
-            .chunks_exact(2)
+            .as_chunks::<2>()
+            .0
+            .iter()
             .map(|x| ([x[0].x, x[0].y], [x[1].x, x[1].y]))
             .unzip();
         Box::<[_]>::from([

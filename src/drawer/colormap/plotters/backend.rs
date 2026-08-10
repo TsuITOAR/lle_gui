@@ -251,7 +251,7 @@ impl DrawingBackend for EguiBackend<'_> {
 
         let color: Color32 = EguiBackendColor::from(color).into();
 
-        let stroke = Stroke::new(1.0, color);
+        let stroke = Stroke::new(1.0_f32, color);
 
         painter.line_segment([p0.into(), p1.into()], stroke);
 

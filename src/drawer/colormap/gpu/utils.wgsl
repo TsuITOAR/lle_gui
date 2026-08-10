@@ -1,7 +1,7 @@
 // True when `v` is finite (not NaN/Inf).
 fn is_finite_f32(v: f32) -> bool {
     // NaN fails self-equality; Inf exceeds finite f32 max magnitude.
-    return v == v && abs(v) <= 3.4028235e38;
+    return v == v && abs(v) <= 0x1.fffffep+127;
 }
 
 // Computes complex magnitude, optionally converted to dB.
